@@ -1,0 +1,32 @@
+/* ---------- Statistics ---------- */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stat {
+    padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.stat.wide { grid-column: 1 / -1; }
+.stat-label { font-size: 11px; color: var(--text-3); }
+.stat-value {
+    margin-top: 3px; font: 500 15px var(--mono); color: var(--text); font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+}
+.stat-row { display: flex; align-items: baseline; justify-content: space-between; }
+.stat-row .stat-value { margin: 0; font-size: 12px; }
+.stat.flash { animation: stat-flash 1.2s ease-out; }
+@keyframes stat-flash {
+    from { background: rgba(251, 191, 36, 0.22); border-color: rgba(251, 191, 36, 0.6); }
+}
+.meter { position: relative; height: 6px; margin-top: 10px; border-radius: 6px; background: var(--track); }
+.meter-fill {
+    height: 100%; width: 0; border-radius: inherit;
+    background: linear-gradient(90deg, #7c3aed, #c084fc 60%, #fbbf24);
+    background-size: 320px 100%; transition: width 0.35s var(--ease);
+}
+.meter-mark {
+    position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 2px;
+    background: var(--text); box-shadow: 0 0 0 2px var(--panel);
+}
+.meter-legend { position: relative; height: 14px; margin-top: 7px; font: 400 10.5px var(--mono); color: var(--text-3); }
+.meter-legend span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+
+.shortcuts { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 18px; font-size: 11px; color: var(--text-3); }
+.shortcuts kbd { background: var(--surface-hover); color: var(--text-2); border: 1px solid var(--border); margin-right: 4px; }

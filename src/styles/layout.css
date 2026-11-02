@@ -1,0 +1,5 @@
+/* ---------- Simulation canvas & error overlay ---------- */
+#sim-container { position: fixed; left: var(--panel-w); top: 0; right: 0; bottom: 0; }
+body.panel-hidden #sim-container { left: 0; }
+#sim-container canvas { display: block; }
+#error { position: fixed; left: calc(var(--panel-w) + 20px); top: 20px; color: #ff6b6b; font-family: var(--mono); white-space: pre-wrap; }

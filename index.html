@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Simulateur de particules GPGPU multi-espèces : gravité, supernovae, bloom HDR et nébuleuse.">
+    <title>Gravité &amp; Supernova</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<div id="ui-panel">
+    <header class="panel-header">
+        <div class="brand">
+            <div class="logo" aria-hidden="true"></div>
+            <div class="brand-text">
+                <h1>Gravité &amp; Supernova</h1>
+                <p class="subtitle"><span class="live-badge" id="fpsBadge" title="Images par seconde"><i></i><span id="fpsBadgeVal">–</span></span>
+                    <span class="sep">·</span>GPGPU multi-espèces</p>
+            </div>
+            <div class="brand-actions">
+                <button id="hidePanelBtn" class="icon-btn" title="Masquer le panneau (H)" aria-label="Masquer le panneau">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16M15.5 10l-2 2 2 2"/></svg></button>
+            </div>
+        </div>
+        <button id="startBtn" class="btn-primary" title="Redémarrer la simulation (R)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>
+            Redémarrer<kbd>R</kbd></button>
+    </header>
+
+    <div class="panel-scroll">
+        <!-- Sections: data-key persists the open state; data-summary is a template whose {id} are
+             replaced by the text of the element with that id (shown in the head while folded). -->
+        <section class="section" data-key="particles" data-default-open>
+            <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Particules
+                <span class="summary" data-summary="{countVal} · {typeCountVal} sortes"></span></h2>
+            <div class="section-body collapse"><div class="inner">
+                <label class="field">
+                    <span class="field-row">Nombre de particules <span id="countVal" class="value-display"></span></span>
+                    <input type="range" id="countSlider" min="1000" max="500000" step="1000" value="30000">
+                    <div id="countHint" class="hint pending"></div>
+                </label>
+                <label class="field">
+                    <span class="field-row">Nombre de sortes <span id="typeCountVal" class="value-display"></span></span>
+                    <input type="range" id="typeCountSlider" min="1" max="10" step="1" value="3">
+                    <div id="typeCountHint" class="hint pending"></div>
+                </label>
+                <div id="speciesPanel">
+                    <div class="card-tools">
+                        <button id="randomColorsBtn" class="btn" title="Couleurs aléatoires">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 1 9-9c0 2-1.6 3-3.2 3H15.5a1.9 1.9 0 0 0-1.4 3.2 1.7 1.7 0 0 1-1.3 2.8z"/><circle cx="7.5" cy="11" r="1.1" fill="currentColor"/><circle cx="10.5" cy="7" r="1.1" fill="currentColor"/><circle cx="15.5" cy="8" r="1.1" fill="currentColor"/></svg>Couleurs</button>
+                        <button id="randomMassesBtn" class="btn" title="Masses aléatoires (échelle 1/N … 1, légèrement décalée)">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5.5" r="2.5"/><path d="M7.2 9h9.6a1.5 1.5 0 0 1 1.45 1.1l2.2 8A1.5 1.5 0 0 1 19 20H5a1.5 1.5 0 0 1-1.45-1.9l2.2-8A1.5 1.5 0 0 1 7.2 9z"/></svg>Masses</button>
+                        <button id="toggleSpeciesBtn" class="btn icon-only" title="Tout déplier" aria-label="Tout déplier">
+                            <svg class="icon-expand" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg>
+                            <svg class="icon-collapse" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 20 5-5 5 5M7 4l5 5 5-5"/></svg></button>
+                    </div>
+                </div>
+                <div class="section-spacer"></div>
+            </div></div>
+        </section>
+
+        <section class="section" data-key="dynamics" data-default-open>
+            <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Dynamique
+                <span class="summary" data-summary="{speedVal}"></span></h2>
+            <div class="section-body collapse"><div class="inner">
+                <label class="field">
+                    <span class="field-row">Vitesse de simulation <span id="speedVal" class="value-display"></span></span>
+                    <input type="range" id="speedSlider" min="0.1" max="3" step="0.1" value="1">
+                </label>
+            </div></div>
+        </section>
+
+        <section class="section" data-key="supernova" data-default-open>
+            <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Supernova
+                <span class="summary" data-summary="{thresholdVal} · {radiusVal} · {powerVal}"></span></h2>
+            <div class="section-body collapse"><div class="inner">
+                <label class="field">
+                    <span class="field-row">Seuil <span id="thresholdVal" class="value-display"></span></span>
+                    <input type="range" id="thresholdSlider" min="0" max="100" step="1" value="60">
+                    <div class="hint">Part des particules dans la zone</div>
+                </label>
+                <label class="field">
+                    <span class="field-row">Rayon de concentration <span id="radiusVal" class="value-display"></span></span>
+                    <input type="range" id="radiusSlider" min="10" max="400" step="5" value="80">
+                    <div class="hint">Zone où l'on compte les particules</div>
+                </label>
+                <label class="field">
+                    <span class="field-row">Puissance <span id="powerVal" class="value-display"></span></span>
+                    <input type="range" id="powerSlider" min="5" max="100" step="5" value="70">
+                    <div class="hint">Vitesse d'éjection (100 % = max)</div>
+                </label>
+            </div></div>
+        </section>
+
+        <section class="section" data-key="effects">
+            <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Effets visuels</h2>
+            <div class="section-body collapse"><div class="inner">
+                <div class="card effect-card">
+                    <div class="card-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg><span class="card-name">Bloom</span>
+                        <span class="summary" data-summary="{bloomStrengthVal} · {bloomRadiusVal} · {bloomThresholdVal}"></span></div>
+                    <div class="card-body collapse"><div class="inner">
+                        <label class="field">
+                            <span class="field-row">Intensité <span id="bloomStrengthVal" class="value-display"></span></span>
+                            <input type="range" id="bloomStrengthSlider" min="0" max="3" step="0.05" value="0.35">
+                        </label>
+                        <label class="field">
+                            <span class="field-row">Rayon <span id="bloomRadiusVal" class="value-display"></span></span>
+                            <input type="range" id="bloomRadiusSlider" min="0" max="1" step="0.05" value="0.6">
+                        </label>
+                        <label class="field">
+                            <span class="field-row">Seuil <span id="bloomThresholdVal" class="value-display"></span></span>
+                            <input type="range" id="bloomThresholdSlider" min="0" max="1.5" step="0.01" value="0.3">
+                            <div class="hint">Luminosité à partir de laquelle ça brille</div>
+                        </label>
+                    </div></div>
+                </div>
+                <div class="card effect-card">
+                    <div class="card-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg><span class="card-name">Espace</span>
+                        <span class="summary" data-summary="{nebulaVal} · {lensVal}"></span></div>
+                    <div class="card-body collapse"><div class="inner">
+                        <label class="field">
+                            <span class="field-row">Nébuleuse <span id="nebulaVal" class="value-display"></span></span>
+                            <input type="range" id="nebulaSlider" min="0" max="3" step="0.05" value="1">
+                            <div class="hint">Gaz coloré autour des amas</div>
+                        </label>
+                        <label class="field">
+                            <span class="field-row">Lentille gravitationnelle <span id="lensVal" class="value-display"></span></span>
+                            <input type="range" id="lensSlider" min="0" max="3" step="0.05" value="0.05">
+                            <div class="hint">Les amas courbent l'image autour d'eux</div>
+                        </label>
+                    </div></div>
+                </div>
+                <div class="card effect-card">
+                    <div class="card-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg><span class="card-name">Particules</span>
+                        <span class="summary" data-summary="{heatVal} · {stretchVal}"></span></div>
+                    <div class="card-body collapse"><div class="inner">
+                        <label class="field">
+                            <span class="field-row">Couleur selon la vitesse <span id="heatVal" class="value-display"></span></span>
+                            <input type="range" id="heatSlider" min="0" max="2" step="0.05" value="0.25">
+                            <div class="hint">Les particules rapides chauffent vers le blanc</div>
+                        </label>
+                        <label class="field">
+                            <span class="field-row">Étirement <span id="stretchVal" class="value-display"></span></span>
+                            <input type="range" id="stretchSlider" min="0" max="3" step="0.1" value="1">
+                            <div class="hint">Flou de mouvement (1 = une frame)</div>
+                        </label>
+                    </div></div>
+                </div>
+                <div class="card effect-card">
+                    <div class="card-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg><span class="card-name">Image</span>
+                        <span class="summary" data-summary="{exposureVal}"></span></div>
+                    <div class="card-body collapse"><div class="inner">
+                        <label class="field">
+                            <span class="field-row">Exposition <span id="exposureVal" class="value-display"></span></span>
+                            <input type="range" id="exposureSlider" min="0.2" max="3" step="0.05" value="0.6">
+                        </label>
+                    </div></div>
+                </div>
+                <div class="section-spacer"></div>
+            </div></div>
+        </section>
+
+        <section class="section" data-key="stats" data-default-open>
+            <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Statistiques
+                <span class="summary" data-summary="{fpsVal} FPS"></span></h2>
+            <div class="section-body collapse"><div class="inner">
+                <div class="stat-grid">
+                    <div class="stat"><div class="stat-label">FPS</div><div class="stat-value" id="fpsVal">–</div></div>
+                    <div class="stat"><div class="stat-label">Particules actives</div><div class="stat-value" id="activeVal">–</div></div>
+                    <div class="stat"><div class="stat-label">Sortes actives</div><div class="stat-value" id="typesActiveVal">–</div></div>
+                    <div class="stat" id="supernovaStat"><div class="stat-label">Supernovae</div><div class="stat-value" id="supernovaVal">0</div></div>
+                    <div class="stat wide">
+                        <div class="stat-row"><span class="stat-label">Concentration max</span><span class="stat-value" id="clusterVal">–</span></div>
+                        <div class="meter" title="Le repère indique le seuil de supernova">
+                            <div class="meter-fill" id="clusterBar"></div>
+                            <div class="meter-mark" id="clusterMark"></div>
+                        </div>
+                        <div class="meter-legend"><span id="clusterMarkVal"></span></div>
+                    </div>
+                </div>
+                <div class="shortcuts">
+                    <span><kbd>R</kbd>redémarrer</span>
+                    <span><kbd>H</kbd>panneau</span>
+                    <span>double-clic : valeur par défaut</span>
+                </div>
+            </div></div>
+        </section>
+    </div>
+</div>
+<button id="showPanelBtn" class="icon-btn" title="Afficher le panneau (H)" aria-label="Afficher le panneau">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16M13.5 10l2 2-2 2"/></svg></button>
+<div id="sim-container"></div>
+<div id="error"></div>
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

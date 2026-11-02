@@ -1,0 +1,113 @@
+import * as THREE from 'three';
+import './styles/main.css';
+import { BASE_DT, FRAME_MS } from './config';
+import { NebulaLayer } from './render/nebulaLayer';
+import { ParticleLayer } from './render/particleLayer';
+import { PostProcessing } from './render/postprocessing';
+import { Simulation } from './simulation/Simulation';
+import { setupControls } from './ui/controls';
+import { byId, fail, flash } from './ui/dom';
+import { setupPanelCollapsibles } from './ui/panelState';
+import { setupShortcuts } from './ui/shortcuts';
+import { setupSliders, syncAllRanges } from './ui/sliders';
+import { SpeciesPanel } from './ui/speciesCards';
+import { Stats } from './ui/stats';
+import { createSummaries } from './ui/summaries';
+
+const container = byId('sim-container');
+const uiPanel = byId('ui-panel');
+const startBtn = byId('startBtn');
+
+// ---- Renderer ----
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+if (!renderer.extensions.has('EXT_color_buffer_float')) {
+    fail('WebGL2 EXT_color_buffer_float non supporté : impossible de rendre dans des textures flottantes.');
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 1);
+renderer.toneMapping = THREE.NeutralToneMapping; // applied by the OutputPass; keeps hues in bright cores
+container.appendChild(renderer.domElement);
+
+let width = container.clientWidth;
+let height = container.clientHeight;
+renderer.setSize(width, height);
+
+// ---- Simulation & rendering ----
+const stats = new Stats();
+let simulation: Simulation;
+try {
+    simulation = new Simulation(renderer, {
+        onSupernova: count => stats.supernova(count),
+        onConcentration: fraction => stats.concentration(fraction),
+    });
+} catch (err) {
+    fail(err instanceof Error ? err.message : String(err));
+}
+const particles = new ParticleLayer(simulation.geometry, simulation.speciesUniforms, simulation.screenSize,
+    renderer.getPixelRatio());
+const nebula = new NebulaLayer(renderer, simulation.geometry, simulation.speciesUniforms, simulation.screenSize,
+    particles.texturePosition);
+const post = new PostProcessing(renderer, particles.scene, nebula.target.texture, width, height);
+
+function resize(): void {
+    width = container.clientWidth;
+    height = container.clientHeight;
+    renderer.setSize(width, height);
+    simulation.resize(width, height);
+    post.resize(width, height, nebula.resize(width, height));
+}
+
+// ---- Panel ----
+setupPanelCollapsibles(uiPanel);
+const refreshSummaries = createSummaries(uiPanel);
+// Slider handlers sit on the sliders themselves, so they have run when the event bubbles here.
+uiPanel.addEventListener('input', refreshSummaries);
+setupSliders(uiPanel);
+
+const speciesPanel = new SpeciesPanel(byId('speciesPanel'), simulation.species,
+    byId<HTMLButtonElement>('toggleSpeciesBtn'),
+    () => { if (simulation.activeCount > 0) simulation.updateSpeciesUniforms(); });
+
+const controls = setupControls({ simulation, particles, post, renderer, speciesPanel, stats });
+
+function restart(): void {
+    simulation.reset(controls.selectedCount(), controls.selectedTypeCount());
+    particles.setParticleCount(simulation.activeCount);
+    stats.reset(simulation.activeCount, simulation.activeTypeCount);
+    controls.afterRestart();
+}
+
+function togglePanel(): void {
+    document.body.classList.toggle('panel-hidden');
+    resize();
+}
+
+startBtn.addEventListener('click', restart);
+byId('hidePanelBtn').addEventListener('click', togglePanel);
+byId('showPanelBtn').addEventListener('click', togglePanel);
+setupShortcuts({ restart: () => { restart(); flash(startBtn); }, togglePanel });
+window.addEventListener('resize', resize);
+syncAllRanges(uiPanel);
+
+// ---- Frame loop (60 FPS cap) ----
+let lastFrame = performance.now();
+
+function loop(now: number): void {
+    requestAnimationFrame(loop);
+    if (now - lastFrame < FRAME_MS - 1) return; // 1 ms tolerance for rAF jitter
+    lastFrame += FRAME_MS;
+    if (now - lastFrame > FRAME_MS) lastFrame = now;
+
+    simulation.step();
+    particles.update(simulation.positionTexture, simulation.velocityTexture, BASE_DT * simulation.timeScale);
+    nebula.render();
+    post.render(now / 1000);
+    simulation.endFrame();
+
+    if (stats.tick(now)) refreshSummaries();
+}
+
+resize();
+refreshSummaries();
+restart();
+requestAnimationFrame(loop);

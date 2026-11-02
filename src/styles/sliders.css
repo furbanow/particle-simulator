@@ -1,0 +1,55 @@
+/* ---------- Fields & sliders ---------- */
+.field { display: block; margin: 0 0 18px; }
+.field-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--text-2); }
+.value-display {
+    flex: none; min-width: 42px; padding: 2px 7px; text-align: center;
+    font: 500 11px var(--mono); color: var(--text); font-variant-numeric: tabular-nums;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+}
+.hint { margin-top: 3px; font-size: 11px; line-height: 1.45; color: var(--text-3); }
+.hint:empty { display: none; }
+.hint.pending { display: flex; align-items: center; gap: 6px; color: var(--warn); }
+.hint.pending::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.hint.pending:empty { display: none; }
+
+input[type=range] {
+    --range-color: var(--card-color, var(--accent));
+    --fill: calc(7px + (100% - 14px) * var(--p, 0.5));
+    -webkit-appearance: none; appearance: none; display: block;
+    width: 100%; height: 20px; margin: 6px 0 0; padding: 0; background: transparent; cursor: pointer;
+}
+input[type=range]:focus { outline: none; }
+input[type=range]::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 4px;
+    background: linear-gradient(to right, var(--range-color) var(--fill), var(--track) var(--fill));
+}
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-top: -5px;
+    border: 0; border-radius: 50%; background: #fff;
+    box-shadow: 0 0 0 0 transparent, 0 1px 4px rgba(0, 0, 0, 0.6);
+    transition: box-shadow 0.15s, transform 0.15s var(--ease);
+}
+input[type=range]:hover::-webkit-slider-thumb {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--range-color) 22%, transparent), 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+input[type=range]:active::-webkit-slider-thumb {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--range-color) 28%, transparent), 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+input[type=range]:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--range-color);
+}
+input[type=range]::-moz-range-track { height: 4px; border-radius: 4px; background: var(--track); }
+input[type=range]::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--range-color); }
+input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); transition: box-shadow 0.15s, transform 0.15s var(--ease);
+}
+input[type=range]:hover::-moz-range-thumb {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--range-color) 22%, transparent), 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+input[type=range]:active::-moz-range-thumb {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--range-color) 28%, transparent), 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--range-color); }

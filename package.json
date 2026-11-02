@@ -1,0 +1,25 @@
+{
+  "name": "particule-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Simulateur de particules GPGPU multi-espèces (gravité, supernovae, bloom HDR, nébuleuse) en Three.js / WebGL2.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --open",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --open",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.1.0",
+    "@fontsource/jetbrains-mono": "^5.1.0",
+    "three": "0.169.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.169.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  }
+}

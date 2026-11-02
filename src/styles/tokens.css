@@ -1,0 +1,21 @@
+:root {
+    --panel-w: 320px;
+    --panel: #0c0c10;
+    --surface: rgba(255, 255, 255, 0.028);
+    --surface-hover: rgba(255, 255, 255, 0.055);
+    --border: rgba(255, 255, 255, 0.07);
+    --border-strong: rgba(255, 255, 255, 0.13);
+    --text: #ececf1;
+    --text-2: #a3a3b0;
+    --text-3: #686875;
+    --accent: #a78bfa;
+    --accent-strong: #7c3aed;
+    --track: rgba(255, 255, 255, 0.09);
+    --warn: #fbbf24;
+    --ok: #4ade80;
+    --bad: #f87171;
+    --radius: 10px;
+    --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}

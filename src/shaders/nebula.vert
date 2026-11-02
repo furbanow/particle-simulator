@@ -1,0 +1,17 @@
+// Nebula splat: each particle drops (color x mass, mass) into one texel of a low-res target.
+// Defines: MAX_SPECIES.
+uniform sampler2D texturePosition;
+uniform vec2 screenSize;
+uniform float speciesSplatMass[MAX_SPECIES];
+uniform vec3 speciesColor[MAX_SPECIES];
+attribute vec2 reference;
+varying vec4 vValue;
+
+void main() {
+    vec4 posData = texture2D(texturePosition, reference);
+    int species = clamp(int(posData.z + 0.5), 0, MAX_SPECIES - 1);
+    float m = speciesSplatMass[species];
+    vValue = vec4(speciesColor[species] * m, m);
+    gl_Position = vec4(posData.xy / screenSize * 2.0 - 1.0, 0.0, 1.0);
+    gl_PointSize = 1.0;
+}
