@@ -66,6 +66,7 @@ export function setupControls({ simulation: sim, particles, post, renderer, spec
         sim.timeScale = parseFloat(speedSlider.value);
         speedVal.textContent = `${sim.timeScale.toFixed(1)}×`;
     });
+    bindSlider('gravity', v => `G = ${v.toFixed(1)}`, v => { sim.gravity = v; });
 
     // ---- Supernova ----
     thresholdSlider.addEventListener('input', () => {

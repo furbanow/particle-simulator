@@ -143,6 +143,15 @@ export class Simulation {
         return this.gpu.getCurrentRenderTarget(this.velVar).texture;
     }
 
+    /** Gravitational constant (K_GRAVITY by default), applied live by the velocity pass. */
+    get gravity(): number {
+        return this.velUniforms.kGravity.value;
+    }
+
+    set gravity(value: number) {
+        this.velUniforms.kGravity.value = value;
+    }
+
     /** Supernova ejection power, 0..100 % of SUPERNOVA_SPEED. */
     set supernovaPower(percent: number) {
         this.velUniforms.supernovaSpeed.value = SUPERNOVA_SPEED * percent / 100;
