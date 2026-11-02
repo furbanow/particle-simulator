@@ -1,3 +1,5 @@
 html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: var(--font); }
+/* Reveal the page hidden by the inline <style> in index.html; higher specificity wins whatever the order. */
+html body { opacity: 1; transition: opacity 0.25s ease; }
 * { box-sizing: border-box; }
 svg { flex: none; }
