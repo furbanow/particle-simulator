@@ -3,7 +3,7 @@
 Simulateur de particules GPGPU multi-espèces dans le navigateur (TypeScript, Three.js, WebGL2).
 
 - **Physique** : de 1 000 à 500 000 particules ; leurs positions et vitesses sont stockées dans des textures flottantes. La gravité est calculée sur un champ de densité *cloud-in-cell* mipmappé, avec pression et viscosité relative.
-- **Espèces** : de 1 à 10 sortes, chacune avec sa couleur, sa masse et sa taille, réglables en direct. Elles se stratifient selon leur densité.
+- **Éléments** : les 10 premiers éléments du tableau périodique (hydrogène → néon), avec leurs masses atomiques réelles (en u), des tailles proportionnelles aux rayons atomiques et les couleurs CPK. On peut en activer de 1 à 10 et régler couleur, masse et taille en direct. Ils se stratifient selon leur densité.
 - **Supernovae** : quand la zone la plus dense dépasse le seuil choisi, elle explose (éjection radiale) puis une onde de choc en 1/r balaie les autres amas.
 - **Rendu** : pipeline HDR demi-float, enchaînant nébuleuse colorée, lentille gravitationnelle à séparation chromatique, bloom, vignette, grain et tone mapping Khronos Neutral.
 

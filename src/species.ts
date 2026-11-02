@@ -1,28 +1,47 @@
-import { MASS_JITTER, MASS_RANGE, MASS_SLIDER_STEPS } from './config';
+import { MASS_JITTER, MASS_RANGE, MASS_SLIDER_STEPS, SIZE_RANGE } from './config';
 import { clamp, shuffle } from './util/math';
 
 /**
- * Mass is relative (only ratios matter: the total mass stays TOTAL_MASS); size is the rendered
- * diameter in CSS px. Density = mass / disc area.
+ * A species is a chemical element. Mass is the atomic mass in u (only ratios matter to the
+ * simulation: the total mass stays TOTAL_MASS); size is the rendered diameter in CSS px.
+ * Density = mass / disc area.
  */
 export interface Species {
+    name: string;
+    symbol: string;
     color: string;
     mass: number;
     size: number;
 }
 
-export const DEFAULT_SPECIES: readonly Species[] = [
-    { color: '#d8b4fe', mass: 1.0, size: 2.0 },   // reference
-    { color: '#67e8f9', mass: 3.0, size: 2.5 },   // heavy, dense: sinks to the core
-    { color: '#fdba74', mass: 0.4, size: 3.0 },   // light, airy: floats to the rim
-    { color: '#4ade80', mass: 2.0, size: 2.0 },   // dense
-    { color: '#f472b6', mass: 0.7, size: 2.0 },   // slightly light
-    { color: '#fde047', mass: 5.0, size: 3.0 },   // very heavy
-    { color: '#60a5fa', mass: 1.5, size: 4.0 },   // big, light density
-    { color: '#f87171', mass: 4.0, size: 1.5 },   // tiny and very dense: sinks hardest
-    { color: '#e5e7eb', mass: 0.2, size: 1.5 },   // dust: flies fastest on ejection
-    { color: '#a3e635', mass: 2.5, size: 5.0 },   // huge, airy
+interface Element {
+    name: string;
+    symbol: string;
+    atomicMass: number;     // u, IUPAC standard atomic weight (conventional value)
+    radius: number;         // pm, calculated atomic radius (Clementi et al., 1967)
+    color: string;          // CPK / Jmol color, lightened where too dark on black
+}
+
+/** The first ten elements of the periodic table, in order. */
+export const ELEMENTS: readonly Element[] = [
+    { name: 'Hydrogène', symbol: 'H',  atomicMass: 1.008,  radius: 53,  color: '#ffffff' },
+    { name: 'Hélium',    symbol: 'He', atomicMass: 4.0026, radius: 31,  color: '#d9ffff' },
+    { name: 'Lithium',   symbol: 'Li', atomicMass: 6.94,   radius: 167, color: '#cc80ff' },
+    { name: 'Béryllium', symbol: 'Be', atomicMass: 9.0122, radius: 112, color: '#c2ff00' },
+    { name: 'Bore',      symbol: 'B',  atomicMass: 10.81,  radius: 87,  color: '#ffb5b5' },
+    { name: 'Carbone',   symbol: 'C',  atomicMass: 12.011, radius: 67,  color: '#a8a8a8' },
+    { name: 'Azote',     symbol: 'N',  atomicMass: 14.007, radius: 56,  color: '#6b8bff' },
+    { name: 'Oxygène',   symbol: 'O',  atomicMass: 15.999, radius: 48,  color: '#ff5c5c' },
+    { name: 'Fluor',     symbol: 'F',  atomicMass: 18.998, radius: 42,  color: '#90e050' },
+    { name: 'Néon',      symbol: 'Ne', atomicMass: 20.180, radius: 38,  color: '#b3e3f5' },
 ];
+
+// Rendered diameters are proportional to the atomic radii, the largest atom filling the slider.
+const MAX_RADIUS = Math.max(...ELEMENTS.map(e => e.radius));
+
+export const DEFAULT_SPECIES: readonly Species[] = ELEMENTS.map(({ name, symbol, atomicMass, radius, color }) => ({
+    name, symbol, color, mass: atomicMass, size: radius / MAX_RADIUS * SIZE_RANGE[1],
+}));
 
 export const createSpecies = (): Species[] => DEFAULT_SPECIES.map(s => ({ ...s }));
 
@@ -41,7 +60,8 @@ export function sliderToMass(pos: number): number {
 export const massToSlider = (m: number): number =>
     Math.round(Math.log(m / MASS_RANGE[0]) / MASS_LOG_SPAN * MASS_SLIDER_STEPS);
 
-export const formatMass = (m: number): string => m.toFixed(m < 1 ? 2 : m < 10 ? 1 : 0);
+/** Four significant digits without trailing zeros, like standard atomic weights (4.003, 20.18). */
+export const formatMass = (m: number): string => String(Number(m.toPrecision(4)));
 
 // ---- Randomization ----
 

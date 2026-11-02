@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MASS_SLIDER_STEPS } from '../config';
+import { MASS_SLIDER_STEPS, SIZE_RANGE, SIZE_STEP } from '../config';
 import {
     formatMass, massToSlider, randomSpeciesHsl, randomSpeciesMasses, sliderToMass, speciesDensity,
     type Species,
@@ -24,7 +24,7 @@ export class SpeciesPanel {
 
     constructor(private readonly container: HTMLElement, species: Species[],
                 private readonly toggleBtn: HTMLButtonElement, onChange: () => void) {
-        this.cards = species.map((s, k) => this.buildCard(s, k, onChange));
+        this.cards = species.map(s => this.buildCard(s, onChange));
         toggleBtn.addEventListener('click', () => {
             const open = !toggleBtn.classList.contains('expanded');
             this.cards.forEach(c => c.el.classList.toggle('open', open));
@@ -68,39 +68,42 @@ export class SpeciesPanel {
         this.toggleBtn.setAttribute('aria-label', label);
     }
 
-    private buildCard(s: Species, k: number, onChange: () => void): SpeciesCard {
+    private buildCard(s: Species, onChange: () => void): SpeciesCard {
         const el = document.createElement('div');
         el.className = 'card';
         el.innerHTML = `
             <div class="card-head">
                 ${CHEVRON}
                 <input type="color" value="${s.color}" title="Couleur">
-                <span class="card-name">Sorte ${k + 1}</span>
+                <span class="card-name">${s.name} <span class="card-symbol">${s.symbol}</span></span>
                 <span class="summary">
-                    <span title="Masse" data-out="sumMass"></span>
+                    <span title="Masse atomique (u)" data-out="sumMass"></span>
                     <span title="Taille (px)" data-out="sumSize"></span>
                     <span title="Densité" data-out="sumDensity"></span>
                 </span>
             </div>
             <div class="card-body collapse"><div class="inner">
                 <label class="field">
-                    <span class="field-row">Masse <span class="value-display" data-out="mass"></span></span>
+                    <span class="field-row">Masse atomique <span class="value-display" data-out="mass"></span></span>
                     <input type="range" data-in="mass" min="0" max="${MASS_SLIDER_STEPS}" step="1" value="${massToSlider(s.mass)}"></label>
                 <label class="field">
                     <span class="field-row">Taille <span class="value-display" data-out="size"></span></span>
-                    <input type="range" data-in="size" min="1" max="6" step="0.5" value="${s.size}"></label>
+                    <input type="range" data-in="size" min="${SIZE_RANGE[0]}" max="${SIZE_RANGE[1]}" step="${SIZE_STEP}" value="${s.size}"></label>
             </div></div>`;
         const colorInput = el.querySelector<HTMLInputElement>('input[type=color]')!;
         const massInput = el.querySelector<HTMLInputElement>('[data-in=mass]')!;
         const sizeInput = el.querySelector<HTMLInputElement>('[data-in=size]')!;
         const out = (name: string) => el.querySelector<HTMLElement>(`[data-out=${name}]`)!;
 
-        const refresh = () => {
-            s.color = colorInput.value;
-            s.mass = sliderToMass(parseFloat(massInput.value));
-            s.size = parseFloat(sizeInput.value);
+        // Each input only writes its own field, so the exact default values (atomic masses,
+        // sizes from atomic radii) survive until the user moves that slider.
+        colorInput.addEventListener('input', () => { s.color = colorInput.value; refresh(); });
+        massInput.addEventListener('input', () => { s.mass = sliderToMass(parseFloat(massInput.value)); refresh(); });
+        sizeInput.addEventListener('input', () => { s.size = parseFloat(sizeInput.value); refresh(); });
+
+        function refresh(): void {
             el.style.setProperty('--card-color', s.color);
-            out('mass').textContent = formatMass(s.mass);
+            out('mass').textContent = `${formatMass(s.mass)} u`;
             out('size').textContent = `${s.size.toFixed(1)} px`;
             out('sumMass').textContent = `m${formatMass(s.mass)}`;
             out('sumSize').textContent = `⌀${s.size.toFixed(1)}`;
@@ -108,15 +111,14 @@ export class SpeciesPanel {
             syncRange(massInput);
             syncRange(sizeInput);
             onChange();
-        };
-        for (const input of [colorInput, massInput, sizeInput]) input.addEventListener('input', refresh);
+        }
         makeCollapsible(el, el.querySelector<HTMLElement>('.card-head')!, () => this.updateToggleLabel());
         refresh();
         this.container.appendChild(el);
         return {
             el,
-            setColor: hex => { colorInput.value = hex; refresh(); },
-            setMass: m => { massInput.value = String(massToSlider(m)); refresh(); },
+            setColor: hex => { colorInput.value = s.color = hex; refresh(); },
+            setMass: m => { s.mass = m; massInput.value = String(massToSlider(m)); refresh(); },
         };
     }
 }

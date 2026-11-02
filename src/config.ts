@@ -52,6 +52,9 @@ export const MASS_RANGE: Range = [0.05, 100];
 // each rung nudged by up to +/- MASS_JITTER of a rung step, so the order of the ladder holds.
 export const MASS_JITTER = 0.35;
 export const MASS_SLIDER_STEPS = 1000;
+// Rendered diameter range (CSS px) of the size slider; default sizes scale atomic radii into it.
+export const SIZE_RANGE: Range = [1, 6];
+export const SIZE_STEP = 0.1;
 
 // ---- Visuals ----
 export const NEBULA_DOWNSCALE = 4;                 // nebula target = canvas CSS size / 4

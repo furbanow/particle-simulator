@@ -34,7 +34,7 @@
              replaced by the text of the element with that id (shown in the head while folded). -->
         <section class="section" data-key="particles" data-default-open>
             <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Particules
-                <span class="summary" data-summary="{countVal} · {typeCountVal} sortes"></span></h2>
+                <span class="summary" data-summary="{countVal} · {typeCountVal} éléments"></span></h2>
             <div class="section-body collapse"><div class="inner">
                 <label class="field">
                     <span class="field-row">Nombre de particules <span id="countVal" class="value-display"></span></span>
@@ -42,8 +42,8 @@
                     <div id="countHint" class="hint pending"></div>
                 </label>
                 <label class="field">
-                    <span class="field-row">Nombre de sortes <span id="typeCountVal" class="value-display"></span></span>
-                    <input type="range" id="typeCountSlider" min="1" max="10" step="1" value="3">
+                    <span class="field-row">Nombre d'éléments <span id="typeCountVal" class="value-display"></span></span>
+                    <input type="range" id="typeCountSlider" min="1" max="10" step="1" value="10">
                     <div id="typeCountHint" class="hint pending"></div>
                 </label>
                 <div id="speciesPanel">
@@ -173,7 +173,7 @@
                 <div class="stat-grid">
                     <div class="stat"><div class="stat-label">FPS</div><div class="stat-value" id="fpsVal">–</div></div>
                     <div class="stat"><div class="stat-label">Particules actives</div><div class="stat-value" id="activeVal">–</div></div>
-                    <div class="stat"><div class="stat-label">Sortes actives</div><div class="stat-value" id="typesActiveVal">–</div></div>
+                    <div class="stat"><div class="stat-label">Éléments actifs</div><div class="stat-value" id="typesActiveVal">–</div></div>
                     <div class="stat" id="supernovaStat"><div class="stat-label">Supernovae</div><div class="stat-value" id="supernovaVal">0</div></div>
                     <div class="stat wide">
                         <div class="stat-row"><span class="stat-label">Concentration max</span><span class="stat-value" id="clusterVal">–</span></div>

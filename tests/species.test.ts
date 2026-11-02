@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MASS_RANGE, MASS_SLIDER_STEPS } from '../src/config';
+import { MASS_RANGE, MASS_SLIDER_STEPS, SIZE_RANGE } from '../src/config';
 import {
     DEFAULT_SPECIES, formatMass, massToSlider, randomSpeciesHsl, randomSpeciesMasses, sliderToMass, speciesDensity,
 } from '../src/species';
@@ -10,9 +10,10 @@ describe('mass slider (logarithmic)', () => {
         expect(sliderToMass(MASS_SLIDER_STEPS)).toBe(MASS_RANGE[1]);
     });
 
-    it('round-trips the default species masses', () => {
+    it('round-trips the default species masses to within one rounding step', () => {
         for (const { mass } of DEFAULT_SPECIES) {
-            expect(sliderToMass(massToSlider(mass))).toBeCloseTo(mass, 2);
+            const step = mass < 1 ? 0.01 : mass < 10 ? 0.1 : 1;
+            expect(Math.abs(sliderToMass(massToSlider(mass)) - mass)).toBeLessThanOrEqual(step);
         }
     });
 
@@ -24,16 +25,47 @@ describe('mass slider (logarithmic)', () => {
         }
     });
 
-    it('formats with the matching precision', () => {
-        expect(formatMass(0.4)).toBe('0.40');
+    it('formats with four significant digits and no trailing zeros', () => {
+        expect(formatMass(1.008)).toBe('1.008');
+        expect(formatMass(4.0026)).toBe('4.003');
+        expect(formatMass(20.18)).toBe('20.18');
+        expect(formatMass(0.4)).toBe('0.4');
         expect(formatMass(2.5)).toBe('2.5');
         expect(formatMass(42)).toBe('42');
     });
 });
 
+describe('default species: the first ten elements', () => {
+    it('are hydrogen to neon, in order', () => {
+        expect(DEFAULT_SPECIES.map(s => s.symbol)).toEqual(['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne']);
+        expect(DEFAULT_SPECIES[0].name).toBe('Hydrogène');
+        expect(DEFAULT_SPECIES[9].name).toBe('Néon');
+    });
+
+    it('use the standard atomic masses in u', () => {
+        expect(DEFAULT_SPECIES[0].mass).toBe(1.008);
+        expect(DEFAULT_SPECIES[9].mass).toBe(20.180);
+        DEFAULT_SPECIES.slice(1).forEach((s, i) => expect(s.mass).toBeGreaterThan(DEFAULT_SPECIES[i].mass));
+        for (const { mass } of DEFAULT_SPECIES) {
+            expect(mass).toBeGreaterThanOrEqual(MASS_RANGE[0]);
+            expect(mass).toBeLessThanOrEqual(MASS_RANGE[1]);
+        }
+    });
+
+    it('have sizes proportional to the atomic radii, inside the slider range', () => {
+        const [h, he, li] = DEFAULT_SPECIES;
+        expect(li.size).toBe(SIZE_RANGE[1]);                 // lithium is the largest atom
+        expect(h.size / he.size).toBeCloseTo(53 / 31);
+        for (const { size } of DEFAULT_SPECIES) {
+            expect(size).toBeGreaterThanOrEqual(SIZE_RANGE[0]);
+            expect(size).toBeLessThanOrEqual(SIZE_RANGE[1]);
+        }
+    });
+});
+
 describe('species', () => {
     it('density is mass over disc area', () => {
-        expect(speciesDensity({ color: '#fff', mass: Math.PI, size: 2 })).toBeCloseTo(1);
+        expect(speciesDensity({ name: 'Test', symbol: 'T', color: '#fff', mass: Math.PI, size: 2 })).toBeCloseTo(1);
     });
 
     it('random masses keep the shuffled ladder order for visible species', () => {

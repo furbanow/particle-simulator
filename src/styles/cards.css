@@ -14,6 +14,7 @@
     font-size: 12.5px; cursor: pointer; user-select: none;
 }
 .card-name { font-weight: 500; color: var(--text); white-space: nowrap; }
+.card-symbol { margin-left: 3px; font-family: var(--mono); font-size: 10.5px; font-weight: 400; color: var(--text-3); }
 .card-head .summary { display: flex; gap: 9px; }
 .card-body > .inner { padding: 2px 22px; }
 .card-body .inner > :first-child { margin-top: 4px; }
