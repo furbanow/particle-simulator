@@ -1,7 +1,7 @@
 import { DELETE_CONFIRM_MS, MAX_SPECIES } from '../config';
 import type { ElementConfig, ElementConfigStore, ElementSetup } from '../elementConfigs';
 import { ELEMENT_METRICS, METRIC_GROUPS, type ElementMetric } from '../elementMetrics';
-import { populationShares, splitPopulation } from '../population';
+import { splitPopulation } from '../population';
 import type { Simulation } from '../simulation/Simulation';
 import { byId } from './dom';
 import { ElementChart } from './elementChart';
@@ -27,7 +27,7 @@ const READ_ONLY_SAVE_TITLE = 'La configuration par défaut ne peut pas être mod
 /**
  * Top bar dedicated to the particle elements: saved configs (load, new, duplicate, rename,
  * delete, save), element count, a chart of one property at a time (population, atomic mass,
- * size, color) and the editor of the selected element. Colors, masses and sizes apply live;
+ * size, color) and a compact editor of the selected element (color, name, density). Colors, masses and sizes apply live;
  * the element count and the population on restart.
  */
 export class ElementBar {
@@ -58,7 +58,7 @@ export class ElementBar {
         };
         this.chart = new ElementChart(byId('elementChart'), [byId('populationBand'), byId('miniBand')],
             simulation.species, { onChange: m => liveChange(m.live), onSelect: k => this.select(k) });
-        this.editor = new ElementEditor(byId('elementEditor'), simulation.species, k => this.shareOf(k), liveChange);
+        this.editor = new ElementEditor(byId('elementEditor'), simulation.species, liveChange);
 
         this.typeCountSlider.max = String(MAX_SPECIES);
         this.typeCountSlider.addEventListener('input', () => this.refresh());
@@ -77,12 +77,6 @@ export class ElementBar {
     /** Refreshes the pending state after a restart. */
     afterRestart(): void {
         this.refresh();
-    }
-
-    /** Population share of species k at the next restart (null when it won't be used). */
-    private shareOf(k: number): number | null {
-        const count = this.selectedTypeCount();
-        return k < count ? populationShares(this.sim.species.map(s => s.weight), count)[k] : null;
     }
 
     /** The state being edited, in the shape stored in configs. */

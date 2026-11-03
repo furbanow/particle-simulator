@@ -1,7 +1,8 @@
 /* ---------- Element bar (top of the page) ---------- */
 #element-bar {
     position: fixed; top: 0; left: var(--panel-w); right: 0; z-index: 9;
-    background: var(--panel); border-bottom: 1px solid var(--border);
+    /* Floats over the simulation: very slightly transparent, so the animation shows through. */
+    background: color-mix(in srgb, var(--panel) 92%, transparent); border-bottom: 1px solid var(--border);
     color: var(--text); font-size: 13px; line-height: 1.4; color-scheme: dark;
     -webkit-font-smoothing: antialiased;
 }
@@ -57,9 +58,8 @@ body.panel-hidden #element-bar { left: 0; }
 .ebar-card-head .hint { margin-top: 0; }
 .ebar-tools { display: flex; gap: 6px; margin-left: auto; }
 
-.editor-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.editor-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 #element-bar .editor-name { flex: 1; min-width: 0; }
-#element-bar .editor-symbol { width: 56px; text-align: center; font-family: var(--mono); }
 .editor-head input[type=color] {
     -webkit-appearance: none; appearance: none; flex: none; width: 18px; height: 18px; margin: 0 4px; padding: 0;
     border: 0; border-radius: 50%; background: none; cursor: pointer;
@@ -70,18 +70,6 @@ body.panel-hidden #element-bar { left: 0; }
 .editor-head input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
 .editor-head input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
 .editor-head input[type=color]::-moz-color-swatch { border: 0; border-radius: 50%; }
-.element-editor .field { margin-bottom: 8px; }
-.element-editor input[type=range] { margin-top: 2px; }
-/* Color channel sliders: the track shows the color at every position instead of a filled part. */
-input[type=range].gradient::-webkit-slider-runnable-track { background: var(--track-gradient); }
-input[type=range].gradient::-moz-range-track { background: var(--track-gradient); }
-input[type=range].gradient::-moz-range-progress { background: transparent; }
-/* Grouped channels (color): one compact row each, name / slider / value. */
-.channel-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) 44px; align-items: center; gap: 0 10px; margin-top: 2px; }
-.channel-grid label { display: contents; }
-.channel-name { font-size: 11.5px; color: var(--text-3); }
-.channel-value { font: 500 10.5px var(--mono); color: var(--text-2); text-align: right; font-variant-numeric: tabular-nums; }
-.channel-grid input[type=range] { margin: 0; }
 .editor-readout { font-size: 11.5px; color: var(--text-3); }
 .editor-readout span { margin-left: 4px; font-family: var(--mono); color: var(--text-2); font-variant-numeric: tabular-nums; }
 

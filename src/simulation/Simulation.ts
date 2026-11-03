@@ -238,8 +238,9 @@ export class Simulation {
         }
     }
 
-    /** Advances one rendered frame (substeps keep large time scales stable). */
+    /** Advances one rendered frame (substeps keep large time scales stable). Frozen at time scale 0. */
     step(): void {
+        if (this.timeScale <= 0) return;
         const steps = Math.max(1, Math.ceil(this.timeScale - 1e-6));
         const dt = BASE_DT * this.timeScale / steps;
         this.velUniforms.dt.value = dt;

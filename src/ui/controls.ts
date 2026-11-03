@@ -26,6 +26,7 @@ export function setupControls({ simulation: sim, particles, post, renderer, stat
     const countHint = byId('countHint');
     const speedSlider = byId<HTMLInputElement>('speedSlider');
     const speedVal = byId('speedVal');
+    const speedDock = byId('speedDock');
     const thresholdSlider = byId<HTMLInputElement>('thresholdSlider');
     const thresholdVal = byId('thresholdVal');
     const radiusSlider = byId<HTMLInputElement>('radiusSlider');
@@ -46,10 +47,16 @@ export function setupControls({ simulation: sim, particles, post, renderer, stat
     });
 
     // ---- Dynamics ----
-    speedSlider.addEventListener('input', () => {
+    const paintSpeed = () => {
         sim.timeScale = parseFloat(speedSlider.value);
-        speedVal.textContent = `${sim.timeScale.toFixed(1)}×`;
-    });
+        speedVal.textContent = sim.timeScale > 0 ? `${sim.timeScale.toFixed(1)}×` : 'Pause';
+        // Position of the slider in 0..1, read by the gauge needle.
+        const min = parseFloat(speedSlider.min);
+        const max = parseFloat(speedSlider.max);
+        speedDock.style.setProperty('--p', String((sim.timeScale - min) / (max - min)));
+    };
+    speedSlider.addEventListener('input', paintSpeed);
+    paintSpeed();
     bindSlider('gravity', v => `G = ${v.toFixed(1)}`, v => { sim.gravity = v; });
 
     // ---- Supernova ----

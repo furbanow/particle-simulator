@@ -27,6 +27,23 @@
         <button id="startBtn" class="btn-primary" title="Redémarrer la simulation (R)">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>
             Redémarrer<kbd>R</kbd></button>
+        <div id="speedDock" class="speed-dock">
+            <div class="speed-head">
+                <svg class="speed-gauge" viewBox="0 0 24 24" aria-hidden="true">
+                    <path class="speed-arc" d="M4.5 16a7.5 7.5 0 1 1 15 0"/>
+                    <path class="speed-needle" d="M12 16V9.5"/>
+                    <circle cx="12" cy="16" r="1.6"/></svg>
+                <label for="speedSlider" class="speed-label">Vitesse de simulation</label>
+                <span id="speedVal" class="speed-value">1.0×</span>
+            </div>
+            <input type="range" id="speedSlider" min="0" max="3" step="0.1" value="1" aria-label="Vitesse de simulation">
+            <div class="speed-ticks" aria-hidden="true">
+                <span style="--at: 0">Pause</span>
+                <span style="--at: 1">1×</span>
+                <span style="--at: 2">2×</span>
+                <span style="--at: 3">3×</span>
+            </div>
+        </div>
     </header>
 
     <div class="panel-scroll">
@@ -47,12 +64,8 @@
 
         <section class="section" data-key="dynamics" data-default-open>
             <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Dynamique
-                <span class="summary" data-summary="{speedVal} · {gravityVal}"></span></h2>
+                <span class="summary" data-summary="{gravityVal}"></span></h2>
             <div class="section-body collapse"><div class="inner">
-                <label class="field">
-                    <span class="field-row">Vitesse de simulation <span id="speedVal" class="value-display"></span></span>
-                    <input type="range" id="speedSlider" min="0.1" max="3" step="0.1" value="1">
-                </label>
                 <label class="field">
                     <span class="field-row">Constante de gravité <span id="gravityVal" class="value-display"></span></span>
                     <input type="range" id="gravitySlider" min="0" max="15" step="0.1" value="3">

@@ -1,0 +1,56 @@
+/* ---------- Speed dock: simulation speed under the restart button (pinned in the panel header) ---------- */
+.speed-dock {
+    --p: 0.31;
+    margin-top: 12px; padding: 10px 12px 9px; border-radius: var(--radius);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01));
+    border: 1px solid var(--border);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.speed-head { display: flex; align-items: center; gap: 8px; }
+
+.speed-gauge { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--accent); stroke-width: 1.7; stroke-linecap: round; }
+.speed-gauge .speed-arc { opacity: 0.45; }
+.speed-gauge circle { fill: var(--accent); stroke: none; }
+.speed-needle {
+    transform-box: view-box; transform-origin: 12px 16px;
+    transform: rotate(calc(-80deg + var(--p) * 160deg));
+    transition: transform 0.25s var(--ease);
+    filter: drop-shadow(0 0 3px rgba(167, 139, 250, 0.7));
+}
+
+.speed-label { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text-2); cursor: default; }
+.speed-value {
+    flex: none; min-width: 48px; padding: 2px 7px; text-align: center;
+    font: 500 11px var(--mono); color: #fff; font-variant-numeric: tabular-nums;
+    background: linear-gradient(180deg, #9b6dff 0%, #7c3aed 100%); border-radius: 6px;
+    box-shadow: 0 4px 14px -6px rgba(124, 58, 237, 0.9);
+}
+
+/* The slider track is a glowing gradient up to the thumb, with notches at the reference speeds. */
+.speed-dock input[type=range] { --range-color: #a78bfa; height: 22px; margin: 4px 0 0; }
+.speed-dock input[type=range]::-webkit-slider-runnable-track {
+    height: 6px; border-radius: 6px;
+    background:
+        linear-gradient(to right, #7c3aed, #c4b5fd var(--fill)) 0 0 / var(--fill) 100% no-repeat,
+        var(--track);
+    box-shadow: inset 0 0 0 1px var(--border);
+}
+.speed-dock input[type=range]::-webkit-slider-thumb {
+    width: 16px; height: 16px; margin-top: -5px;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25), 0 0 12px rgba(167, 139, 250, 0.6), 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+.speed-dock input[type=range]::-moz-range-track { height: 6px; border-radius: 6px; background: var(--track); box-shadow: inset 0 0 0 1px var(--border); }
+.speed-dock input[type=range]::-moz-range-progress { height: 6px; border-radius: 6px; background: linear-gradient(to right, #7c3aed, #c4b5fd); }
+.speed-dock input[type=range]::-moz-range-thumb {
+    width: 16px; height: 16px; box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25), 0 0 12px rgba(167, 139, 250, 0.6);
+}
+
+/* Ticks sit under the same positions as the thumb (same 7px inset as the slider track). Range 0..3. */
+.speed-ticks { position: relative; height: 14px; margin-top: 2px; font: 500 9.5px var(--mono); color: var(--text-3); }
+.speed-ticks span {
+    position: absolute; left: calc(7px + (100% - 14px) * (var(--at) / 3));
+    transform: translateX(-50%); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.speed-ticks span::before {
+    content: ''; position: absolute; left: 50%; top: -6px; width: 1px; height: 4px; background: var(--border-strong);
+}

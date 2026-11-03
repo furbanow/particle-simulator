@@ -97,22 +97,21 @@ byId('hidePanelBtn').addEventListener('click', togglePanel);
 byId('showPanelBtn').addEventListener('click', togglePanel);
 setupShortcuts({ restart: () => { restart(); flash(startBtn); }, togglePanel });
 window.addEventListener('resize', resize);
-// The canvas starts below the element bar, whose height depends on its content and fold state.
-// Set synchronously once so the first restart already sees the final canvas size.
+// The canvas fills the whole area behind the element bar, which floats above it: folding or
+// unfolding the bar never resizes the simulation. Only the error overlay follows the bar's height.
 function syncTopbarHeight(): void {
     document.documentElement.style.setProperty('--topbar-h', `${elementBarEl.offsetHeight}px`);
 }
 syncTopbarHeight();
-new ResizeObserver(() => {
-    const before = container.clientHeight;
-    syncTopbarHeight();
-    if (container.clientHeight !== before) resize();
-}).observe(elementBarEl);
+new ResizeObserver(syncTopbarHeight).observe(elementBarEl);
 syncAllRanges(uiPanel);
 syncAllRanges(elementBarEl);
 
 // ---- Frame loop (60 FPS cap) ----
 let lastFrame = performance.now();
+// Clock of the background (nebula, grain): it stops while the simulation is paused (speed 0).
+let visualTime = 0;
+let lastVisualNow = lastFrame;
 
 function loop(now: number): void {
     requestAnimationFrame(loop);
@@ -123,7 +122,9 @@ function loop(now: number): void {
     simulation.step();
     particles.update(simulation.positionTexture, simulation.velocityTexture, BASE_DT * simulation.timeScale);
     nebula.render();
-    post.render(now / 1000);
+    if (simulation.timeScale > 0) visualTime += (now - lastVisualNow) / 1000;
+    lastVisualNow = now;
+    post.render(visualTime);
     simulation.endFrame();
 
     if (stats.tick(now)) refreshSummaries();
