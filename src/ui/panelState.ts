@@ -19,9 +19,17 @@ export function makeCollapsible(el: HTMLElement, head: HTMLElement, onToggle?: (
     });
 }
 
+/** Remembered open state of `key`, or `defaultOpen` the first time. */
+export const rememberedOpen = (key: string, defaultOpen: boolean): boolean => panelState[key] ?? defaultOpen;
+
+export function rememberOpen(key: string, open: boolean): void {
+    panelState[key] = open;
+    savePanelState();
+}
+
 function setupPersistentCollapsible(el: HTMLElement, head: HTMLElement, key: string, defaultOpen: boolean): void {
-    el.classList.toggle('open', panelState[key] ?? defaultOpen);
-    makeCollapsible(el, head, open => { panelState[key] = open; savePanelState(); });
+    el.classList.toggle('open', rememberedOpen(key, defaultOpen));
+    makeCollapsible(el, head, open => rememberOpen(key, open));
 }
 
 /** Sections (`.section[data-key]`) and effect groups (`.effect-card`) of the panel. */

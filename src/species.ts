@@ -1,10 +1,12 @@
-import { MASS_JITTER, MASS_RANGE, MASS_SLIDER_STEPS, SIZE_RANGE } from './config';
-import { clamp, shuffle } from './util/math';
+import { DEFAULT_POPULATION_WEIGHT, MASS_JITTER, MASS_RANGE, MASS_SLIDER_STEPS, SIZE_RANGE, SIZE_STEP } from './config';
+import type { Hsl } from './util/color';
+import { clamp, shuffle, snap } from './util/math';
 
 /**
  * A species is a chemical element. Mass is the atomic mass in u (only ratios matter to the
  * simulation: the total mass stays TOTAL_MASS); size is the rendered diameter in CSS px.
- * Density = mass / disc area.
+ * Density = mass / disc area. Weight is the population weight: particles are split between the
+ * species pro rata of their weights.
  */
 export interface Species {
     name: string;
@@ -12,6 +14,7 @@ export interface Species {
     color: string;
     mass: number;
     size: number;
+    weight: number;
 }
 
 interface Element {
@@ -41,6 +44,7 @@ const MAX_RADIUS = Math.max(...ELEMENTS.map(e => e.radius));
 
 export const DEFAULT_SPECIES: readonly Species[] = ELEMENTS.map(({ name, symbol, atomicMass, radius, color }) => ({
     name, symbol, color, mass: atomicMass, size: radius / MAX_RADIUS * SIZE_RANGE[1],
+    weight: DEFAULT_POPULATION_WEIGHT,
 }));
 
 export const createSpecies = (): Species[] => DEFAULT_SPECIES.map(s => ({ ...s }));
@@ -64,8 +68,6 @@ export const massToSlider = (m: number): number =>
 export const formatMass = (m: number): string => String(Number(m.toPrecision(4)));
 
 // ---- Randomization ----
-
-export interface Hsl { h: number; s: number; l: number; }
 
 /**
  * Hues evenly spread over the visible species (random start + small jitter), the rest follow
@@ -99,4 +101,10 @@ export function randomSpeciesMasses(count: number, visible: number, random: () =
         const jitter = (random() * 2 - 1) * MASS_JITTER * rungStep;
         return clamp(base + jitter, MASS_RANGE);
     });
+}
+
+/** Random sizes anywhere in SIZE_RANGE, on the size slider steps. */
+export function randomSpeciesSizes(count: number, random: () => number = Math.random): number[] {
+    const [lo, hi] = SIZE_RANGE;
+    return Array.from({ length: count }, () => snap(lo + random() * (hi - lo), SIZE_STEP, SIZE_RANGE));
 }

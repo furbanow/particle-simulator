@@ -8,6 +8,7 @@ import {
 } from '../config';
 import { hexToVector, type Uniform } from '../gl/common';
 import { withDefines } from '../gl/withDefines';
+import { splitPopulation } from '../population';
 import { createSpecies, speciesDensity, type Species } from '../species';
 import { clamp } from '../util/math';
 import { ClusterProbe } from './clusterProbe';
@@ -164,11 +165,15 @@ export class Simulation {
         this.density.resize(width, height);
     }
 
-    /** Restarts with `count` particles in a donut, split evenly between `typeCount` species. */
+    /**
+     * Restarts with `count` particles in a donut, split between the first `typeCount` species
+     * pro rata of their population weights.
+     */
     reset(count: number, typeCount: number): void {
         this.activeCount = count;
         this.activeTypeCount = typeCount;
-        this.speciesCounts.fill(0);
+        const counts = splitPopulation(count, this.species.map(s => s.weight), typeCount);
+        counts.forEach((n, k) => { this.speciesCounts[k] = n; });
         this.generation++;
         this.frameCounter = 0;
         this.cooldown = 0;
@@ -186,15 +191,17 @@ export class Simulation {
         const m = Math.min(this.width, this.height);
         const rIn2 = (DONUT_INNER * m) ** 2;
         const rOut2 = (DONUT_OUTER * m) ** 2;
+        // Species fill contiguous index blocks: positions are drawn independently and blending
+        // is additive, so the index order has no visible effect.
+        let species = 0, blockEnd = counts[0];
         for (let i = 0; i < count; i++) {
+            while (i >= blockEnd) blockEnd += counts[++species];
             const a = Math.random() * Math.PI * 2;
             const r = Math.sqrt(rIn2 + Math.random() * (rOut2 - rIn2)); // uniform in area
             p[i * 4] = cx + Math.cos(a) * r;
             p[i * 4 + 1] = cy + Math.sin(a) * r;
-            const species = i % typeCount;          // even split
             p[i * 4 + 2] = species;
             p[i * 4 + 3] = 1;
-            this.speciesCounts[species]++;
             v[i * 4] = (Math.random() * 2 - 1) * INITIAL_SPEED;
             v[i * 4 + 1] = (Math.random() * 2 - 1) * INITIAL_SPEED;
         }

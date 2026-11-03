@@ -34,29 +34,13 @@
              replaced by the text of the element with that id (shown in the head while folded). -->
         <section class="section" data-key="particles" data-default-open>
             <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Particules
-                <span class="summary" data-summary="{countVal} · {typeCountVal} éléments"></span></h2>
+                <span class="summary" data-summary="{countVal}"></span></h2>
             <div class="section-body collapse"><div class="inner">
                 <label class="field">
                     <span class="field-row">Nombre de particules <span id="countVal" class="value-display"></span></span>
                     <input type="range" id="countSlider" min="1000" max="500000" step="1000" value="30000">
                     <div id="countHint" class="hint pending"></div>
                 </label>
-                <label class="field">
-                    <span class="field-row">Nombre d'éléments <span id="typeCountVal" class="value-display"></span></span>
-                    <input type="range" id="typeCountSlider" min="1" max="10" step="1" value="10">
-                    <div id="typeCountHint" class="hint pending"></div>
-                </label>
-                <div id="speciesPanel">
-                    <div class="card-tools">
-                        <button id="randomColorsBtn" class="btn" title="Couleurs aléatoires">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 1 9-9c0 2-1.6 3-3.2 3H15.5a1.9 1.9 0 0 0-1.4 3.2 1.7 1.7 0 0 1-1.3 2.8z"/><circle cx="7.5" cy="11" r="1.1" fill="currentColor"/><circle cx="10.5" cy="7" r="1.1" fill="currentColor"/><circle cx="15.5" cy="8" r="1.1" fill="currentColor"/></svg>Couleurs</button>
-                        <button id="randomMassesBtn" class="btn" title="Masses aléatoires (échelle 1/N … 1, légèrement décalée)">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5.5" r="2.5"/><path d="M7.2 9h9.6a1.5 1.5 0 0 1 1.45 1.1l2.2 8A1.5 1.5 0 0 1 19 20H5a1.5 1.5 0 0 1-1.45-1.9l2.2-8A1.5 1.5 0 0 1 7.2 9z"/></svg>Masses</button>
-                        <button id="toggleSpeciesBtn" class="btn icon-only" title="Tout déplier" aria-label="Tout déplier">
-                            <svg class="icon-expand" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg>
-                            <svg class="icon-collapse" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 20 5-5 5 5M7 4l5 5 5-5"/></svg></button>
-                    </div>
-                </div>
                 <div class="section-spacer"></div>
             </div></div>
         </section>
@@ -193,6 +177,56 @@
         </section>
     </div>
 </div>
+<header id="element-bar">
+    <div class="ebar-head">
+        <button id="toggleElementBarBtn" class="icon-btn ebar-toggle" type="button">
+            <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <span class="ebar-title">Éléments</span>
+        <div class="config-picker">
+            <select id="configSelect" title="Charger une configuration" aria-label="Configuration d'éléments"></select>
+            <input id="configNameInput" type="text" maxlength="40" aria-label="Nom de la configuration" spellcheck="false" hidden>
+            <span id="configDirty" class="dirty-dot" title="Modifications non enregistrées" hidden></span>
+        </div>
+        <div class="config-tools">
+            <button id="newConfigBtn" class="btn icon-only" type="button" title="Nouvelle configuration (éléments chimiques)" aria-label="Nouvelle configuration">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button id="duplicateConfigBtn" class="btn icon-only" type="button" title="Dupliquer la configuration" aria-label="Dupliquer la configuration">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button>
+            <button id="renameConfigBtn" class="btn icon-only" type="button" title="Renommer la configuration" aria-label="Renommer la configuration">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button>
+            <button id="deleteConfigBtn" class="btn icon-only" type="button" title="Supprimer la configuration" aria-label="Supprimer la configuration">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg><span class="confirm-label">Supprimer ?</span></button>
+            <button id="saveConfigBtn" class="btn" type="button" title="Enregistrer dans la configuration">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg>Enregistrer</button>
+        </div>
+        <div id="miniBand" class="pop-band mini" aria-hidden="true"></div>
+        <label class="field ebar-count">
+            <span class="field-row">Nombre d'éléments <span id="typeCountVal" class="value-display"></span></span>
+            <input type="range" id="typeCountSlider" min="1" max="10" step="1" value="10">
+        </label>
+    </div>
+    <div class="ebar-body">
+        <section id="chartCard" class="ebar-card ebar-chart">
+            <div class="ebar-card-head">
+                <div id="chartTabs" class="chart-tabs" role="tablist" aria-label="Propriété affichée"></div>
+                <div id="chartChannels" class="chart-tabs chart-channels" role="tablist" aria-label="Canal"></div>
+                <div id="elementsHint" class="hint pending"></div>
+                <div class="ebar-tools">
+                    <button id="chartResetBtn" class="btn" type="button">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4"/></svg><span id="chartResetLabel"></span></button>
+                    <button id="chartRandomBtn" class="btn" type="button">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.1" fill="currentColor"/><circle cx="15" cy="9" r="1.1" fill="currentColor"/><circle cx="9" cy="15" r="1.1" fill="currentColor"/><circle cx="15" cy="15" r="1.1" fill="currentColor"/></svg>Aléatoire</button>
+                </div>
+            </div>
+            <div id="elementChart" class="element-chart"></div>
+            <div id="populationBand" class="pop-band" aria-hidden="true"></div>
+        </section>
+        <section class="ebar-card ebar-editor">
+            <div class="ebar-card-head"><h2>Élément</h2></div>
+            <div id="elementEditor" class="element-editor"></div>
+        </section>
+    </div>
+</header>
 <button id="showPanelBtn" class="icon-btn" title="Afficher le panneau (H)" aria-label="Afficher le panneau">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16M13.5 10l2 2-2 2"/></svg></button>
 <div id="sim-container"></div>

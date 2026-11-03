@@ -4,7 +4,6 @@ import type { ParticleLayer } from '../render/particleLayer';
 import type { Simulation } from '../simulation/Simulation';
 import { byId, formatInt } from './dom';
 import { bindSlider, fixed2, percent } from './sliders';
-import type { SpeciesPanel } from './speciesCards';
 import type { Stats } from './stats';
 
 export interface ControlTargets {
@@ -12,23 +11,19 @@ export interface ControlTargets {
     particles: ParticleLayer;
     post: PostProcessing;
     renderer: THREE.WebGLRenderer;
-    speciesPanel: SpeciesPanel;
     stats: Stats;
 }
 
 const PENDING_HINT = 'Appliqué au redémarrage';
 
 /**
- * Wires the panel sliders to the simulation and the renderer. Particle and species counts only
- * apply on restart (a hint says so); everything else is live.
+ * Wires the panel sliders to the simulation and the renderer. The particle count only applies on
+ * restart (a hint says so); everything else is live. Elements are handled by the element bar.
  */
-export function setupControls({ simulation: sim, particles, post, renderer, speciesPanel, stats }: ControlTargets) {
+export function setupControls({ simulation: sim, particles, post, renderer, stats }: ControlTargets) {
     const countSlider = byId<HTMLInputElement>('countSlider');
     const countVal = byId('countVal');
     const countHint = byId('countHint');
-    const typeCountSlider = byId<HTMLInputElement>('typeCountSlider');
-    const typeCountVal = byId('typeCountVal');
-    const typeCountHint = byId('typeCountHint');
     const speedSlider = byId<HTMLInputElement>('speedSlider');
     const speedVal = byId('speedVal');
     const thresholdSlider = byId<HTMLInputElement>('thresholdSlider');
@@ -39,17 +34,9 @@ export function setupControls({ simulation: sim, particles, post, renderer, spec
     const powerVal = byId('powerVal');
 
     const selectedCount = () => parseInt(countSlider.value, 10);
-    const selectedTypeCount = () => parseInt(typeCountSlider.value, 10);
 
     function updateCountHint(): void {
         countHint.textContent = selectedCount() !== sim.activeCount ? PENDING_HINT : '';
-    }
-
-    function updateTypeCountUI(): void {
-        const selected = selectedTypeCount();
-        typeCountVal.textContent = String(selected);
-        typeCountHint.textContent = selected !== sim.activeTypeCount ? PENDING_HINT : '';
-        speciesPanel.showCounts(selected, sim.activeTypeCount);
     }
 
     // ---- Particles ----
@@ -57,9 +44,6 @@ export function setupControls({ simulation: sim, particles, post, renderer, spec
         countVal.textContent = formatInt(selectedCount());
         updateCountHint();
     });
-    typeCountSlider.addEventListener('input', updateTypeCountUI);
-    byId('randomColorsBtn').addEventListener('click', () => speciesPanel.randomizeColors());
-    byId('randomMassesBtn').addEventListener('click', () => speciesPanel.randomizeMasses());
 
     // ---- Dynamics ----
     speedSlider.addEventListener('input', () => {
@@ -102,11 +86,7 @@ export function setupControls({ simulation: sim, particles, post, renderer, spec
 
     return {
         selectedCount,
-        selectedTypeCount,
-        /** Refreshes the pending hints after a restart. */
-        afterRestart(): void {
-            updateCountHint();
-            updateTypeCountUI();
-        },
+        /** Refreshes the pending hint after a restart. */
+        afterRestart: updateCountHint,
     };
 }

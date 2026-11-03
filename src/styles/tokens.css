@@ -1,5 +1,6 @@
 :root {
     --panel-w: 320px;
+    --topbar-h: 0px;                   /* set from the element bar height by main.ts */
     --panel: #0c0c10;
     --surface: rgba(255, 255, 255, 0.028);
     --surface-hover: rgba(255, 255, 255, 0.055);

@@ -55,6 +55,12 @@ export const MASS_SLIDER_STEPS = 1000;
 // Rendered diameter range (CSS px) of the size slider; default sizes scale atomic radii into it.
 export const SIZE_RANGE: Range = [1, 6];
 export const SIZE_STEP = 0.1;
+// Population weight of each species: particles are split pro rata of the weights on restart.
+// The default sits mid-range so a species can gain as well as lose population.
+export const POPULATION_WEIGHT_RANGE: Range = [0, 1];
+export const DEFAULT_POPULATION_WEIGHT = 0.5;
+export const POPULATION_WEIGHT_STEP = 0.01;
+export const RANDOM_WEIGHT_RANGE: Range = [0.05, 1];
 
 // ---- Visuals ----
 export const NEBULA_DOWNSCALE = 4;                 // nebula target = canvas CSS size / 4
@@ -65,5 +71,19 @@ export const PARTICLE_GAIN = 0.45;
 
 // ---- UI ----
 export const PANEL_STATE_KEY = 'gpu-gravity-bloom.panel';
+export const ELEMENT_CONFIGS_KEY = 'gpu-gravity-bloom.elements';
+export const DELETE_CONFIRM_MS = 3000;            // delay to confirm a config deletion
+// Element chart: arrow keys move a bar by this fraction of its height.
+export const CHART_KEY_STEP = 0.05;
+// Colors are edited as hue (HUE_STEPS steps per turn), saturation and lightness (in %).
+export const HUE_STEPS = 360;
+export const COLOR_PERCENT_STEPS = 100;
+// Setting the hue of a color where no hue shows (gray, or close to black / white) also gives it
+// the vivid saturation and lightness below, so the new hue is seen.
+export const HUE_VISIBLE_MIN_SATURATION = 0.1;
+export const HUE_VISIBLE_LIGHTNESS: Range = [0.05, 0.95];
+export const VIVID_SATURATION = 0.7;
+export const VIVID_LIGHTNESS = 0.6;
+export const COLOR_GRADIENT_STOPS = 6;             // stops of the color track gradients
 
 export type Range = readonly [number, number];

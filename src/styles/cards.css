@@ -1,32 +1,17 @@
-/* ---------- Cards (species, effect groups) ---------- */
-.card-tools { display: flex; gap: 6px; margin: 2px 0 10px; }
-.card-tools .btn:not(.icon-only) { flex: 1 1 0; min-width: 0; }
+/* ---------- Cards (effect groups) ---------- */
 .card {
     margin: 0 0 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
     transition: background 0.15s, border-color 0.15s, opacity 0.2s;
 }
 .card:hover { border-color: var(--border-strong); }
 .card.open { background: rgba(255, 255, 255, 0.045); }
-.card.pending { opacity: 0.38; }
-.card[hidden] { display: none; }
 .card-head {
     display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 0 12px 0 10px;
     font-size: 12.5px; cursor: pointer; user-select: none;
 }
 .card-name { font-weight: 500; color: var(--text); white-space: nowrap; }
-.card-symbol { margin-left: 3px; font-family: var(--mono); font-size: 10.5px; font-weight: 400; color: var(--text-3); }
 .card-head .summary { display: flex; gap: 9px; }
 .card-body > .inner { padding: 2px 22px; }
 .card-body .inner > :first-child { margin-top: 4px; }
 .card .field { margin-bottom: 14px; }
 
-.card-head input[type=color] {
-    -webkit-appearance: none; appearance: none; flex: none; width: 14px; height: 14px; padding: 0;
-    border: 0; border-radius: 50%; background: none; cursor: pointer;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 0 10px var(--card-color, transparent);
-    transition: transform 0.15s var(--ease);
-}
-.card-head input[type=color]:hover { transform: scale(1.2); }
-.card-head input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
-.card-head input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
-.card-head input[type=color]::-moz-color-swatch { border: 0; border-radius: 50%; }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MASS_RANGE, MASS_SLIDER_STEPS, SIZE_RANGE } from '../src/config';
+import { DEFAULT_POPULATION_WEIGHT, MASS_RANGE, MASS_SLIDER_STEPS, SIZE_RANGE } from '../src/config';
 import {
     DEFAULT_SPECIES, formatMass, massToSlider, randomSpeciesHsl, randomSpeciesMasses, sliderToMass, speciesDensity,
 } from '../src/species';
@@ -61,11 +61,15 @@ describe('default species: the first ten elements', () => {
             expect(size).toBeLessThanOrEqual(SIZE_RANGE[1]);
         }
     });
+
+    it('share the same population weight (uniform population)', () => {
+        for (const { weight } of DEFAULT_SPECIES) expect(weight).toBe(DEFAULT_POPULATION_WEIGHT);
+    });
 });
 
 describe('species', () => {
     it('density is mass over disc area', () => {
-        expect(speciesDensity({ name: 'Test', symbol: 'T', color: '#fff', mass: Math.PI, size: 2 })).toBeCloseTo(1);
+        expect(speciesDensity({ name: 'Test', symbol: 'T', color: '#fff', mass: Math.PI, size: 2, weight: 1 })).toBeCloseTo(1);
     });
 
     it('random masses keep the shuffled ladder order for visible species', () => {

@@ -5,17 +5,19 @@ import { NebulaLayer } from './render/nebulaLayer';
 import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
 import { Simulation } from './simulation/Simulation';
+import { ElementConfigStore } from './elementConfigs';
 import { setupControls } from './ui/controls';
 import { byId, fail, flash } from './ui/dom';
+import { ElementBar } from './ui/elementBar';
 import { setupPanelCollapsibles } from './ui/panelState';
 import { setupShortcuts } from './ui/shortcuts';
 import { setupSliders, syncAllRanges } from './ui/sliders';
-import { SpeciesPanel } from './ui/speciesCards';
 import { Stats } from './ui/stats';
 import { createSummaries } from './ui/summaries';
 
 const container = byId('sim-container');
 const uiPanel = byId('ui-panel');
+const elementBarEl = byId('element-bar');
 const startBtn = byId('startBtn');
 
 // ---- Renderer ----
@@ -64,17 +66,25 @@ const refreshSummaries = createSummaries(uiPanel);
 uiPanel.addEventListener('input', refreshSummaries);
 setupSliders(uiPanel);
 
-const speciesPanel = new SpeciesPanel(byId('speciesPanel'), simulation.species,
-    byId<HTMLButtonElement>('toggleSpeciesBtn'),
-    () => { if (simulation.activeCount > 0) simulation.updateSpeciesUniforms(); });
+const controls = setupControls({ simulation, particles, post, renderer, stats });
 
-const controls = setupControls({ simulation, particles, post, renderer, speciesPanel, stats });
+// ---- Element bar (saved element configs, population, element editor) ----
+let localStore: Storage | null = null;
+try { localStore = window.localStorage; } catch { /* storage blocked: configs live in memory only */ }
+const elementBar = new ElementBar({
+    simulation,
+    store: new ElementConfigStore(localStore),
+    onSpeciesChange: () => { if (simulation.activeCount > 0) simulation.updateSpeciesUniforms(); },
+    onLoad: () => restart(),
+});
+setupSliders(elementBarEl);
 
 function restart(): void {
-    simulation.reset(controls.selectedCount(), controls.selectedTypeCount());
+    simulation.reset(controls.selectedCount(), elementBar.selectedTypeCount());
     particles.setParticleCount(simulation.activeCount);
     stats.reset(simulation.activeCount, simulation.activeTypeCount);
     controls.afterRestart();
+    elementBar.afterRestart();
 }
 
 function togglePanel(): void {
@@ -87,7 +97,19 @@ byId('hidePanelBtn').addEventListener('click', togglePanel);
 byId('showPanelBtn').addEventListener('click', togglePanel);
 setupShortcuts({ restart: () => { restart(); flash(startBtn); }, togglePanel });
 window.addEventListener('resize', resize);
+// The canvas starts below the element bar, whose height depends on its content and fold state.
+// Set synchronously once so the first restart already sees the final canvas size.
+function syncTopbarHeight(): void {
+    document.documentElement.style.setProperty('--topbar-h', `${elementBarEl.offsetHeight}px`);
+}
+syncTopbarHeight();
+new ResizeObserver(() => {
+    const before = container.clientHeight;
+    syncTopbarHeight();
+    if (container.clientHeight !== before) resize();
+}).observe(elementBarEl);
 syncAllRanges(uiPanel);
+syncAllRanges(elementBarEl);
 
 // ---- Frame loop (60 FPS cap) ----
 let lastFrame = performance.now();

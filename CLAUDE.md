@@ -13,11 +13,12 @@ Application web locale en TypeScript (Vite + Three.js 0.169, WebGL2) : un simula
 - `src/config.ts` : toutes les constantes. On n'écrit pas de nombre magique dans le reste du code.
 - `src/simulation/` : physique (GPGPU, champ de densité, détection d'amas, onde de choc). Aucun accès au DOM.
 - `src/render/` : couches de rendu et post-traitement.
-- `src/ui/` : panneau. Il communique avec la simulation par ses propriétés publiques et par les callbacks `onSupernova` / `onConcentration`.
+- `src/ui/` : panneau latéral et barre des éléments en haut de page (`elementBar.ts`). Ils communiquent avec la simulation par ses propriétés publiques et par les callbacks `onSupernova` / `onConcentration`.
+- `src/elementConfigs.ts` : configurations d'éléments dans le `localStorage`. On applique une config en mutant en place les objets de `simulation.species` (ils sont partagés par référence avec l'UI) ; tout JSON relu passe par `sanitizeConfig()`.
 - `src/shaders/*.vert|.frag` : GLSL importé avec `?raw`. Les constantes viennent de `config.ts` et sont injectées par `withDefines()` (`src/gl/withDefines.ts`) ; on ne les recopie pas en dur dans les shaders.
 - Plusieurs matériaux partagent le même objet uniform (`screenSize`, `speciesUniforms`, `texturePosition`, …). Il faut garder ce partage par référence, car c'est lui qui synchronise le splat de densité, les particules et la nébuleuse.
 - `src/styles/` : un fichier CSS par composant ; les variables de thème sont dans `tokens.css`.
-- La logique pure (concentration, masses, couleurs) est séparée du DOM et testée dans `tests/`.
+- La logique pure (concentration, masses, couleurs, répartition, configs) est séparée du DOM et testée dans `tests/`.
 
 ## Conventions
 
