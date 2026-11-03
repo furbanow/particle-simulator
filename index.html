@@ -27,6 +27,12 @@
         <button id="startBtn" class="btn-primary" title="Redémarrer la simulation (R)">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>
             Redémarrer<kbd>R</kbd></button>
+        <div class="algo-picker">
+            <label for="algorithmSelect" class="algo-label">Algorithme</label>
+            <select id="algorithmSelect"></select>
+            <div id="algorithmDescription" class="hint"></div>
+            <div id="algorithmHint" class="hint pending"></div>
+        </div>
         <div id="speedDock" class="speed-dock">
             <div class="speed-head">
                 <svg class="speed-gauge" viewBox="0 0 24 24" aria-hidden="true">

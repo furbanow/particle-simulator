@@ -1,6 +1,7 @@
 import type * as THREE from 'three';
 import type { PostProcessing } from '../render/postprocessing';
 import type { ParticleLayer } from '../render/particleLayer';
+import { ALGORITHMS, DEFAULT_ALGORITHM, algorithmInfo, isAlgorithmId, type AlgorithmId } from '../simulation/algorithms';
 import type { Simulation } from '../simulation/Simulation';
 import { byId, formatInt } from './dom';
 import { bindSlider, fixed2, percent } from './sliders';
@@ -17,10 +18,13 @@ export interface ControlTargets {
 const PENDING_HINT = 'Appliqué au redémarrage';
 
 /**
- * Wires the panel sliders to the simulation and the renderer. The particle count only applies on
- * restart (a hint says so); everything else is live. Elements are handled by the element bar.
+ * Wires the panel controls to the simulation and the renderer. The algorithm and the particle count
+ * only apply on restart (a hint says so); everything else is live. Elements are handled by the element bar.
  */
 export function setupControls({ simulation: sim, particles, post, renderer, stats }: ControlTargets) {
+    const algorithmSelect = byId<HTMLSelectElement>('algorithmSelect');
+    const algorithmDescription = byId('algorithmDescription');
+    const algorithmHint = byId('algorithmHint');
     const countSlider = byId<HTMLInputElement>('countSlider');
     const countVal = byId('countVal');
     const countHint = byId('countHint');
@@ -35,10 +39,26 @@ export function setupControls({ simulation: sim, particles, post, renderer, stat
     const powerVal = byId('powerVal');
 
     const selectedCount = () => parseInt(countSlider.value, 10);
+    const selectedAlgorithm = (): AlgorithmId =>
+        isAlgorithmId(algorithmSelect.value) ? algorithmSelect.value : DEFAULT_ALGORITHM;
 
     function updateCountHint(): void {
         countHint.textContent = selectedCount() !== sim.activeCount ? PENDING_HINT : '';
     }
+
+    function updateAlgorithmHint(): void {
+        algorithmHint.textContent = selectedAlgorithm() !== sim.algorithm ? PENDING_HINT : '';
+    }
+
+    // ---- Algorithm ----
+    for (const { id, label } of ALGORITHMS) algorithmSelect.add(new Option(label, id));
+    algorithmSelect.value = DEFAULT_ALGORITHM;
+    const paintAlgorithm = () => {
+        algorithmDescription.textContent = algorithmInfo(selectedAlgorithm()).description;
+        updateAlgorithmHint();
+    };
+    algorithmSelect.addEventListener('change', paintAlgorithm);
+    paintAlgorithm();
 
     // ---- Particles ----
     countSlider.addEventListener('input', () => {
@@ -93,7 +113,8 @@ export function setupControls({ simulation: sim, particles, post, renderer, stat
 
     return {
         selectedCount,
-        /** Refreshes the pending hint after a restart. */
-        afterRestart: updateCountHint,
+        selectedAlgorithm,
+        /** Refreshes the pending hints after a restart. */
+        afterRestart: () => { updateCountHint(); updateAlgorithmHint(); },
     };
 }

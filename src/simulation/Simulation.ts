@@ -2,20 +2,19 @@ import * as THREE from 'three';
 import { GPUComputationRenderer, type Variable } from 'three/addons/misc/GPUComputationRenderer.js';
 import {
     BASE_DT, CLUSTER_CHECK_INTERVAL, DONUT_INNER, DONUT_OUTER, EJECT_SCALE_RANGE, EJECT_TIME,
-    GLOBAL_DRAG, INITIAL_SPEED, INV_REL_DENSITY_RANGE, K_GRAVITY, K_PRESSURE, LONG_RANGE, MAX_PARTICLES,
-    MAX_SPECIES, MAX_SPEED, MOMENTUM_SCALE, REST_DENSITY, RESTITUTION, SHOCK_STRENGTH, SUPERNOVA_COOLDOWN,
-    SUPERNOVA_SPEED, TEX_SIZE, TOTAL_MASS, VISCOSITY_RATE,
+    INITIAL_SPEED, INV_REL_DENSITY_RANGE, K_GRAVITY, LONG_RANGE, MAX_PARTICLES, MAX_SPECIES, MAX_SPEED,
+    MOMENTUM_SCALE, RESTITUTION, SHOCK_STRENGTH, SUPERNOVA_COOLDOWN, SUPERNOVA_SPEED, TEX_SIZE, TOTAL_MASS,
 } from '../config';
 import { hexToVector, type Uniform } from '../gl/common';
-import { withDefines } from '../gl/withDefines';
 import { splitPopulation } from '../population';
 import { createSpecies, speciesDensity, type Species } from '../species';
 import { clamp } from '../util/math';
+import { DEFAULT_ALGORITHM, type AlgorithmId } from './algorithms';
 import { ClusterProbe } from './clusterProbe';
 import { analyzeConcentration } from './concentration';
 import { DensityField } from './densityField';
 import { ShockWave, type ShockUniforms } from './shockWave';
-import velocityFrag from '../shaders/velocity.frag?raw';
+import { createVelocityModels, type VelocityModel } from './velocityModels';
 import positionFrag from '../shaders/position.frag?raw';
 
 /** Per-species uniforms shared by the simulation, particle and nebula materials. */
@@ -35,8 +34,9 @@ export interface SimulationEvents {
 /**
  * Multi-species GPGPU gravity simulation. Positions (x, y, species) and velocities (vx, vy,
  * remaining ejection time) live in float textures; gravity comes from a mipmapped cloud-in-cell
- * density field, plus pressure and relative-velocity viscosity. Every few frames positions are
- * read back to find the densest disk; above the threshold it goes supernova.
+ * density field. The velocity pass is the selected algorithm's shader (see velocityModels.ts),
+ * chosen on reset. Every few frames positions are read back to find the densest disk; above the
+ * threshold it goes supernova.
  */
 export class Simulation {
     readonly species: Species[] = createSpecies();
@@ -59,6 +59,7 @@ export class Simulation {
     activeCount = 0;
     activeTypeCount = 0;
     supernovaCount = 0;
+    private currentAlgorithm: AlgorithmId = DEFAULT_ALGORITHM;
     private width = 1;
     private height = 1;
     private frameCounter = 0;
@@ -70,6 +71,9 @@ export class Simulation {
     private readonly velVar: Variable;
     private readonly posVar: Variable;
     private readonly velUniforms: Record<string, THREE.IUniform>;
+    private readonly velocityModels: Record<AlgorithmId, VelocityModel> = createVelocityModels();
+    /** Velocity-pass material of each algorithm used so far, all sharing velUniforms. */
+    private readonly velocityMaterials = new Map<AlgorithmId, THREE.ShaderMaterial>();
     private readonly posUniforms: Record<string, THREE.IUniform>;
     private readonly density: DensityField;
     private readonly shock: ShockWave;
@@ -82,16 +86,22 @@ export class Simulation {
         this.probe = new ClusterProbe(renderer);
 
         this.gpu = new GPUComputationRenderer(TEX_SIZE, TEX_SIZE, renderer);
-        this.velVar = this.gpu.addVariable('textureVelocity', withDefines(velocityFrag, { MAX_SPECIES }), this.gpu.createTexture());
+        this.velVar = this.gpu.addVariable('textureVelocity', this.velocityModels[DEFAULT_ALGORITHM].shader,
+            this.gpu.createTexture());
         this.posVar = this.gpu.addVariable('texturePosition', positionFrag, this.gpu.createTexture());
-        this.gpu.setVariableDependencies(this.velVar, [this.posVar, this.velVar]);
+        // The velocity pass has no declared dependencies: its shader is swapped per algorithm, so it
+        // declares its state samplers itself and step() binds them (GPUComputationRenderer would only
+        // inject them into the first shader).
         this.gpu.setVariableDependencies(this.posVar, [this.posVar, this.velVar]);
+        this.velocityMaterials.set(DEFAULT_ALGORITHM, this.velVar.material);
 
         this.supernovaTexture = new THREE.DataTexture(this.supernovaMask, TEX_SIZE, TEX_SIZE, THREE.RedFormat, THREE.UnsignedByteType);
         this.supernovaTexture.needsUpdate = true;
 
         this.velUniforms = this.velVar.material.uniforms;
         Object.assign(this.velUniforms, {
+            texturePosition: { value: null },
+            textureVelocity: { value: null },
             textureDensity: { value: this.density.target.texture },
             textureSupernova: { value: this.supernovaTexture },
             screenSize: this.screenSize,
@@ -103,10 +113,6 @@ export class Simulation {
             activeCount: { value: 0 },
             kGravity: { value: K_GRAVITY },
             longRange: { value: LONG_RANGE },
-            kPressure: { value: K_PRESSURE },
-            restDensity: { value: REST_DENSITY },
-            viscosityRate: { value: VISCOSITY_RATE },
-            globalDrag: { value: GLOBAL_DRAG },
             maxSpeed: { value: MAX_SPEED },
             restitution: { value: RESTITUTION },
             momentumScale: { value: MOMENTUM_SCALE },
@@ -123,6 +129,7 @@ export class Simulation {
             speciesInvRelDensity: { value: new Array<number>(MAX_SPECIES).fill(1) },
             speciesEjectScale: { value: new Array<number>(MAX_SPECIES).fill(1) },
         });
+        for (const model of Object.values(this.velocityModels)) Object.assign(this.velUniforms, model.uniforms);
         this.posUniforms = this.posVar.material.uniforms;
         Object.assign(this.posUniforms, {
             dt: { value: BASE_DT },
@@ -145,6 +152,11 @@ export class Simulation {
     }
 
     /** Gravitational constant (K_GRAVITY by default), applied live by the velocity pass. */
+    /** Algorithm of the running simulation (a new one is applied by reset). */
+    get algorithm(): AlgorithmId {
+        return this.currentAlgorithm;
+    }
+
     get gravity(): number {
         return this.velUniforms.kGravity.value;
     }
@@ -167,9 +179,10 @@ export class Simulation {
 
     /**
      * Restarts with `count` particles in a donut, split between the first `typeCount` species
-     * pro rata of their population weights.
+     * pro rata of their population weights, run by `algorithm`.
      */
-    reset(count: number, typeCount: number): void {
+    reset(count: number, typeCount: number, algorithm: AlgorithmId): void {
+        this.useAlgorithm(algorithm);
         this.activeCount = count;
         this.activeTypeCount = typeCount;
         const counts = splitPopulation(count, this.species.map(s => s.weight), typeCount);
@@ -250,6 +263,8 @@ export class Simulation {
             this.shock.advance(dt);
             this.density.shiftGrid();
             this.density.render(this.positionTexture, this.velocityTexture);
+            this.velUniforms.texturePosition.value = this.positionTexture;
+            this.velUniforms.textureVelocity.value = this.velocityTexture;
             this.gpu.compute();
             if (this.velUniforms.supernovaActive.value === 1) {
                 this.velUniforms.supernovaActive.value = 0;
@@ -260,6 +275,16 @@ export class Simulation {
                 this.events.onSupernova?.(this.supernovaCount);
             }
         }
+    }
+
+    private useAlgorithm(id: AlgorithmId): void {
+        this.currentAlgorithm = id;
+        let material = this.velocityMaterials.get(id);
+        if (!material) {
+            material = this.gpu.createShaderMaterial(this.velocityModels[id].shader, this.velUniforms);
+            this.velocityMaterials.set(id, material);
+        }
+        this.velVar.material = material;
     }
 
     /** Frame bookkeeping after rendering: supernova cooldown and periodic concentration check. */

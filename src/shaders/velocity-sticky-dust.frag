@@ -1,5 +1,8 @@
-// GPGPU velocity step. Defines: MAX_SPECIES.
-// Provided by GPUComputationRenderer: resolution, texturePosition, textureVelocity.
+// GPGPU velocity step of the "sticky dust" algorithm: multi-scale gravity, threshold pressure,
+// viscosity toward the local flow. Defines: MAX_SPECIES. Provided by GPUComputationRenderer: resolution.
+// The state samplers are bound by Simulation, so every algorithm's shader can be swapped in.
+uniform sampler2D texturePosition;
+uniform sampler2D textureVelocity;
 uniform sampler2D textureDensity;
 uniform sampler2D textureSupernova;
 uniform vec2 screenSize;

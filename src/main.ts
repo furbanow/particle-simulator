@@ -80,7 +80,7 @@ const elementBar = new ElementBar({
 setupSliders(elementBarEl);
 
 function restart(): void {
-    simulation.reset(controls.selectedCount(), elementBar.selectedTypeCount());
+    simulation.reset(controls.selectedCount(), elementBar.selectedTypeCount(), controls.selectedAlgorithm());
     particles.setParticleCount(simulation.activeCount);
     stats.reset(simulation.activeCount, simulation.activeTypeCount);
     controls.afterRestart();
