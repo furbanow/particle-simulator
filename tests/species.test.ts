@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_POPULATION_WEIGHT, MASS_RANGE, MASS_SLIDER_STEPS, SIZE_RANGE } from '../src/config';
-import {
-    DEFAULT_SPECIES, formatMass, massToSlider, randomSpeciesHsl, randomSpeciesMasses, sliderToMass, speciesDensity,
-} from '../src/species';
+import { formatMass, massToSlider, randomSpeciesHsl, randomSpeciesMasses, sliderToMass } from '../src/species';
+import { STICKY_DUST_TYPES as DEFAULT_SPECIES, stickyDustDensity } from '../src/simulation/stickyDust/declaration';
 
 describe('mass slider (logarithmic)', () => {
     it('maps the slider ends to the mass range', () => {
@@ -11,7 +10,7 @@ describe('mass slider (logarithmic)', () => {
     });
 
     it('round-trips the default species masses to within one rounding step', () => {
-        for (const { mass } of DEFAULT_SPECIES) {
+        for (const { values: { mass } } of DEFAULT_SPECIES) {
             const step = mass < 1 ? 0.01 : mass < 10 ? 0.1 : 1;
             expect(Math.abs(sliderToMass(massToSlider(mass)) - mass)).toBeLessThanOrEqual(step);
         }
@@ -43,10 +42,10 @@ describe('default species: the first ten elements', () => {
     });
 
     it('use the standard atomic masses in u', () => {
-        expect(DEFAULT_SPECIES[0].mass).toBe(1.008);
-        expect(DEFAULT_SPECIES[9].mass).toBe(20.180);
-        DEFAULT_SPECIES.slice(1).forEach((s, i) => expect(s.mass).toBeGreaterThan(DEFAULT_SPECIES[i].mass));
-        for (const { mass } of DEFAULT_SPECIES) {
+        expect(DEFAULT_SPECIES[0].values.mass).toBe(1.008);
+        expect(DEFAULT_SPECIES[9].values.mass).toBe(20.180);
+        DEFAULT_SPECIES.slice(1).forEach((s, i) => expect(s.values.mass).toBeGreaterThan(DEFAULT_SPECIES[i].values.mass));
+        for (const { values: { mass } } of DEFAULT_SPECIES) {
             expect(mass).toBeGreaterThanOrEqual(MASS_RANGE[0]);
             expect(mass).toBeLessThanOrEqual(MASS_RANGE[1]);
         }
@@ -54,22 +53,22 @@ describe('default species: the first ten elements', () => {
 
     it('have sizes proportional to the atomic radii, inside the slider range', () => {
         const [h, he, li] = DEFAULT_SPECIES;
-        expect(li.size).toBe(SIZE_RANGE[1]);                 // lithium is the largest atom
-        expect(h.size / he.size).toBeCloseTo(53 / 31);
-        for (const { size } of DEFAULT_SPECIES) {
+        expect(li.values.size).toBe(SIZE_RANGE[1]);                 // lithium is the largest atom
+        expect(h.values.size / he.values.size).toBeCloseTo(53 / 31);
+        for (const { values: { size } } of DEFAULT_SPECIES) {
             expect(size).toBeGreaterThanOrEqual(SIZE_RANGE[0]);
             expect(size).toBeLessThanOrEqual(SIZE_RANGE[1]);
         }
     });
 
     it('share the same population weight (uniform population)', () => {
-        for (const { weight } of DEFAULT_SPECIES) expect(weight).toBe(DEFAULT_POPULATION_WEIGHT);
+        for (const { values: { weight } } of DEFAULT_SPECIES) expect(weight).toBe(DEFAULT_POPULATION_WEIGHT);
     });
 });
 
 describe('species', () => {
     it('density is mass over disc area', () => {
-        expect(speciesDensity({ name: 'Test', symbol: 'T', color: '#fff', mass: Math.PI, size: 2, weight: 1 })).toBeCloseTo(1);
+        expect(stickyDustDensity({ name: 'Test', symbol: 'T', color: '#fff', values: { mass: Math.PI, size: 2, weight: 1 } })).toBeCloseTo(1);
     });
 
     it('random masses keep the shuffled ladder order for visible species', () => {

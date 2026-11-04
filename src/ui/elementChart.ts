@@ -1,7 +1,7 @@
 import { CHART_KEY_STEP } from '../config';
-import { ELEMENT_METRICS, type ElementMetric } from '../elementMetrics';
+import type { ElementMetric } from '../elementMetrics';
 import { formatShare, populationShares } from '../population';
-import type { Species } from '../species';
+import { populationWeights, type ParticleType, type ParticleTypeSchema } from '../simulation/algorithm';
 
 export interface ElementChartEvents {
     /** The user changed a value of `metric` (drag, keyboard, double-click). */
@@ -19,18 +19,20 @@ interface Column {
 }
 
 /**
- * Equalizer-like bar chart of one species property at a time (population, atomic mass, size,
- * hue, saturation, lightness): one column per species, dragged vertically, with its value above it. The stacked bands
- * always show the population shares. Edits write straight into the shared `Species` objects.
+ * Equalizer-like bar chart of one type property at a time (e.g. population, atomic mass, size,
+ * hue, saturation, lightness): one column per type, dragged vertically, with its value above it.
+ * The stacked bands always show the population shares. Edits write straight into the shared
+ * `ParticleType` objects.
  */
 export class ElementChart {
     private readonly columns: Column[];
-    private metric: ElementMetric = ELEMENT_METRICS[0];
     private selectedCount = 1;
     private activeCount = 0;
 
     constructor(container: HTMLElement, private readonly bands: readonly HTMLElement[],
-                private readonly species: readonly Species[], private readonly events: ElementChartEvents) {
+                private readonly schema: ParticleTypeSchema, private readonly species: readonly ParticleType[],
+                private metric: ElementMetric, private readonly events: ElementChartEvents) {
+        container.replaceChildren();
         this.columns = species.map((_, k) => this.buildColumn(container, k));
     }
 
@@ -39,7 +41,7 @@ export class ElementChart {
         this.refresh();
     }
 
-    /** Species shown: selected for the next restart or still running; the others are dimmed when pending. */
+    /** Types shown: selected for the next restart or still running; the others are dimmed when pending. */
     showCounts(selected: number, active: number): void {
         this.selectedCount = selected;
         this.activeCount = active;
@@ -53,7 +55,7 @@ export class ElementChart {
     /** Re-reads the values, colors and symbols. */
     refresh(): void {
         const m = this.metric;
-        const shares = populationShares(this.species.map(s => s.weight), this.selectedCount);
+        const shares = populationShares(populationWeights(this.schema, this.species), this.selectedCount);
         const shown = Math.max(this.selectedCount, this.activeCount);
         const unit = m.unit ? ` ${m.unit}` : '';
         this.columns.forEach((c, k) => {
@@ -86,7 +88,7 @@ export class ElementChart {
         });
     }
 
-    private change(k: number, apply: (m: ElementMetric, s: Species) => boolean): void {
+    private change(k: number, apply: (m: ElementMetric, s: ParticleType) => boolean): void {
         if (apply(this.metric, this.species[k])) this.events.onChange(this.metric);
     }
 

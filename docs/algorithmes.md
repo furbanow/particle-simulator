@@ -1,6 +1,6 @@
 # Algorithmes de simulation
 
-On choisit l'algorithme dans le panneau latéral, sous le bouton « Redémarrer ». Le choix s'applique au redémarrage.
+On choisit l'algorithme dans le panneau latéral, sous le bouton « Redémarrer ». Changer d'algorithme reconstruit l'interface (paramètres, barre des éléments, statistiques) à partir de sa déclaration, puis redémarre la simulation. Chaque algorithme garde en mémoire ses propres valeurs : en revenant à un algorithme, on retrouve ses curseurs et ses éléments tels qu'on les a laissés.
 
 | Nom (interface) | Identifiant | État | Principe |
 |---|---|---|---|
@@ -9,14 +9,64 @@ On choisit l'algorithme dans le panneau latéral, sous le bouton « Redémarrer 
 | Plasma | `plasma` | 🕓 prévu | Charges positives et négatives sur la même grille |
 | N-corps | `nBody` | 🕓 prévu | Gravité seule, sans collisions |
 
+## Architecture
+
+Un algorithme a deux moitiés, enregistrées sous le même identifiant :
+
+| Moitié | Rôle | Où | Type |
+|---|---|---|---|
+| **Déclaration** | Ce que l'interface affiche : paramètres, schéma des types de particules, statistiques. Données et fonctions pures, sans GPU ni DOM, testées. | `src/simulation/<algo>/declaration.ts`, catalogue `src/simulation/algorithms.ts` | `AlgorithmDeclaration` (`src/simulation/algorithm.ts`) |
+| **Modèle GPU** | La physique : shaders, uniforms, passes, statistiques calculées. | `src/simulation/<algo>/gpuModel.ts`, registre `src/simulation/gpuModels.ts` | `GpuModel` (`src/simulation/gpuModel.ts`) |
+
+Autour d'elles, le code commun ne connaît aucun algorithme en particulier :
+
+- **`Simulation`** (`src/simulation/Simulation.ts`) est l'objet que voient l'interface et le rendu. Il possède ce qui est partagé avec les couches de rendu (géométrie, `screenSize`, `speciesUniforms`), garde par algorithme les types de particules (`simulation.species`) et les valeurs des paramètres, et recrée le pipeline GPU quand on change d'algorithme.
+- **`GpuPipeline`** (`src/simulation/GpuPipeline.ts`) fait tourner un modèle GPU. Il possède les textures d'état (`GPUComputationRenderer`), le champ de densité (gravité), le pas de temps et les sous-pas, l'état initial (anneau par défaut), les uniforms par type (masse déposée sur la grille, taille, couleur) et la relecture périodique des positions.
+- **L'interface** se construit à partir de la déclaration : `ParamPanel` (`src/ui/paramPanel.ts`) pour les paramètres, `ElementBar` / `ElementChart` / `ElementEditor` pour les types de particules (via `buildMetrics()` de `src/elementMetrics.ts`), `Stats` (`src/ui/stats.ts`) pour les statistiques. Les configurations enregistrées (`src/elementConfigs.ts`) appartiennent chacune à un algorithme.
+
+Les réglages communs à tous les algorithmes restent dans le HTML : vitesse de simulation, effets visuels, FPS, particules et éléments actifs.
+
 ## Ajouter un algorithme
 
-1. Ajouter son identifiant à `ALGORITHM_IDS` et sa fiche (nom, description) à `ALGORITHMS` dans `src/simulation/algorithms.ts`.
-2. Écrire son shader de vitesse `src/shaders/velocity-<nom>.frag`. Il déclare lui-même `texturePosition` et `textureVelocity`, que `Simulation` branche à chaque pas.
-3. Déclarer son shader et ses uniforms propres dans `createVelocityModels()` (`src/simulation/velocityModels.ts`). Le type `Record<AlgorithmId, VelocityModel>` empêche d'oublier cette étape. Les noms d'uniforms ne doivent pas entrer en conflit avec ceux des autres algorithmes, car ils partagent le même objet uniform.
-4. Mettre les constantes dans `src/config.ts`, et passer la ligne du tableau ci-dessus à « disponible ».
+Il suffit d'écrire ses deux moitiés et de les enregistrer. **On ne touche pas à l'interface.**
 
-Ce qui est commun à tous les algorithmes appartient à `Simulation` : le pas de temps, le champ de densité (gravité), les supernovae, l'onde de choc, les espèces et les murs. Pour l'instant, le code GLSL des supernovae et de l'onde de choc se trouve dans le shader de « Poussière collante ». On le mettra en commun avec le deuxième algorithme, quand on saura ce qu'ils partagent vraiment.
+1. **Déclaration** (`src/simulation/<algo>/declaration.ts`), un objet `AlgorithmDeclaration` :
+   - `id`, `label`, `description` ;
+   - `sections` : les sections du panneau (`id`, `label`). L'`id` sert aussi de clé pour retenir si la section est ouverte ;
+   - `params` : les paramètres globaux, dans l'ordre d'affichage. Chacun a une `key` (lettres, chiffres, `_`), un `label`, une `section`, un `hint` facultatif, `apply: 'live' | 'restart'` et `summary` (affiché dans l'en-tête de la section repliée). Trois sortes :
+     - `kind: 'number'` → curseur : `min`, `max`, `step`, `default`, `format(v)`, et `scale: 'log'` pour les valeurs qui couvrent plusieurs ordres de grandeur (λ₀ par exemple) ;
+     - `kind: 'boolean'` → case à cocher ;
+     - `kind: 'choice'` → liste déroulante (`options`).
+
+     Le paramètre `count` (`PARTICLE_COUNT_PARAM`), le nombre de particules, est obligatoire et s'applique au redémarrage. Les bornes et valeurs par défaut vont dans `src/config.ts`.
+   - `particleTypes`, le schéma des types de particules (`ParticleTypeSchema`) :
+     - un type (`ParticleType`) a toujours `name`, `symbol` et `color`. Ses propriétés numériques sont dans `values`, par clé ;
+     - `properties` : les onglets du graphique, dans l'ordre. Une propriété numérique (`kind: 'number'`) a sa clé, son unité, son intervalle (`range`, qui sert aussi à valider les configurations relues), son échelle (`linearScale(range, step)` ou une échelle à soi, comme l'échelle logarithmique des masses), `live`, ses textes « Par défaut » / « Aléatoire », `format` et un `randomize` facultatif. Une seule peut avoir `role: 'population'` : c'est le poids de répartition des particules au redémarrage. `{ kind: 'color' }` ajoute l'onglet Couleur (teinte, saturation, luminosité) ;
+     - `readouts` : des valeurs calculées, affichées dans l'éditeur (par exemple la densité) ;
+     - `transitions` : les transformations d'un type en un autre (`{ from, to, label }`, par rang). C'est le modèle GPU qui les réalise ; la déclaration permet à l'éditeur de les afficher (« Fusion → He ») ;
+     - `defaults` (au plus `MAX_SPECIES` types), `defaultCount` facultatif, `labels` (mots de la barre : « Éléments », « Élément »…) et `builtinConfig` (identifiant et nom de la configuration intégrée, en lecture seule).
+   - `stats` : les statistiques en direct. `kind: 'value'` (un nombre, `flash` pour faire clignoter la tuile quand il augmente), `kind: 'meter'` (une fraction 0..1 en barre, avec un repère facultatif placé à la position d'un curseur), `kind: 'typeCounts'` (nombre de particules par type).
+2. **Ajouter l'identifiant** à `ALGORITHM_IDS` et la déclaration à `ALGORITHMS` dans `src/simulation/algorithms.ts`. Les tests de `tests/algorithms.test.ts` vérifient la cohérence de chaque déclaration (clés uniques, sections existantes, valeurs par défaut dans leurs bornes, types par défaut complets, transitions et repères valides).
+3. **Modèle GPU** (`src/simulation/<algo>/gpuModel.ts`), un objet `GpuModel`, enregistré dans `GPU_MODELS` (`src/simulation/gpuModels.ts`). Le type `Record<AlgorithmId, GpuModelFactory>` empêche d'oublier cette étape. La fabrique reçoit un `GpuModelContext` : renderer, géométrie, `screenSize`, `speciesUniforms`, champ de densité, et un accès aux textures d'état courantes.
+   - `velocityShader` (obligatoire) et `positionShader` (facultatif ; celui par défaut intègre x += v·dt et garde le type en z). Le shader de vitesse déclare lui-même `texturePosition`, `textureVelocity` et les uniforms communs qu'il utilise (`textureDensity`, `screenSize`, `domainOffset`, `domainSize`, `densityRes`, `maxLod`, `dt`, `activeCount`, `momentumScale`) ; `GpuPipeline` les branche ;
+   - `velocityUniforms` / `positionUniforms` : ses uniforms propres. Ils sont fusionnés par référence dans l'objet uniform de la passe, leurs noms ne doivent donc pas entrer en conflit avec les uniforms communs ;
+   - `variables` : des textures d'état par particule en plus (température, âge…). Chacune a son shader, calculé dans la même passe GPGPU ; son état initial est donné par `init()` ;
+   - `typeMass(t)` et `typeSize(t)` : masse déposée sur la grille de gravité (seuls les rapports comptent, la masse totale reste `TOTAL_MASS`) et diamètre rendu ;
+   - `setParam(key, value)` reçoit chaque paramètre à la création du modèle, puis les paramètres `live` à chaque changement. `reset(params)` reçoit toutes les valeurs au redémarrage. `initialize(state)` remplace l'anneau initial (par exemple pour une rotation initiale) ;
+   - crochets facultatifs : `updateSpecies` (uniforms par type dérivés), `beforeSubstep(dt)` (passes GPU en plus, avant le dépôt de densité et la passe GPGPU), `afterSubstep`, `endFrame`, `wantsReadback` / `onReadback(positions, count)` (relecture des positions toutes les `CLUSTER_CHECK_INTERVAL` images) ;
+   - `stat(key)` donne la valeur de chaque statistique déclarée (`null` tant qu'elle est inconnue) ; `liveTypeCounts()` donne le nombre de particules par type quand les types changent en cours de route (sinon, c'est la répartition du dernier redémarrage).
+4. **Constantes** dans `src/config.ts`, **tests** de la logique pure dans `tests/`, et passer la ligne du tableau ci-dessus à « disponible ».
+
+### Contrat GPU
+
+- Une particule = un texel des textures `TEX_SIZE × TEX_SIZE`. Position : `(x, y, rang du type, 1)`. Vitesse : `(vx, vy, z, w)`, où `z` et `w` sont libres pour le modèle (« Poussière collante » met dans `z` le temps d'éjection restant).
+- **Le type d'une particule est dans la texture de position** (canal z), pas figé par son indice : un shader (de position, ou d'une variable) peut le réécrire pour transformer H en He. Le rendu des particules, la nébuleuse et le dépôt de masse lisent ce canal à chaque image et suivent donc le changement. Au redémarrage, les types remplissent des blocs d'indices contigus, dans l'ordre des rangs.
+- Les uniforms par type (`speciesUniforms` : masse déposée, taille, couleur) sont des tableaux de `MAX_SPECIES` partagés par référence entre le pipeline, les particules et la nébuleuse. Il faut les modifier en place, jamais les remplacer.
+- Statistiques lues sur le GPU : `onReadback` reçoit les positions relues (pour compter les types, il y a `countTypes()` dans `src/simulation/typeCounts.ts`). Pour une réduction plus légère (maximum de température ou de densité au cœur), le modèle peut rendre sa propre passe de réduction dans `beforeSubstep` puis relire quelques texels avec `context.renderer.readRenderTargetPixelsAsync`.
+
+### Ce qui est commun aujourd'hui
+
+`GpuPipeline` fournit à tous les modèles le pas de temps, les sous-pas, le champ de densité (rendu avant chaque sous-pas, que le modèle s'en serve ou non) et la relecture des positions. Les supernovae, l'onde de choc et la détection d'amas appartiennent au modèle de « Poussière collante » (`src/simulation/stickyDust/gpuModel.ts`) ; leur code GLSL est dans son shader. On les mettra en commun si un autre algorithme en a besoin.
 
 ---
 
@@ -24,7 +74,9 @@ Ce qui est commun à tous les algorithmes appartient à `Simulation` : le pas de
 
 Nom technique : **particule-maillage dissipatif** (*Dissipative Particle-Mesh*).
 
-Shader : `src/shaders/velocity-sticky-dust.frag`.
+Déclaration : `src/simulation/stickyDust/declaration.ts`. Modèle GPU : `src/simulation/stickyDust/gpuModel.ts`. Shader : `src/shaders/velocity-sticky-dust.frag`.
+
+Paramètres : nombre de particules (au redémarrage), constante de gravité, seuil, rayon de concentration et puissance des supernovae. Types de particules : les dix premiers éléments, avec répartition, masse atomique (en u), taille et couleur ; l'éditeur affiche la densité. Statistiques : nombre de supernovae et concentration maximale, avec le seuil en repère.
 
 ### Ce qu'il fait
 

@@ -31,7 +31,6 @@
             <label for="algorithmSelect" class="algo-label">Algorithme</label>
             <select id="algorithmSelect"></select>
             <div id="algorithmDescription" class="hint"></div>
-            <div id="algorithmHint" class="hint pending"></div>
         </div>
         <div id="speedDock" class="speed-dock">
             <div class="speed-head">
@@ -55,53 +54,8 @@
     <div class="panel-scroll">
         <!-- Sections: data-key persists the open state; data-summary is a template whose {id} are
              replaced by the text of the element with that id (shown in the head while folded). -->
-        <section class="section" data-key="particles" data-default-open>
-            <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Particules
-                <span class="summary" data-summary="{countVal}"></span></h2>
-            <div class="section-body collapse"><div class="inner">
-                <label class="field">
-                    <span class="field-row">Nombre de particules <span id="countVal" class="value-display"></span></span>
-                    <input type="range" id="countSlider" min="1000" max="500000" step="1000" value="30000">
-                    <div id="countHint" class="hint pending"></div>
-                </label>
-                <div class="section-spacer"></div>
-            </div></div>
-        </section>
-
-        <section class="section" data-key="dynamics" data-default-open>
-            <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Dynamique
-                <span class="summary" data-summary="{gravityVal}"></span></h2>
-            <div class="section-body collapse"><div class="inner">
-                <label class="field">
-                    <span class="field-row">Constante de gravité <span id="gravityVal" class="value-display"></span></span>
-                    <input type="range" id="gravitySlider" min="0" max="15" step="0.1" value="3">
-                </label>
-            </div></div>
-        </section>
-
-        <section class="section" data-key="supernova" data-default-open>
-            <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Supernova
-                <span class="summary" data-summary="{thresholdVal} · {radiusVal} · {powerVal}"></span></h2>
-            <div class="section-body collapse"><div class="inner">
-                <label class="field">
-                    <span class="field-row">Seuil <span id="thresholdVal" class="value-display"></span></span>
-                    <input type="range" id="thresholdSlider" min="0" max="100" step="1" value="60">
-                    <div class="hint">Part des particules dans la zone</div>
-                </label>
-                <label class="field">
-                    <span class="field-row">Rayon de concentration <span id="radiusVal" class="value-display"></span></span>
-                    <input type="range" id="radiusSlider" min="10" max="400" step="5" value="80">
-                    <div class="hint">Zone où l'on compte les particules</div>
-                </label>
-                <label class="field">
-                    <span class="field-row">Puissance <span id="powerVal" class="value-display"></span></span>
-                    <input type="range" id="powerSlider" min="5" max="100" step="5" value="70">
-                    <div class="hint">Vitesse d'éjection (100 % = max)</div>
-                </label>
-            </div></div>
-        </section>
-
-        <section class="section" data-key="effects">
+        <!-- The selected algorithm's parameter sections are built here, from its declaration (ParamPanel). -->
+        <section class="section" id="effectsSection" data-key="effects">
             <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Effets visuels</h2>
             <div class="section-body collapse"><div class="inner">
                 <div class="card effect-card">
@@ -173,19 +127,11 @@
             <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Statistiques
                 <span class="summary" data-summary="{fpsVal} FPS"></span></h2>
             <div class="section-body collapse"><div class="inner">
-                <div class="stat-grid">
+                <!-- Then the stats the selected algorithm declares (Stats). -->
+                <div class="stat-grid" id="statGrid">
                     <div class="stat"><div class="stat-label">FPS</div><div class="stat-value" id="fpsVal">–</div></div>
                     <div class="stat"><div class="stat-label">Particules actives</div><div class="stat-value" id="activeVal">–</div></div>
-                    <div class="stat"><div class="stat-label">Éléments actifs</div><div class="stat-value" id="typesActiveVal">–</div></div>
-                    <div class="stat" id="supernovaStat"><div class="stat-label">Supernovae</div><div class="stat-value" id="supernovaVal">0</div></div>
-                    <div class="stat wide">
-                        <div class="stat-row"><span class="stat-label">Concentration max</span><span class="stat-value" id="clusterVal">–</span></div>
-                        <div class="meter" title="Le repère indique le seuil de supernova">
-                            <div class="meter-fill" id="clusterBar"></div>
-                            <div class="meter-mark" id="clusterMark"></div>
-                        </div>
-                        <div class="meter-legend"><span id="clusterMarkVal"></span></div>
-                    </div>
+                    <div class="stat"><div class="stat-label" id="typesActiveLabel">Éléments actifs</div><div class="stat-value" id="typesActiveVal">–</div></div>
                 </div>
                 <div class="shortcuts">
                     <span><kbd>R</kbd>redémarrer</span>
@@ -200,7 +146,7 @@
     <div class="ebar-head">
         <button id="toggleElementBarBtn" class="icon-btn ebar-toggle" type="button">
             <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
-        <span class="ebar-title">Éléments</span>
+        <span class="ebar-title" id="elementBarTitle">Éléments</span>
         <div class="config-picker">
             <select id="configSelect" title="Charger une configuration" aria-label="Configuration d'éléments"></select>
             <input id="configNameInput" type="text" maxlength="40" aria-label="Nom de la configuration" spellcheck="false" hidden>
@@ -220,7 +166,7 @@
         </div>
         <div id="miniBand" class="pop-band mini" aria-hidden="true"></div>
         <label class="field ebar-count">
-            <span class="field-row">Nombre d'éléments <span id="typeCountVal" class="value-display"></span></span>
+            <span class="field-row"><span id="typeCountLabel">Nombre d'éléments</span> <span id="typeCountVal" class="value-display"></span></span>
             <input type="range" id="typeCountSlider" min="1" max="10" step="1" value="10">
         </label>
     </div>
@@ -241,7 +187,7 @@
             <div id="populationBand" class="pop-band" aria-hidden="true"></div>
         </section>
         <section class="ebar-card ebar-editor">
-            <div class="ebar-card-head"><h2>Élément</h2></div>
+            <div class="ebar-card-head"><h2 id="elementEditorTitle">Élément</h2></div>
             <div id="elementEditor" class="element-editor"></div>
         </section>
     </div>

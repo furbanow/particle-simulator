@@ -4,12 +4,14 @@ import { BASE_DT, FRAME_MS } from './config';
 import { NebulaLayer } from './render/nebulaLayer';
 import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
+import type { AlgorithmId } from './simulation/algorithms';
 import { Simulation } from './simulation/Simulation';
 import { ElementConfigStore } from './elementConfigs';
 import { setupControls } from './ui/controls';
 import { byId, fail, flash } from './ui/dom';
 import { ElementBar } from './ui/elementBar';
 import { setupPanelCollapsibles } from './ui/panelState';
+import { ParamPanel } from './ui/paramPanel';
 import { setupShortcuts } from './ui/shortcuts';
 import { setupSliders, syncAllRanges } from './ui/sliders';
 import { Stats } from './ui/stats';
@@ -35,15 +37,14 @@ let height = container.clientHeight;
 renderer.setSize(width, height);
 
 // ---- Simulation & rendering ----
-const stats = new Stats();
+function failWith(err: unknown): never {
+    fail(err instanceof Error ? err.message : String(err));
+}
 let simulation: Simulation;
 try {
-    simulation = new Simulation(renderer, {
-        onSupernova: count => stats.supernova(count),
-        onConcentration: fraction => stats.concentration(fraction),
-    });
+    simulation = new Simulation(renderer);
 } catch (err) {
-    fail(err instanceof Error ? err.message : String(err));
+    failWith(err);
 }
 const particles = new ParticleLayer(simulation.geometry, simulation.speciesUniforms, simulation.screenSize,
     renderer.getPixelRatio());
@@ -60,13 +61,18 @@ function resize(): void {
 }
 
 // ---- Panel ----
+// Shared controls (speed, effects) are in the markup; the algorithm's parameters and stats are
+// built from its declaration, and rebuilt when another algorithm is picked.
 setupPanelCollapsibles(uiPanel);
 const refreshSummaries = createSummaries(uiPanel);
 // Slider handlers sit on the sliders themselves, so they have run when the event bubbles here.
 uiPanel.addEventListener('input', refreshSummaries);
+uiPanel.addEventListener('change', refreshSummaries);
 setupSliders(uiPanel);
 
-const controls = setupControls({ simulation, particles, post, renderer, stats });
+const params = new ParamPanel(byId('effectsSection'), simulation);
+const stats = new Stats(simulation);
+setupControls({ simulation, particles, post, renderer, onAlgorithmChange: switchAlgorithm });
 
 // ---- Element bar (saved element configs, population, element editor) ----
 let localStore: Storage | null = null;
@@ -80,11 +86,25 @@ const elementBar = new ElementBar({
 setupSliders(elementBarEl);
 
 function restart(): void {
-    simulation.reset(controls.selectedCount(), elementBar.selectedTypeCount(), controls.selectedAlgorithm());
+    simulation.reset(elementBar.selectedTypeCount());
     particles.setParticleCount(simulation.activeCount);
-    stats.reset(simulation.activeCount, simulation.activeTypeCount);
-    controls.afterRestart();
+    stats.reset();
+    params.afterRestart();
     elementBar.afterRestart();
+}
+
+/** Rebuilds every algorithm-driven part of the UI from the new algorithm's declaration, then restarts. */
+function switchAlgorithm(id: AlgorithmId): void {
+    try {
+        simulation.useAlgorithm(id);
+    } catch (err) {
+        failWith(err);
+    }
+    params.setAlgorithm();
+    stats.setAlgorithm();
+    elementBar.setAlgorithm();
+    refreshSummaries();
+    restart();
 }
 
 function togglePanel(): void {
@@ -127,6 +147,7 @@ function loop(now: number): void {
     post.render(visualTime);
     simulation.endFrame();
 
+    stats.update();
     if (stats.tick(now)) refreshSummaries();
 }
 

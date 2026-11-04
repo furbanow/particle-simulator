@@ -58,4 +58,10 @@ export class DensityField {
         this.renderer.render(this.scene, clipSpaceCamera); // three regenerates the mipmaps after rendering
         this.renderer.setRenderTarget(null);
     }
+
+    /** Frees the GPU resources (the geometry is shared, it stays). */
+    dispose(): void {
+        this.target.dispose();
+        this.material.dispose();
+    }
 }

@@ -41,6 +41,13 @@ export const SUPERNOVA_COOLDOWN = 120;             // frames
 export const SHOCK_STRENGTH = 0.9;
 export const SHOCK_MIN_KICK = 0.03;                // fraction of the ejection speed below which the wave dies
 
+// ---- Panel parameters of the sticky dust algorithm (slider min, max, step and default) ----
+export const PARTICLE_COUNT_SLIDER: SliderSpec = { min: 1000, max: 500000, step: 1000, default: 30000 };
+export const GRAVITY_SLIDER: SliderSpec = { min: 0, max: 15, step: 0.1, default: K_GRAVITY };
+export const SUPERNOVA_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 60 };  // % of the particles
+export const CONCENTRATION_RADIUS_SLIDER: SliderSpec = { min: 10, max: 400, step: 5, default: 80 }; // px
+export const SUPERNOVA_POWER_SLIDER: SliderSpec = { min: 5, max: 100, step: 5, default: 70 };      // % of SUPERNOVA_SPEED
+
 // ---- Species ----
 export const MAX_SPECIES = 10;
 export const INV_REL_DENSITY_RANGE: Range = [0.25, 4];
@@ -85,5 +92,18 @@ export const HUE_VISIBLE_LIGHTNESS: Range = [0.05, 0.95];
 export const VIVID_SATURATION = 0.7;
 export const VIVID_LIGHTNESS = 0.6;
 export const COLOR_GRADIENT_STOPS = 6;             // stops of the color track gradients
+// Algorithm parameters on a logarithmic scale: slider positions, and significant digits kept.
+export const LOG_PARAM_SLIDER_STEPS = 1000;
+export const LOG_PARAM_DIGITS = 3;
+// The supernova threshold label stays inside the meter: its position is clamped to this range (%).
+export const METER_LABEL_RANGE: Range = [16, 84];
 
 export type Range = readonly [number, number];
+
+/** Bounds, step and default value of a slider. */
+export interface SliderSpec {
+    readonly min: number;
+    readonly max: number;
+    readonly step: number;
+    readonly default: number;
+}

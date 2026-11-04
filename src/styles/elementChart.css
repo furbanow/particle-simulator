@@ -63,7 +63,7 @@
 .chart-tab .unit { margin-left: 5px; font: 400 10.5px var(--mono); color: var(--text-3); }
 
 /* ---------- Population bands (the main one only under the population tab) ---------- */
-.ebar-chart:not([data-metric=weight]) > .pop-band { visibility: hidden; }
+.ebar-chart:not(.population) > .pop-band { visibility: hidden; }
 .pop-band { display: flex; gap: 1px; height: 8px; margin-top: 12px; border-radius: 4px; overflow: hidden; background: var(--track); }
 .pop-band.mini { height: 6px; margin: 0; }
 .pop-band > span { flex: 0 1 0; min-width: 0; transition: flex-grow 0.2s var(--ease); }

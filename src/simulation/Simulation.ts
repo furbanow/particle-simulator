@@ -1,315 +1,182 @@
 import * as THREE from 'three';
-import { GPUComputationRenderer, type Variable } from 'three/addons/misc/GPUComputationRenderer.js';
-import {
-    BASE_DT, CLUSTER_CHECK_INTERVAL, DONUT_INNER, DONUT_OUTER, EJECT_SCALE_RANGE, EJECT_TIME,
-    INITIAL_SPEED, INV_REL_DENSITY_RANGE, K_GRAVITY, LONG_RANGE, MAX_PARTICLES, MAX_SPECIES, MAX_SPEED,
-    MOMENTUM_SCALE, RESTITUTION, SHOCK_STRENGTH, SUPERNOVA_COOLDOWN, SUPERNOVA_SPEED, TEX_SIZE, TOTAL_MASS,
-} from '../config';
-import { hexToVector, type Uniform } from '../gl/common';
+import { BASE_DT, MAX_PARTICLES, MAX_SPECIES, TEX_SIZE } from '../config';
+import type { Uniform } from '../gl/common';
 import { splitPopulation } from '../population';
-import { createSpecies, speciesDensity, type Species } from '../species';
-import { clamp } from '../util/math';
-import { DEFAULT_ALGORITHM, type AlgorithmId } from './algorithms';
-import { ClusterProbe } from './clusterProbe';
-import { analyzeConcentration } from './concentration';
-import { DensityField } from './densityField';
-import { ShockWave, type ShockUniforms } from './shockWave';
-import { createVelocityModels, type VelocityModel } from './velocityModels';
-import positionFrag from '../shaders/position.frag?raw';
+import {
+    cloneType, PARTICLE_COUNT_PARAM, populationWeights, type AlgorithmDeclaration, type ParamValue,
+    type ParamValues, type ParticleType,
+} from './algorithm';
+import { ALGORITHMS, DEFAULT_ALGORITHM, type AlgorithmId } from './algorithms';
+import { GpuPipeline } from './GpuPipeline';
+import { GPU_MODELS } from './gpuModels';
+import { defaultParams, findParam, validParamValue } from './params';
+import type { SpeciesUniforms } from './gpuModel';
 
-/** Per-species uniforms shared by the simulation, particle and nebula materials. */
-export interface SpeciesUniforms {
-    splatMass: Uniform<number[]>;
-    size: Uniform<number[]>;
-    color: Uniform<THREE.Vector3[]>;
-}
+export type { SpeciesUniforms } from './gpuModel';
 
-export interface SimulationEvents {
-    /** A supernova went off; `count` is the total since the last reset. */
-    onSupernova?: (count: number) => void;
-    /** A concentration check finished; `fraction` of the particles inside the densest disk. */
-    onConcentration?: (fraction: number) => void;
+/** What the simulation keeps per algorithm, so switching back finds the edits again. */
+interface AlgorithmState {
+    species: ParticleType[];
+    params: ParamValues;
 }
 
 /**
- * Multi-species GPGPU gravity simulation. Positions (x, y, species) and velocities (vx, vy,
- * remaining ejection time) live in float textures; gravity comes from a mipmapped cloud-in-cell
- * density field. The velocity pass is the selected algorithm's shader (see velocityModels.ts),
- * chosen on reset. Every few frames positions are read back to find the densest disk; above the
- * threshold it goes supernova.
+ * The simulation as the UI and the render layers see it, whatever the algorithm: the shared
+ * geometry and uniforms, the particle types (`species`) and parameter values of the selected
+ * algorithm, and the GPGPU pipeline running it (recreated when the algorithm changes). The
+ * declaration of the algorithm (algorithms.ts) drives the UI; its GPU model (gpuModels.ts) the physics.
  */
 export class Simulation {
-    readonly species: Species[] = createSpecies();
-    readonly speciesCounts = new Array<number>(MAX_SPECIES).fill(0);
     readonly speciesUniforms: SpeciesUniforms = {
         splatMass: { value: new Array<number>(MAX_SPECIES).fill(1) },
-        size: { value: this.species.map(s => s.size) },
-        color: { value: this.species.map(() => new THREE.Vector3()) },
+        size: { value: new Array<number>(MAX_SPECIES).fill(1) },
+        color: { value: Array.from({ length: MAX_SPECIES }, () => new THREE.Vector3()) },
     };
     /** One vertex per texture slot; `reference` is the texel UV of the particle. */
     readonly geometry = createReferenceGeometry();
     readonly screenSize: Uniform<THREE.Vector2> = { value: new THREE.Vector2() };
+    /** Particles per type at the last restart (the population split). */
+    readonly speciesCounts = new Array<number>(MAX_SPECIES).fill(0);
 
     // ---- Live parameters ----
     timeScale = 1;
-    supernovaThreshold = 0.6;               // fraction of the particles
-    concentrationRadius = 80;               // px
 
     // ---- State ----
     activeCount = 0;
     activeTypeCount = 0;
-    supernovaCount = 0;
-    private currentAlgorithm: AlgorithmId = DEFAULT_ALGORITHM;
+    private algorithmId: AlgorithmId = DEFAULT_ALGORITHM;
+    private readonly states = new Map<AlgorithmId, AlgorithmState>();
+    /** Parameter values at the last restart. */
+    private appliedParams: ParamValues = {};
+    private pipeline: GpuPipeline;
     private width = 1;
     private height = 1;
-    private frameCounter = 0;
-    private cooldown = 0;
-    private supernovaPending = false;
-    private generation = 0;
 
-    private readonly gpu: GPUComputationRenderer;
-    private readonly velVar: Variable;
-    private readonly posVar: Variable;
-    private readonly velUniforms: Record<string, THREE.IUniform>;
-    private readonly velocityModels: Record<AlgorithmId, VelocityModel> = createVelocityModels();
-    /** Velocity-pass material of each algorithm used so far, all sharing velUniforms. */
-    private readonly velocityMaterials = new Map<AlgorithmId, THREE.ShaderMaterial>();
-    private readonly posUniforms: Record<string, THREE.IUniform>;
-    private readonly density: DensityField;
-    private readonly shock: ShockWave;
-    private readonly probe: ClusterProbe;
-    private readonly supernovaMask = new Uint8Array(MAX_PARTICLES);
-    private readonly supernovaTexture: THREE.DataTexture;
+    constructor(private readonly renderer: THREE.WebGLRenderer, algorithm: AlgorithmId = DEFAULT_ALGORITHM) {
+        this.algorithmId = algorithm;
+        this.pipeline = this.createPipeline();
+    }
 
-    constructor(renderer: THREE.WebGLRenderer, private readonly events: SimulationEvents = {}) {
-        this.density = new DensityField(renderer, this.geometry, this.speciesUniforms.splatMass);
-        this.probe = new ClusterProbe(renderer);
+    get algorithm(): AlgorithmDeclaration {
+        return ALGORITHMS[this.algorithmId];
+    }
 
-        this.gpu = new GPUComputationRenderer(TEX_SIZE, TEX_SIZE, renderer);
-        this.velVar = this.gpu.addVariable('textureVelocity', this.velocityModels[DEFAULT_ALGORITHM].shader,
-            this.gpu.createTexture());
-        this.posVar = this.gpu.addVariable('texturePosition', positionFrag, this.gpu.createTexture());
-        // The velocity pass has no declared dependencies: its shader is swapped per algorithm, so it
-        // declares its state samplers itself and step() binds them (GPUComputationRenderer would only
-        // inject them into the first shader).
-        this.gpu.setVariableDependencies(this.posVar, [this.posVar, this.velVar]);
-        this.velocityMaterials.set(DEFAULT_ALGORITHM, this.velVar.material);
+    get algorithmKey(): AlgorithmId {
+        return this.algorithmId;
+    }
 
-        this.supernovaTexture = new THREE.DataTexture(this.supernovaMask, TEX_SIZE, TEX_SIZE, THREE.RedFormat, THREE.UnsignedByteType);
-        this.supernovaTexture.needsUpdate = true;
+    /** Particle types of the selected algorithm, shared by reference with the UI (edited in place). */
+    get species(): ParticleType[] {
+        return this.state.species;
+    }
 
-        this.velUniforms = this.velVar.material.uniforms;
-        Object.assign(this.velUniforms, {
-            texturePosition: { value: null },
-            textureVelocity: { value: null },
-            textureDensity: { value: this.density.target.texture },
-            textureSupernova: { value: this.supernovaTexture },
-            screenSize: this.screenSize,
-            domainOffset: this.density.domainOffset,
-            domainSize: this.density.domainSize,
-            densityRes: this.density.densityRes,
-            maxLod: { value: Math.log2(this.density.densityRes.value) - 1 }, // the 1x1 level carries no gradient
-            dt: { value: BASE_DT },
-            activeCount: { value: 0 },
-            kGravity: { value: K_GRAVITY },
-            longRange: { value: LONG_RANGE },
-            maxSpeed: { value: MAX_SPEED },
-            restitution: { value: RESTITUTION },
-            momentumScale: { value: MOMENTUM_SCALE },
-            supernovaActive: { value: 0 },
-            supernovaCenter: { value: new THREE.Vector2() },
-            supernovaSpeed: { value: SUPERNOVA_SPEED },
-            ejectTime: { value: EJECT_TIME },
-            shockActive: { value: 0 },
-            shockCenter: { value: new THREE.Vector2() },
-            shockInner: { value: 0 },
-            shockOuter: { value: 0 },
-            shockRef: { value: 1 },
-            shockStrength: { value: SHOCK_STRENGTH },
-            speciesInvRelDensity: { value: new Array<number>(MAX_SPECIES).fill(1) },
-            speciesEjectScale: { value: new Array<number>(MAX_SPECIES).fill(1) },
-        });
-        for (const model of Object.values(this.velocityModels)) Object.assign(this.velUniforms, model.uniforms);
-        this.posUniforms = this.posVar.material.uniforms;
-        Object.assign(this.posUniforms, {
-            dt: { value: BASE_DT },
-            screenSize: this.screenSize,
-            activeCount: this.velUniforms.activeCount,
-        });
-
-        const gpuError = this.gpu.init();
-        if (gpuError !== null) throw new Error(gpuError);
-
-        this.shock = new ShockWave(this.velUniforms as unknown as ShockUniforms);
+    get params(): Readonly<ParamValues> {
+        return this.state.params;
     }
 
     get positionTexture(): THREE.Texture {
-        return this.gpu.getCurrentRenderTarget(this.posVar).texture;
+        return this.pipeline.positionTexture;
     }
 
     get velocityTexture(): THREE.Texture {
-        return this.gpu.getCurrentRenderTarget(this.velVar).texture;
+        return this.pipeline.velocityTexture;
     }
 
-    /** Gravitational constant (K_GRAVITY by default), applied live by the velocity pass. */
-    /** Algorithm of the running simulation (a new one is applied by reset). */
-    get algorithm(): AlgorithmId {
-        return this.currentAlgorithm;
+    /**
+     * Switches to another algorithm: its own types and parameter values (as last left), a new
+     * pipeline. Nothing runs until reset().
+     */
+    useAlgorithm(id: AlgorithmId): void {
+        if (id === this.algorithmId) return;
+        this.pipeline.dispose();
+        this.algorithmId = id;
+        this.appliedParams = {};
+        this.activeCount = 0;
+        this.activeTypeCount = 0;
+        this.speciesCounts.fill(0);
+        this.geometry.setDrawRange(0, 0);
+        this.pipeline = this.createPipeline();
+        this.pipeline.resize(this.width, this.height);
     }
 
-    get gravity(): number {
-        return this.velUniforms.kGravity.value;
+    /** Sets a parameter of the selected algorithm; live ones reach the GPU model at once. */
+    setParam(key: string, value: ParamValue): void {
+        const param = findParam(this.algorithm, key);
+        if (!param) return;
+        const valid = validParamValue(param, value);
+        this.state.params[key] = valid;
+        if (param.apply === 'live') this.pipeline.setParam(key, valid);
     }
 
-    set gravity(value: number) {
-        this.velUniforms.kGravity.value = value;
+    /** Whether a restart-applied parameter differs from its value in the running simulation. */
+    isPending(key: string): boolean {
+        return this.state.params[key] !== this.appliedParams[key];
     }
 
-    /** Supernova ejection power, 0..100 % of SUPERNOVA_SPEED. */
-    set supernovaPower(percent: number) {
-        this.velUniforms.supernovaSpeed.value = SUPERNOVA_SPEED * percent / 100;
+    /** Live value of a stat the algorithm declares (null while unknown). */
+    stat(key: string): number | null {
+        return this.pipeline.stat(key);
+    }
+
+    /** Particles per type now: the GPU model's count when types change, else the restart split. */
+    liveTypeCounts(): readonly number[] {
+        return this.pipeline.liveTypeCounts() ?? this.speciesCounts;
     }
 
     resize(width: number, height: number): void {
         this.width = width;
         this.height = height;
         this.screenSize.value.set(width, height);
-        this.density.resize(width, height);
+        this.pipeline.resize(width, height);
     }
 
     /**
-     * Restarts with `count` particles in a donut, split between the first `typeCount` species
-     * pro rata of their population weights, run by `algorithm`.
+     * Restarts with the particle count parameter, split between the first `typeCount` types pro
+     * rata of their population weights.
      */
-    reset(count: number, typeCount: number, algorithm: AlgorithmId): void {
-        this.useAlgorithm(algorithm);
+    reset(typeCount: number): void {
+        const params = { ...this.state.params };
+        const count = Math.min(MAX_PARTICLES, Math.max(0, Math.round(Number(params[PARTICLE_COUNT_PARAM]) || 0)));
+        this.appliedParams = params;
         this.activeCount = count;
         this.activeTypeCount = typeCount;
-        const counts = splitPopulation(count, this.species.map(s => s.weight), typeCount);
+        const counts = splitPopulation(count, populationWeights(this.algorithm.particleTypes, this.species), typeCount);
+        this.speciesCounts.fill(0);
         counts.forEach((n, k) => { this.speciesCounts[k] = n; });
-        this.generation++;
-        this.frameCounter = 0;
-        this.cooldown = 0;
-        this.supernovaCount = 0;
-        this.supernovaPending = false;
-        this.velUniforms.supernovaActive.value = 0;
-        this.shock.stop();
-
-        const posTex = this.gpu.createTexture();
-        const velTex = this.gpu.createTexture();
-        // GPUComputationRenderer textures are RGBA float data.
-        const p = posTex.image.data as unknown as Float32Array;
-        const v = velTex.image.data as unknown as Float32Array;
-        const cx = this.width / 2, cy = this.height / 2;
-        const m = Math.min(this.width, this.height);
-        const rIn2 = (DONUT_INNER * m) ** 2;
-        const rOut2 = (DONUT_OUTER * m) ** 2;
-        // Species fill contiguous index blocks: positions are drawn independently and blending
-        // is additive, so the index order has no visible effect.
-        let species = 0, blockEnd = counts[0];
-        for (let i = 0; i < count; i++) {
-            while (i >= blockEnd) blockEnd += counts[++species];
-            const a = Math.random() * Math.PI * 2;
-            const r = Math.sqrt(rIn2 + Math.random() * (rOut2 - rIn2)); // uniform in area
-            p[i * 4] = cx + Math.cos(a) * r;
-            p[i * 4 + 1] = cy + Math.sin(a) * r;
-            p[i * 4 + 2] = species;
-            p[i * 4 + 3] = 1;
-            v[i * 4] = (Math.random() * 2 - 1) * INITIAL_SPEED;
-            v[i * 4 + 1] = (Math.random() * 2 - 1) * INITIAL_SPEED;
-        }
-        for (const rt of this.posVar.renderTargets) this.gpu.renderTexture(posTex, rt);
-        for (const rt of this.velVar.renderTargets) this.gpu.renderTexture(velTex, rt);
-        posTex.dispose();
-        velTex.dispose();
-
+        this.pipeline.reset(count, this.speciesCounts, params);
         this.geometry.setDrawRange(0, count);
-        this.velUniforms.activeCount.value = count;
         this.updateSpeciesUniforms();
     }
 
-    /** Derives every per-species uniform from the species settings and the particle split. */
+    /** Derives every per-type uniform from the type settings and the particle split. */
     updateSpeciesUniforms(): void {
-        let totalMass = 0, massDensity = 0;
-        for (let k = 0; k < MAX_SPECIES; k++) {
-            const m = this.speciesCounts[k] * this.species[k].mass;
-            totalMass += m;
-            massDensity += m * speciesDensity(this.species[k]);
-        }
-        if (totalMass <= 0) return;
-        const massUnit = TOTAL_MASS / totalMass;              // total field mass stays TOTAL_MASS
-        const meanDensity = massDensity / totalMass;          // mass-weighted
-        const meanMass = totalMass / this.activeCount;
-        const su = this.speciesUniforms;
-        for (let k = 0; k < MAX_SPECIES; k++) {
-            const s = this.species[k];
-            su.splatMass.value[k] = s.mass * massUnit;
-            this.velUniforms.speciesInvRelDensity.value[k] = clamp(meanDensity / speciesDensity(s), INV_REL_DENSITY_RANGE);
-            this.velUniforms.speciesEjectScale.value[k] = clamp(Math.sqrt(meanMass / s.mass), EJECT_SCALE_RANGE);
-            su.size.value[k] = s.size;
-            su.color.value[k].copy(hexToVector(s.color));
-        }
+        this.pipeline.updateSpecies(this.species, this.speciesCounts);
     }
 
     /** Advances one rendered frame (substeps keep large time scales stable). Frozen at time scale 0. */
     step(): void {
         if (this.timeScale <= 0) return;
         const steps = Math.max(1, Math.ceil(this.timeScale - 1e-6));
-        const dt = BASE_DT * this.timeScale / steps;
-        this.velUniforms.dt.value = dt;
-        this.posUniforms.dt.value = dt;
-        for (let s = 0; s < steps; s++) {
-            if (s === 0 && this.supernovaPending) this.velUniforms.supernovaActive.value = 1;
-            this.shock.advance(dt);
-            this.density.shiftGrid();
-            this.density.render(this.positionTexture, this.velocityTexture);
-            this.velUniforms.texturePosition.value = this.positionTexture;
-            this.velUniforms.textureVelocity.value = this.velocityTexture;
-            this.gpu.compute();
-            if (this.velUniforms.supernovaActive.value === 1) {
-                this.velUniforms.supernovaActive.value = 0;
-                this.shock.start(this.concentrationRadius, this.width, this.height);
-                this.supernovaPending = false;
-                this.cooldown = SUPERNOVA_COOLDOWN;
-                this.supernovaCount++;
-                this.events.onSupernova?.(this.supernovaCount);
-            }
-        }
+        this.pipeline.step(BASE_DT * this.timeScale / steps, steps);
     }
 
-    private useAlgorithm(id: AlgorithmId): void {
-        this.currentAlgorithm = id;
-        let material = this.velocityMaterials.get(id);
-        if (!material) {
-            material = this.gpu.createShaderMaterial(this.velocityModels[id].shader, this.velUniforms);
-            this.velocityMaterials.set(id, material);
-        }
-        this.velVar.material = material;
-    }
-
-    /** Frame bookkeeping after rendering: supernova cooldown and periodic concentration check. */
+    /** Frame bookkeeping after rendering (periodic read-back of the positions). */
     endFrame(): void {
-        this.frameCounter++;
-        if (this.cooldown > 0) this.cooldown--;
-        if (this.frameCounter % CLUSTER_CHECK_INTERVAL === 0) this.scheduleClusterCheck();
+        this.pipeline.endFrame();
     }
 
-    private scheduleClusterCheck(): void {
-        if (this.probe.busy || this.cooldown > 0 || this.supernovaPending) return;
-        const gen = this.generation;
-        this.probe.read(this.gpu.getCurrentRenderTarget(this.posVar), this.activeCount,
-            () => gen === this.generation, positions => this.checkConcentration(positions));
+    private get state(): AlgorithmState {
+        let state = this.states.get(this.algorithmId);
+        if (!state) {
+            const algorithm = this.algorithm;
+            state = { species: algorithm.particleTypes.defaults.map(cloneType), params: defaultParams(algorithm) };
+            this.states.set(this.algorithmId, state);
+        }
+        return state;
     }
 
-    private checkConcentration(positions: Float32Array): void {
-        const result = analyzeConcentration(positions, this.activeCount, this.concentrationRadius,
-            this.width, this.height, this.supernovaMask);
-        this.events.onConcentration?.(result.fraction);
-        if (result.members === 0 || result.fraction < this.supernovaThreshold) return;
-
-        this.supernovaTexture.needsUpdate = true;
-        this.velUniforms.supernovaCenter.value.set(result.centerX, result.centerY);
-        this.supernovaPending = true;
+    private createPipeline(): GpuPipeline {
+        return new GpuPipeline(this.renderer, this, GPU_MODELS[this.algorithmId], this.state.params);
     }
 }
 

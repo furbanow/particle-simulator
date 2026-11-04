@@ -1,23 +1,9 @@
-import { DEFAULT_POPULATION_WEIGHT, MASS_JITTER, MASS_RANGE, MASS_SLIDER_STEPS, SIZE_RANGE, SIZE_STEP } from './config';
+import { MASS_JITTER, MASS_RANGE, MASS_SLIDER_STEPS, SIZE_RANGE, SIZE_STEP } from './config';
 import type { Hsl } from './util/color';
 import { clamp, shuffle, snap } from './util/math';
 
-/**
- * A species is a chemical element. Mass is the atomic mass in u (only ratios matter to the
- * simulation: the total mass stays TOTAL_MASS); size is the rendered diameter in CSS px.
- * Density = mass / disc area. Weight is the population weight: particles are split between the
- * species pro rata of their weights.
- */
-export interface Species {
-    name: string;
-    symbol: string;
-    color: string;
-    mass: number;
-    size: number;
-    weight: number;
-}
-
-interface Element {
+/** A chemical element, as the default particle types of the algorithms show it. */
+export interface Element {
     name: string;
     symbol: string;
     atomicMass: number;     // u, IUPAC standard atomic weight (conventional value)
@@ -38,18 +24,6 @@ export const ELEMENTS: readonly Element[] = [
     { name: 'Fluor',     symbol: 'F',  atomicMass: 18.998, radius: 42,  color: '#90e050' },
     { name: 'Néon',      symbol: 'Ne', atomicMass: 20.180, radius: 38,  color: '#b3e3f5' },
 ];
-
-// Rendered diameters are proportional to the atomic radii, the largest atom filling the slider.
-const MAX_RADIUS = Math.max(...ELEMENTS.map(e => e.radius));
-
-export const DEFAULT_SPECIES: readonly Species[] = ELEMENTS.map(({ name, symbol, atomicMass, radius, color }) => ({
-    name, symbol, color, mass: atomicMass, size: radius / MAX_RADIUS * SIZE_RANGE[1],
-    weight: DEFAULT_POPULATION_WEIGHT,
-}));
-
-export const createSpecies = (): Species[] => DEFAULT_SPECIES.map(s => ({ ...s }));
-
-export const speciesDensity = (s: Species): number => s.mass / (Math.PI * (s.size / 2) ** 2);
 
 // ---- Logarithmic mass slider ----
 const MASS_LOG_SPAN = Math.log(MASS_RANGE[1] / MASS_RANGE[0]);

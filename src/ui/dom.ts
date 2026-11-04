@@ -17,5 +17,3 @@ export function fail(message: string): never {
     byId('error').textContent = message;
     throw new Error(message);
 }
-
-export const formatInt = (n: number): string => n.toLocaleString('fr-FR');

@@ -1,0 +1,9 @@
+/* ---------- Algorithm parameters other than sliders (built by ParamPanel) ---------- */
+.field-row input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.param-select {
+    min-width: 0; height: 26px; padding: 0 8px; border: 1px solid var(--border); border-radius: 7px; cursor: pointer;
+    background: var(--surface); color: var(--text); font: 500 12px var(--font);
+}
+.param-select:hover { border-color: var(--border-strong); }
+.param-select:focus-visible { outline: none; border-color: var(--accent); }
+.param-select option { background: var(--panel); color: var(--text); }

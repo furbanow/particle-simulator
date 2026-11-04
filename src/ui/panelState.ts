@@ -27,7 +27,8 @@ export function rememberOpen(key: string, open: boolean): void {
     savePanelState();
 }
 
-function setupPersistentCollapsible(el: HTMLElement, head: HTMLElement, key: string, defaultOpen: boolean): void {
+/** Collapsible `el` whose open state is remembered under `key`. */
+export function setupPersistentCollapsible(el: HTMLElement, head: HTMLElement, key: string, defaultOpen: boolean): void {
     el.classList.toggle('open', rememberedOpen(key, defaultOpen));
     makeCollapsible(el, head, open => rememberOpen(key, open));
 }

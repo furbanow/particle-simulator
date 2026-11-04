@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { MASS_RANGE, POPULATION_WEIGHT_RANGE, SIZE_RANGE, VIVID_LIGHTNESS, VIVID_SATURATION } from '../src/config';
-import { colorGradient, ELEMENT_METRICS, METRIC_GROUPS, speciesHsl, withHue, type MetricId } from '../src/elementMetrics';
-import { createSpecies, DEFAULT_SPECIES } from '../src/species';
+import { buildMetrics, colorGradient, metricGroups, speciesHsl, withHue, type MetricId } from '../src/elementMetrics';
+import { cloneType, linearScale, type ParticleTypeSchema } from '../src/simulation/algorithm';
+import { STICKY_DUST, STICKY_DUST_TYPES } from '../src/simulation/stickyDust/declaration';
 import { hexToHsl, hslToHex } from '../src/util/color';
 
+const ELEMENT_METRICS = buildMetrics(STICKY_DUST.particleTypes);
+const METRIC_GROUPS = metricGroups(ELEMENT_METRICS);
+const DEFAULT_SPECIES = STICKY_DUST_TYPES;
+const createSpecies = () => STICKY_DUST_TYPES.map(cloneType);
 const metric = (id: MetricId) => ELEMENT_METRICS.find(m => m.id === id)!;
 
 describe('hex <-> HSL', () => {
@@ -45,26 +50,26 @@ describe('element metrics', () => {
     it('map the bar ends to the range ends', () => {
         const [s] = createSpecies();
         metric('weight').set(s, 0);
-        expect(s.weight).toBe(POPULATION_WEIGHT_RANGE[0]);
+        expect(s.values.weight).toBe(POPULATION_WEIGHT_RANGE[0]);
         metric('weight').set(s, 2);
-        expect(s.weight).toBe(POPULATION_WEIGHT_RANGE[1]);
+        expect(s.values.weight).toBe(POPULATION_WEIGHT_RANGE[1]);
         metric('mass').set(s, 0);
-        expect(s.mass).toBe(MASS_RANGE[0]);
+        expect(s.values.mass).toBe(MASS_RANGE[0]);
         metric('mass').set(s, 1);
-        expect(s.mass).toBe(MASS_RANGE[1]);
+        expect(s.values.mass).toBe(MASS_RANGE[1]);
         metric('size').set(s, -1);
-        expect(s.size).toBe(SIZE_RANGE[0]);
+        expect(s.values.size).toBe(SIZE_RANGE[0]);
         metric('size').set(s, 1);
-        expect(s.size).toBe(SIZE_RANGE[1]);
+        expect(s.values.size).toBe(SIZE_RANGE[1]);
     });
 
     it('round to their steps and report changes', () => {
         const [s] = createSpecies();
         expect(metric('weight').set(s, 0.123)).toBe(true);
-        expect(s.weight).toBe(0.12);
+        expect(s.values.weight).toBe(0.12);
         expect(metric('weight').set(s, 0.1201)).toBe(false);
         metric('size').set(s, 0.5);
-        expect(s.size).toBe(3.5);
+        expect(s.values.size).toBe(3.5);
     });
 
     it('reset to the element of the periodic table at that rank', () => {
@@ -78,9 +83,9 @@ describe('element metrics', () => {
         const species = createSpecies();
         for (const m of ELEMENT_METRICS) m.randomize(species, 6);
         for (const s of species) {
-            expect(s.size).toBeGreaterThanOrEqual(SIZE_RANGE[0]);
-            expect(s.size).toBeLessThanOrEqual(SIZE_RANGE[1]);
-            expect(s.weight).toBeGreaterThan(POPULATION_WEIGHT_RANGE[0]);
+            expect(s.values.size).toBeGreaterThanOrEqual(SIZE_RANGE[0]);
+            expect(s.values.size).toBeLessThanOrEqual(SIZE_RANGE[1]);
+            expect(s.values.weight).toBeGreaterThan(POPULATION_WEIGHT_RANGE[0]);
             expect(s.color).toMatch(/^#[0-9a-f]{6}$/);
         }
     });
@@ -137,5 +142,44 @@ describe('color channels', () => {
         expect(g.startsWith('linear-gradient(to top, #000000')).toBe(true);
         expect(g.endsWith('#ffffff)')).toBe(true);
         expect(colorGradient('to right', t => ({ h: t, s: 1, l: 0.5 }))).toMatch(/^linear-gradient\(to right, #ff0000.*#ff0000\)$/);
+    });
+});
+
+describe('metrics built from any schema', () => {
+    const schema = {
+        ...STICKY_DUST.particleTypes,
+        properties: [
+            {
+                kind: 'number', key: 'charge', label: 'Charge', unit: 'e', range: [-1, 1], scale: linearScale([-1, 1], 0.5),
+                live: false, resetLabel: 'Neutre', resetTitle: '', randomTitle: '', format: (v: number) => v.toFixed(1),
+            },
+        ],
+        defaults: [{ name: 'A', symbol: 'A', color: '#ff0000', values: { charge: 0.5 } }],
+    } satisfies ParticleTypeSchema;
+
+    it('give one metric per number property and no color tab without a color property', () => {
+        const metrics = buildMetrics(schema);
+        expect(metrics.map(m => [m.id, m.group, m.unit, m.live, m.population])).toEqual([['charge', 'Charge', 'e', false, false]]);
+        const [charge] = metrics;
+        const t = cloneType(schema.defaults[0]);
+        expect(charge.position(t)).toBe(0.75);
+        expect(charge.set(t, 0.1)).toBe(true);
+        expect(t.values.charge).toBe(-1);
+        expect(charge.format(t, 0.3)).toBe('-1.0');
+        expect(charge.reset(t, 0)).toBe(true);
+        expect(t.values.charge).toBe(0.5);
+    });
+
+    it('randomize uniformly over the scale by default', () => {
+        const [charge] = buildMetrics(schema);
+        const types = [cloneType(schema.defaults[0])];
+        charge.randomize(types, 1, () => 0);
+        expect(types[0].values.charge).toBe(-1);
+        charge.randomize(types, 1, () => 1);
+        expect(types[0].values.charge).toBe(1);
+    });
+
+    it('flag the population metric of sticky dust', () => {
+        expect(ELEMENT_METRICS.filter(m => m.population).map(m => m.id)).toEqual(['weight']);
     });
 });

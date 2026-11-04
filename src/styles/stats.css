@@ -28,5 +28,12 @@
 .meter-legend { position: relative; height: 14px; margin-top: 7px; font: 400 10.5px var(--mono); color: var(--text-3); }
 .meter-legend span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
 
+/* Live particle count per type (stat declared by an algorithm). */
+.type-counts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font: 500 12px var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.type-count::before {
+    content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%;
+    background: var(--type-color); vertical-align: 1px;
+}
+
 .shortcuts { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 18px; font-size: 11px; color: var(--text-3); }
 .shortcuts kbd { background: var(--surface-hover); color: var(--text-2); border: 1px solid var(--border); margin-right: 4px; }

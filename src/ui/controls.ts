@@ -1,72 +1,45 @@
 import type * as THREE from 'three';
 import type { PostProcessing } from '../render/postprocessing';
 import type { ParticleLayer } from '../render/particleLayer';
-import { ALGORITHMS, DEFAULT_ALGORITHM, algorithmInfo, isAlgorithmId, type AlgorithmId } from '../simulation/algorithms';
+import { algorithmList, isAlgorithmId, type AlgorithmId } from '../simulation/algorithms';
 import type { Simulation } from '../simulation/Simulation';
-import { byId, formatInt } from './dom';
+import { byId } from './dom';
 import { bindSlider, fixed2, percent } from './sliders';
-import type { Stats } from './stats';
 
 export interface ControlTargets {
     simulation: Simulation;
     particles: ParticleLayer;
     post: PostProcessing;
     renderer: THREE.WebGLRenderer;
-    stats: Stats;
+    /** Another algorithm was picked: the UI is rebuilt for it and the simulation restarts. */
+    onAlgorithmChange(id: AlgorithmId): void;
 }
 
-const PENDING_HINT = 'Appliqué au redémarrage';
-
 /**
- * Wires the panel controls to the simulation and the renderer. The algorithm and the particle count
- * only apply on restart (a hint says so); everything else is live. Elements are handled by the element bar.
+ * Wires the controls every algorithm shares: the algorithm picker, the simulation speed and the
+ * visual effects (all live). The algorithm's own parameters are built by ParamPanel, its
+ * particle types by the element bar.
  */
-export function setupControls({ simulation: sim, particles, post, renderer, stats }: ControlTargets) {
+export function setupControls({ simulation: sim, particles, post, renderer, onAlgorithmChange }: ControlTargets): void {
     const algorithmSelect = byId<HTMLSelectElement>('algorithmSelect');
     const algorithmDescription = byId('algorithmDescription');
-    const algorithmHint = byId('algorithmHint');
-    const countSlider = byId<HTMLInputElement>('countSlider');
-    const countVal = byId('countVal');
-    const countHint = byId('countHint');
     const speedSlider = byId<HTMLInputElement>('speedSlider');
     const speedVal = byId('speedVal');
     const speedDock = byId('speedDock');
-    const thresholdSlider = byId<HTMLInputElement>('thresholdSlider');
-    const thresholdVal = byId('thresholdVal');
-    const radiusSlider = byId<HTMLInputElement>('radiusSlider');
-    const radiusVal = byId('radiusVal');
-    const powerSlider = byId<HTMLInputElement>('powerSlider');
-    const powerVal = byId('powerVal');
-
-    const selectedCount = () => parseInt(countSlider.value, 10);
-    const selectedAlgorithm = (): AlgorithmId =>
-        isAlgorithmId(algorithmSelect.value) ? algorithmSelect.value : DEFAULT_ALGORITHM;
-
-    function updateCountHint(): void {
-        countHint.textContent = selectedCount() !== sim.activeCount ? PENDING_HINT : '';
-    }
-
-    function updateAlgorithmHint(): void {
-        algorithmHint.textContent = selectedAlgorithm() !== sim.algorithm ? PENDING_HINT : '';
-    }
 
     // ---- Algorithm ----
-    for (const { id, label } of ALGORITHMS) algorithmSelect.add(new Option(label, id));
-    algorithmSelect.value = DEFAULT_ALGORITHM;
-    const paintAlgorithm = () => {
-        algorithmDescription.textContent = algorithmInfo(selectedAlgorithm()).description;
-        updateAlgorithmHint();
-    };
-    algorithmSelect.addEventListener('change', paintAlgorithm);
+    for (const { id, label } of algorithmList()) algorithmSelect.add(new Option(label, id));
+    algorithmSelect.value = sim.algorithmKey;
+    const paintAlgorithm = () => { algorithmDescription.textContent = sim.algorithm.description; };
+    algorithmSelect.addEventListener('change', () => {
+        const id = algorithmSelect.value;
+        if (!isAlgorithmId(id) || id === sim.algorithmKey) return;
+        onAlgorithmChange(id);
+        paintAlgorithm();
+    });
     paintAlgorithm();
 
-    // ---- Particles ----
-    countSlider.addEventListener('input', () => {
-        countVal.textContent = formatInt(selectedCount());
-        updateCountHint();
-    });
-
-    // ---- Dynamics ----
+    // ---- Simulation speed ----
     const paintSpeed = () => {
         sim.timeScale = parseFloat(speedSlider.value);
         speedVal.textContent = sim.timeScale > 0 ? `${sim.timeScale.toFixed(1)}×` : 'Pause';
@@ -77,24 +50,6 @@ export function setupControls({ simulation: sim, particles, post, renderer, stat
     };
     speedSlider.addEventListener('input', paintSpeed);
     paintSpeed();
-    bindSlider('gravity', v => `G = ${v.toFixed(1)}`, v => { sim.gravity = v; });
-
-    // ---- Supernova ----
-    thresholdSlider.addEventListener('input', () => {
-        const value = parseInt(thresholdSlider.value, 10);
-        sim.supernovaThreshold = value / 100;
-        thresholdVal.textContent = `${value} %`;
-        stats.threshold(value);
-    });
-    radiusSlider.addEventListener('input', () => {
-        sim.concentrationRadius = parseInt(radiusSlider.value, 10);
-        radiusVal.textContent = `${sim.concentrationRadius} px`;
-    });
-    powerSlider.addEventListener('input', () => {
-        const power = parseInt(powerSlider.value, 10);
-        sim.supernovaPower = power;
-        powerVal.textContent = `${power} %`;
-    });
 
     // ---- Visual effects (all live) ----
     bindSlider('bloomStrength', fixed2, v => { post.bloom.strength = v; post.bloom.enabled = v > 0; });
@@ -105,16 +60,4 @@ export function setupControls({ simulation: sim, particles, post, renderer, stat
     bindSlider('lens', percent, v => { post.lensStrength = v; });
     bindSlider('heat', percent, v => { particles.heatAmount = v; });
     bindSlider('stretch', v => `${v.toFixed(1)}×`, v => { particles.stretchAmount = v; });
-
-    // Initial values: push every slider into the simulation and its display.
-    for (const slider of [countSlider, speedSlider, thresholdSlider, radiusSlider, powerSlider]) {
-        slider.dispatchEvent(new Event('input'));
-    }
-
-    return {
-        selectedCount,
-        selectedAlgorithm,
-        /** Refreshes the pending hints after a restart. */
-        afterRestart: () => { updateCountHint(); updateAlgorithmHint(); },
-    };
 }
