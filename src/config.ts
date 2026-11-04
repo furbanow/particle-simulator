@@ -48,6 +48,56 @@ export const SUPERNOVA_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 100, step: 
 export const CONCENTRATION_RADIUS_SLIDER: SliderSpec = { min: 10, max: 400, step: 5, default: 80 }; // px
 export const SUPERNOVA_POWER_SLIDER: SliderSpec = { min: 5, max: 100, step: 5, default: 70 };      // % of SUPERNOVA_SPEED
 
+// ---- Removed particles (common GPU contract) ----
+// A particle whose position w is negative has been removed (e.g. absorbed by a fusion): it is
+// neither drawn nor deposited on any grid nor counted. Live particles have w = 1.
+export const REMOVED_PARTICLE_W = -1;
+
+// ---- Protostar (hydrogen fusion) algorithm ----
+// Lengths are measured in L = min(width, height) of the simulation area, frozen at restart, so the
+// behavior does not depend on the screen size; masses in fractions of TOTAL_MASS; time in s.
+// Gravity and gas grids: GRID_RES^2 square cells over max(width, height), from the origin.
+export const PROTOSTAR_GRID_RES = 128;
+// Gravity is summed cell to cell in two levels: the coarse grid groups GRID_COARSE_FACTOR^2 fine
+// cells (monopole at their center of mass); coarse cells within GRID_NEAR_RADIUS (Chebyshev) of a
+// cell's own coarse cell are summed fine cell by fine cell.
+export const PROTOSTAR_COARSE_FACTOR = 4;
+export const PROTOSTAR_NEAR_RADIUS = 2;
+// G slider -> G_eff = G * GRAVITY_UNIT * L^3 / TOTAL_MASS (px^3 / (mass s^2)).
+export const PROTOSTAR_GRAVITY_UNIT = 0.001;
+export const PROTOSTAR_CLOUD_RADIUS = 0.38;        // initial cloud radius / L
+// Temperature unit of the fusion law, T0 = FUSION_T_REF * (L/s)^2; densities in rho0, the initial
+// mean density of the cloud. The fusion probability per step is lambda0 * (rho/rho0) * (T/T0)^alpha * dt.
+export const PROTOSTAR_FUSION_T_REF = 0.02;
+// Specific energy released by a fusion: (mass defect / fused mass) * c^2, with c^2 = FUSION_C2 * T0.
+export const PROTOSTAR_FUSION_C2 = 2000;
+export const PROTOSTAR_RESTITUTION = 0.5;          // walls
+export const PROTOSTAR_MAX_SPEED = 2;              // L/s
+export const PROTOSTAR_STATS_INTERVAL = 10;        // frames between two GPU reductions of the stats
+export const PROTOSTAR_STATS_REDUCE_RES = 16;      // first reduction stage (GRID_RES / 16 = 8 x 8 cells each)
+export const PROTOSTAR_RATE_SMOOTHING = 0.3;       // weight of a new fusion rate reading (exponential smoothing)
+// Glow of the particles (0..GLOW_MAX), read by the particle layer from velocity w: it rises with
+// the local temperature (T/T0 over GLOW_T_RANGE) and with the local fusion heating (per unit mass,
+// in T0 per second, GLOW_HEATING_REF giving full glow).
+export const PROTOSTAR_GLOW_T_RANGE: Range = [0.25, 1.5];
+export const PROTOSTAR_GLOW_TEMPERATURE = 0.7;
+export const PROTOSTAR_GLOW_HEATING_REF = 0.3;
+export const PROTOSTAR_GLOW_FUSION = 1.3;
+export const PROTOSTAR_GLOW_MAX = 2;
+// Panel parameters (slider min, max, step, default).
+export const PROTOSTAR_COUNT_SLIDER: SliderSpec = { min: 1000, max: 200000, step: 1000, default: 30000 };
+export const PROTOSTAR_ROTATION_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.01, default: 0.2 };       // x v_circ
+export const PROTOSTAR_AGITATION_SLIDER: SliderSpec = { min: 0, max: 1.5, step: 0.01, default: 0.8 };    // x v_circ(R)
+export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 5, step: 0.05, default: 1.5 };
+export const PROTOSTAR_SOFTENING_SLIDER: SliderSpec = { min: 0.2, max: 5, step: 0.1, default: 1 };       // % of L
+export const PROTOSTAR_COOLING_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.5 };        // 1/s
+export const PROTOSTAR_OPACITY_SLIDER: SliderSpec = { min: 1, max: 1000, step: 0, default: 30 };         // rho0, log
+export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 1e-4 };     // 1/s, log
+export const PROTOSTAR_ALPHA_SLIDER: SliderSpec = { min: 1, max: 6, step: 0.1, default: 3 };
+export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 1 };       // log
+export const PROTOSTAR_H_SIZE = 1.6;               // px, default rendered diameters
+export const PROTOSTAR_HE_SIZE = 2.4;
+
 // ---- Species ----
 export const MAX_SPECIES = 10;
 export const INV_REL_DENSITY_RANGE: Range = [0.25, 4];

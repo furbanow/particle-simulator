@@ -3,8 +3,10 @@
 
 import type { AlgorithmId } from './algorithms';
 import type { GpuModelFactory } from './gpuModel';
+import { ProtostarModel } from './protostar/gpuModel';
 import { StickyDustModel } from './stickyDust/gpuModel';
 
 export const GPU_MODELS: Readonly<Record<AlgorithmId, GpuModelFactory>> = {
     stickyDust: context => new StickyDustModel(context),
+    protostar: context => new ProtostarModel(context),
 };

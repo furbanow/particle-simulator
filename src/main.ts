@@ -47,7 +47,7 @@ try {
     failWith(err);
 }
 const particles = new ParticleLayer(simulation.geometry, simulation.speciesUniforms, simulation.screenSize,
-    renderer.getPixelRatio());
+    simulation.glowFromState, renderer.getPixelRatio());
 const nebula = new NebulaLayer(renderer, simulation.geometry, simulation.speciesUniforms, simulation.screenSize,
     particles.texturePosition);
 const post = new PostProcessing(renderer, particles.scene, nebula.target.texture, width, height);

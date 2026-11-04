@@ -15,6 +15,8 @@ export interface SharedGpuState {
     geometry: THREE.BufferGeometry;
     screenSize: Uniform<THREE.Vector2>;
     speciesUniforms: SpeciesUniforms;
+    /** 1 when the particle glow comes from the model's state (velocity w), 0 for the speed. */
+    glowFromState: Uniform<number>;
 }
 
 /** Initial state: a donut, uniform in area, with small random velocities. */
@@ -78,6 +80,7 @@ export class GpuPipeline {
             activeCount: () => this.activeCount,
         };
         const model = this.model = createModel(context);
+        shared.glowFromState.value = model.glow === 'state' ? 1 : 0;
 
         this.gpu = new GPUComputationRenderer(TEX_SIZE, TEX_SIZE, renderer);
         this.velVar = this.gpu.addVariable('textureVelocity', model.velocityShader, this.gpu.createTexture());
@@ -167,7 +170,8 @@ export class GpuPipeline {
             velocities: velTex.image.data as unknown as Float32Array,
             count, typeCounts, width: size.x, height: size.y, params,
         };
-        (this.model.initialize ?? donut)(state);
+        if (this.model.initialize) this.model.initialize(state);   // a method: called on the model
+        else donut(state);
         const textures = [posTex, velTex];
         for (const rt of this.posVar.renderTargets) this.gpu.renderTexture(posTex, rt);
         for (const rt of this.velVar.renderTargets) this.gpu.renderTexture(velTex, rt);
@@ -206,8 +210,10 @@ export class GpuPipeline {
         this.posUniforms.dt.value = dt;
         for (let s = 0; s < steps; s++) {
             model.beforeSubstep?.(dt);
-            this.density.shiftGrid();
-            this.density.render(this.positionTexture, this.velocityTexture);
+            if (model.usesDensityField ?? true) {
+                this.density.shiftGrid();
+                this.density.render(this.positionTexture, this.velocityTexture);
+            }
             this.velUniforms.texturePosition.value = this.positionTexture;
             this.velUniforms.textureVelocity.value = this.velocityTexture;
             for (const variable of this.extraVars) {

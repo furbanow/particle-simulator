@@ -12,8 +12,10 @@ export interface SpeciesUniforms {
 
 /**
  * What the GPGPU pipeline (GpuPipeline) lends to a GPU model. The state lives in float textures
- * of TEX_SIZE x TEX_SIZE texels, one per particle: positions (x, y, type rank, 1) and velocities
- * (vx, vy, z, w; z and w are the model's own). The particle and nebula layers draw them as they are.
+ * of TEX_SIZE x TEX_SIZE texels, one per particle: positions (x, y, type rank, w) and velocities
+ * (vx, vy, z, w; z and w are the model's own, but see GpuModel.glow). The particle and nebula
+ * layers draw them as they are. A particle whose position w is negative (REMOVED_PARTICLE_W) has
+ * been removed: it is not drawn, deposits no mass and is not counted; live particles have w = 1.
  */
 export interface GpuModelContext {
     readonly renderer: THREE.WebGLRenderer;
@@ -74,6 +76,17 @@ export interface GpuModel {
     readonly velocityUniforms: Record<string, THREE.IUniform>;
     readonly positionUniforms?: Record<string, THREE.IUniform>;
     readonly variables?: readonly GpuVariable[];
+    /**
+     * Whether the model reads the pipeline's density field (textureDensity); when false the
+     * pipeline does not render it. True when omitted.
+     */
+    readonly usesDensityField?: boolean;
+    /**
+     * Where the particle layer takes each particle's glow (whitening and brightening) from:
+     * 'speed' (default) heats particles with their speed; 'state' reads the model's own glow,
+     * 0..2, from the velocity w channel (e.g. the local temperature).
+     */
+    readonly glow?: 'speed' | 'state';
 
     /** Mass of a type in the gravity field (only ratios matter: the total stays TOTAL_MASS). */
     typeMass(type: ParticleType): number;

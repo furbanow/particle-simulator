@@ -13,6 +13,12 @@ varying float vMass;
 
 void main() {
     vec4 posData = texture2D(texturePosition, reference);
+    if (posData.w < 0.0) {                              // removed particle
+        vCell = vec2(0.0); vVel = vec2(0.0); vMass = 0.0;
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        gl_PointSize = 0.0;
+        return;
+    }
     vMass = speciesSplatMass[clamp(int(posData.z + 0.5), 0, MAX_SPECIES - 1)];
     vec2 p = (posData.xy + domainOffset) / domainSize * densityRes;
     vCell = p;

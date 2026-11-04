@@ -6,13 +6,14 @@ import type { SpeciesUniforms } from '../simulation/Simulation';
 import particleVert from '../shaders/particle.vert?raw';
 import particleFrag from '../shaders/particle.frag?raw';
 
-/** The visible particles: additive HDR ellipses, heated and stretched by their speed. */
+/** The visible particles: additive HDR ellipses, heated (by their speed or the model's glow) and stretched by their speed. */
 export class ParticleLayer {
     readonly scene = new THREE.Scene();
     readonly material: THREE.ShaderMaterial;
 
+    /** `glowFromState`: 1 when the glow comes from the model's state (velocity w), see GpuModel.glow. */
     constructor(geometry: THREE.BufferGeometry, species: SpeciesUniforms,
-                screenSize: Uniform<THREE.Vector2>, pixelRatio: number) {
+                screenSize: Uniform<THREE.Vector2>, glowFromState: Uniform<number>, pixelRatio: number) {
         this.material = new THREE.ShaderMaterial({
             uniforms: {
                 texturePosition: { value: null },
@@ -25,6 +26,7 @@ export class ParticleLayer {
                 heatAmount: { value: 1 },
                 stretchAmount: { value: 1 },
                 frameDt: { value: BASE_DT },
+                glowFromState,
             },
             vertexShader: withDefines(particleVert, {
                 MAX_SPECIES,

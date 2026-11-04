@@ -9,6 +9,12 @@ varying vec4 vValue;
 
 void main() {
     vec4 posData = texture2D(texturePosition, reference);
+    if (posData.w < 0.0) {                              // removed particle
+        vValue = vec4(0.0);
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        gl_PointSize = 0.0;
+        return;
+    }
     int species = clamp(int(posData.z + 0.5), 0, MAX_SPECIES - 1);
     float m = speciesSplatMass[species];
     vValue = vec4(speciesColor[species] * m, m);

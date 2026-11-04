@@ -35,6 +35,8 @@ export class Simulation {
     /** One vertex per texture slot; `reference` is the texel UV of the particle. */
     readonly geometry = createReferenceGeometry();
     readonly screenSize: Uniform<THREE.Vector2> = { value: new THREE.Vector2() };
+    /** Shared with the particle layer: set by the pipeline from its model (GpuModel.glow). */
+    readonly glowFromState: Uniform<number> = { value: 0 };
     /** Particles per type at the last restart (the population split). */
     readonly speciesCounts = new Array<number>(MAX_SPECIES).fill(0);
 
