@@ -1,5 +1,3 @@
-import { byId } from './dom';
-
 /** --p (0..1) drives the filled part of the WebKit track (Firefox uses ::-moz-range-progress). */
 export function syncRange(input: HTMLInputElement): void {
     const min = parseFloat(input.min) || 0;
@@ -21,25 +19,11 @@ export function setupSliders(panel: HTMLElement): void {
     });
 }
 
-export function syncAllRanges(panel: HTMLElement): void {
-    panel.querySelectorAll<HTMLInputElement>('input[type=range]').forEach(r => {
-        r.title = 'Double-clic : valeur par défaut';
-        syncRange(r);
-    });
+export function syncAllRanges(root: HTMLElement): void {
+    root.querySelectorAll<HTMLInputElement>('input[type=range]').forEach(syncRange);
 }
 
-/** Binds `#{name}Slider` to `#{name}Val` (formatted) and applies the value live. */
-export function bindSlider(name: string, format: (v: number) => string, apply: (v: number) => void): void {
-    const slider = byId<HTMLInputElement>(`${name}Slider`);
-    const out = byId(`${name}Val`);
-    const update = () => {
-        const v = parseFloat(slider.value);
-        out.textContent = format(v);
-        apply(v);
-    };
-    slider.addEventListener('input', update);
-    update();
+/** Says on hover that double-click resets the sliders of `root` (the panel's show their documentation instead). */
+export function titleResettableRanges(root: HTMLElement): void {
+    root.querySelectorAll<HTMLInputElement>('input[type=range]').forEach(r => { r.title = 'Double-clic : valeur par défaut'; });
 }
-
-export const fixed2 = (v: number): string => v.toFixed(2);
-export const percent = (v: number): string => `${Math.round(v * 100)} %`;

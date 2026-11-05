@@ -2,7 +2,7 @@
 // its live stats. Pure data and functions (no GPU, no DOM): the UI builds itself from it. The GPU
 // side (shaders, uniforms, passes) is a GpuModel, registered separately in gpuModels.ts.
 
-import type { Range } from '../config';
+import type { Range, SliderSpec } from '../config';
 import { clamp, snap } from '../util/math';
 
 // ---- Global parameters ----
@@ -13,17 +13,30 @@ export type ParamValues = Record<string, ParamValue>;
 /** Key of the particle count parameter, which every algorithm declares (number, applied on restart). */
 export const PARTICLE_COUNT_PARAM = 'count';
 
+/**
+ * The tabs of the panel, in display order. 'initial' holds what only takes effect on the next
+ * restart; the other tabs hold what applies while it changes. A tab shows only when a parameter
+ * is declared in it, so an algorithm gets its Fusion or Supernova tab by declaring its parameters.
+ */
+export const PANEL_TABS = [
+    { id: 'initial', label: 'Conditions initiales' },
+    { id: 'physics', label: 'Physique' },
+    { id: 'fusion', label: 'Fusion' },
+    { id: 'supernova', label: 'Supernova' },
+    { id: 'effects', label: 'Effets visuels' },
+] as const;
+
+export type PanelTab = typeof PANEL_TABS[number];
+export type PanelTabId = PanelTab['id'];
+
 interface ParamBase {
     /** Unique among the algorithm's parameters; the GPU model receives values by this key. */
     readonly key: string;
+    /** Name of the control. */
     readonly label: string;
-    /** Id of the panel section (AlgorithmDeclaration.sections) the control goes in. */
-    readonly section: string;
-    readonly hint?: string;
-    /** 'live': applied while it changes; 'restart': on the next restart (the panel says so). */
-    readonly apply: 'live' | 'restart';
-    /** Shown in the head of the section while it is folded. */
-    readonly summary?: boolean;
+    /** Concise explanation, shown on hover: what it is and what it does in the algorithm. */
+    readonly doc: string;
+    readonly tab: PanelTabId;
 }
 
 /** A number, edited with a slider. */
@@ -53,12 +66,6 @@ export interface ChoiceParam extends ParamBase {
 }
 
 export type ParamDef = NumberParam | BooleanParam | ChoiceParam;
-
-/** A panel section; its id also keys its remembered open state. */
-export interface ParamSection {
-    readonly id: string;
-    readonly label: string;
-}
 
 // ---- Particle types ----
 
@@ -199,16 +206,26 @@ export interface AlgorithmDeclaration {
     readonly id: string;
     /** Name shown in the UI. */
     readonly label: string;
-    /** One-line explanation shown under the selector. */
+    /** One-line explanation shown when hovering the selector. */
     readonly description: string;
-    readonly sections: readonly ParamSection[];
-    /** In display order; one of them is the PARTICLE_COUNT_PARAM. */
+    /** In display order within each tab; one of them is the PARTICLE_COUNT_PARAM. */
     readonly params: readonly ParamDef[];
     readonly particleTypes: ParticleTypeSchema;
     readonly stats?: readonly StatDef[];
 }
 
 // ---- Helpers ----
+
+/** Whether a parameter only takes effect on the next restart (the panel says so while it differs). */
+export const appliesOnRestart = (param: ParamDef): boolean => param.tab === 'initial';
+
+/** The tabs holding at least one of `params`, in display order. */
+export const tabsOf = (params: readonly ParamDef[]): PanelTab[] =>
+    PANEL_TABS.filter(tab => params.some(p => p.tab === tab.id));
+
+/** The fields of a number parameter given by a slider spec of the config. */
+export const sliderFields = ({ min, max, step, default: value }: SliderSpec) =>
+    ({ kind: 'number', min, max, step, default: value }) as const;
 
 export const numberProperties = (schema: ParticleTypeSchema): NumberProperty[] =>
     schema.properties.filter((p): p is NumberProperty => p.kind === 'number');

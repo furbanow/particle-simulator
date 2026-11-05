@@ -125,9 +125,21 @@ export const HEAT_SPEED_RANGE: Range = [60, 500];  // px/s over which particles 
 export const MAX_STRETCH = 6;                      // max streak length / particle size
 // HDR brightness of one particle. Overlaps in clumps go well above 1 and feed the bloom.
 export const PARTICLE_GAIN = 0.45;
+// Panel sliders of the visual effects, shared by every algorithm (min, max, step, default).
+export const EXPOSURE_SLIDER: SliderSpec = { min: 0.2, max: 3, step: 0.05, default: 0.6 };
+export const BLOOM_STRENGTH_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 0.35 };
+export const BLOOM_RADIUS_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.05, default: 0.6 };
+export const BLOOM_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 1.5, step: 0.01, default: 0.3 };
+export const NEBULA_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 1 };
+export const LENS_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 0.05 };
+export const HEAT_SLIDER: SliderSpec = { min: 0, max: 2, step: 0.05, default: 0.25 };
+export const STRETCH_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.1, default: 1 };
 
 // ---- UI ----
 export const PANEL_STATE_KEY = 'gpu-gravity-bloom.panel';
+export const PANEL_TAB_KEY = 'gpu-gravity-bloom.panelTab';
+export const TOOLTIP_DELAY_MS = 200;               // hover time before a tooltip shows
+export const TOOLTIP_GAP = 10;                     // px between a tooltip and what it documents
 export const ELEMENT_CONFIGS_KEY = 'gpu-gravity-bloom.elements';
 export const SIMULATION_CONFIGS_KEY = 'gpu-gravity-bloom.simulations';
 export const DELETE_CONFIRM_MS = 3000;            // delay to confirm a config deletion

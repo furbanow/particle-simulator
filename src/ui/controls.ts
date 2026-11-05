@@ -4,8 +4,9 @@ import type { ParticleLayer } from '../render/particleLayer';
 import { algorithmList, isAlgorithmId, type AlgorithmId } from '../simulation/algorithms';
 import type { Simulation } from '../simulation/Simulation';
 import type { ControlSpec } from '../simulationConfigs';
+import { VISUAL_EFFECTS, type VisualEffectKey } from '../visualEffects';
 import { byId } from './dom';
-import { bindSlider, fixed2, percent } from './sliders';
+import type { ParamStore } from './paramPanel';
 
 export interface ControlTargets {
     simulation: Simulation;
@@ -20,36 +21,33 @@ export interface ControlTargets {
 export interface SharedControls {
     /** Value of each shared slider, by name. */
     values(): Record<string, number>;
-    /** Moves the sliders to `values`, applying them like a user would. */
+    /** Applies `values` (ParamPanel.setAlgorithm() then shows the effects' ones on their sliders). */
     apply(values: Readonly<Record<string, number>>): void;
     /** Shows the simulation's algorithm in the picker. */
     showAlgorithm(): void;
+    /** The visual effects' values, edited by ParamPanel: setting one applies it to the rendering. */
+    effects: ParamStore;
 }
 
-// Sliders shared by every algorithm (`#{name}Slider`), saved in simulation configs.
-const SHARED_SLIDERS = ['speed', 'bloomStrength', 'bloomRadius', 'bloomThreshold', 'exposure', 'nebula', 'lens',
-    'heat', 'stretch'] as const;
+const SPEED_KEY = 'speed';
 
-const sharedSlider = (name: string): HTMLInputElement => byId<HTMLInputElement>(`${name}Slider`);
-
-/** The shared sliders as the markup declares them. */
-export const sharedControlSpecs = (): ControlSpec[] => SHARED_SLIDERS.map(key => {
-    const slider = sharedSlider(key);
-    return {
-        key,
-        default: parseFloat(slider.defaultValue),
-        range: [parseFloat(slider.min), parseFloat(slider.max)],
-    };
-});
+/** The controls shared by every algorithm, saved in simulation configs: the speed and the effects. */
+export const sharedControlSpecs = (): ControlSpec[] => {
+    const speed = byId<HTMLInputElement>('speedSlider');
+    return [
+        { key: SPEED_KEY, default: parseFloat(speed.defaultValue), range: [parseFloat(speed.min), parseFloat(speed.max)] },
+        ...VISUAL_EFFECTS.map(({ key, default: value, min, max }): ControlSpec => ({ key, default: value, range: [min, max] })),
+    ];
+};
 
 /**
  * Wires the controls every algorithm shares: the algorithm picker, the simulation speed and the
- * visual effects (all live). The algorithm's own parameters are built by ParamPanel, its
- * particle types by the element bar.
+ * visual effects (all live; ParamPanel builds their sliders and gives them their first values).
+ * The algorithm's own parameters are built by ParamPanel, its particle types by the element bar.
  */
 export function setupControls({ simulation: sim, particles, post, renderer, onAlgorithmChange }: ControlTargets): SharedControls {
     const algorithmSelect = byId<HTMLSelectElement>('algorithmSelect');
-    const algorithmDescription = byId('algorithmDescription');
+    const algorithmPicker = byId('algorithmPicker');
     const speedSlider = byId<HTMLInputElement>('speedSlider');
     const speedVal = byId('speedVal');
     const speedDock = byId('speedDock');
@@ -58,7 +56,7 @@ export function setupControls({ simulation: sim, particles, post, renderer, onAl
     for (const { id, label } of algorithmList()) algorithmSelect.add(new Option(label, id));
     const showAlgorithm = () => {
         algorithmSelect.value = sim.algorithmKey;
-        algorithmDescription.textContent = sim.algorithm.description;
+        algorithmPicker.dataset.tooltip = sim.algorithm.description;
     };
     algorithmSelect.addEventListener('change', () => {
         const id = algorithmSelect.value;
@@ -80,25 +78,35 @@ export function setupControls({ simulation: sim, particles, post, renderer, onAl
     speedSlider.addEventListener('input', paintSpeed);
     paintSpeed();
 
-    // ---- Visual effects (all live) ----
-    bindSlider('bloomStrength', fixed2, v => { post.bloom.strength = v; post.bloom.enabled = v > 0; });
-    bindSlider('bloomRadius', fixed2, v => { post.bloom.radius = v; });
-    bindSlider('bloomThreshold', fixed2, v => { post.bloom.threshold = v; });
-    bindSlider('exposure', fixed2, v => { renderer.toneMappingExposure = v; });
-    bindSlider('nebula', percent, v => { post.nebulaIntensity = v; });
-    bindSlider('lens', percent, v => { post.lensStrength = v; });
-    bindSlider('heat', percent, v => { particles.heatAmount = v; });
-    bindSlider('stretch', v => `${v.toFixed(1)}×`, v => { particles.stretchAmount = v; });
+    // ---- Visual effects ----
+    const applyEffect: Record<string, (v: number) => void> = {
+        exposure: v => { renderer.toneMappingExposure = v; },
+        bloomStrength: v => { post.bloom.strength = v; post.bloom.enabled = v > 0; },
+        bloomRadius: v => { post.bloom.radius = v; },
+        bloomThreshold: v => { post.bloom.threshold = v; },
+        nebula: v => { post.nebulaIntensity = v; },
+        lens: v => { post.lensStrength = v; },
+        heat: v => { particles.heatAmount = v; },
+        stretch: v => { particles.stretchAmount = v; },
+    } satisfies Record<VisualEffectKey, (v: number) => void>;
+    const effectValues: Record<string, number> = Object.fromEntries(VISUAL_EFFECTS.map(e => [e.key, e.default]));
+    const effects: ParamStore = {
+        value: key => effectValues[key],
+        set: (key, value) => {
+            if (typeof value !== 'number') return;
+            effectValues[key] = value;
+            applyEffect[key](value);
+        },
+    };
 
     return {
-        values: () => Object.fromEntries(SHARED_SLIDERS.map(name => [name, parseFloat(sharedSlider(name).value)])),
+        values: () => ({ [SPEED_KEY]: parseFloat(speedSlider.value), ...effectValues }),
         apply: values => {
-            for (const name of SHARED_SLIDERS) {
-                const slider = sharedSlider(name);
-                slider.value = String(values[name]);
-                slider.dispatchEvent(new Event('input', { bubbles: true }));
-            }
+            speedSlider.value = String(values[SPEED_KEY]);
+            speedSlider.dispatchEvent(new Event('input', { bubbles: true }));
+            for (const { key } of VISUAL_EFFECTS) effects.set(key, values[key]);
         },
         showAlgorithm,
+        effects,
     };
 }

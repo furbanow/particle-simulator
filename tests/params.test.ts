@@ -7,7 +7,7 @@ import {
 } from '../src/simulation/params';
 import { PROTOSTAR } from '../src/simulation/protostar/declaration';
 
-const base = { label: 'x', section: 's', apply: 'live', format: String } as const;
+const base = { label: 'x', doc: 'y', tab: 'physics', format: String } as const;
 const linear: NumberParam = { ...base, kind: 'number', key: 'lin', min: 10, max: 400, step: 5, default: 80 };
 const log: NumberParam = { ...base, kind: 'number', key: 'log', min: 1e-4, max: 1, step: 0, default: 1e-2, scale: 'log' };
 const toggle: BooleanParam = { ...base, kind: 'boolean', key: 'on', default: true };

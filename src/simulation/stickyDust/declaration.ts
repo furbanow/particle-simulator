@@ -4,7 +4,7 @@
 import {
     CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MASS_RANGE, MASS_SLIDER_STEPS,
     PARTICLE_COUNT_SLIDER, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP, SIZE_RANGE, SIZE_STEP,
-    SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER, type SliderSpec,
+    SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../../config';
 import { randomPopulationWeights } from '../../population';
 import {
@@ -13,7 +13,7 @@ import {
 import { formatInt } from '../../util/format';
 import { clamp } from '../../util/math';
 import {
-    linearScale, PARTICLE_COUNT_PARAM, type AlgorithmDeclaration, type NumberParam, type ParticleType,
+    linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type NumberParam, type ParticleType,
 } from '../algorithm';
 
 /** Keys of the parameters and of the type properties, shared with the GPU model. */
@@ -31,19 +31,22 @@ export const STICKY_DUST_STAT = { supernovae: 'supernovae', concentration: 'conc
 
 const percent = (v: number): string => `${v} %`;
 
-const slider = (spec: SliderSpec) => ({ kind: 'number', min: spec.min, max: spec.max, step: spec.step, default: spec.default }) as const;
-
 const params: readonly NumberParam[] = [
-    { ...slider(PARTICLE_COUNT_SLIDER), key: STICKY_DUST_PARAM.count, label: 'Nombre de particules',
-        section: 'particles', apply: 'restart', summary: true, format: formatInt },
-    { ...slider(GRAVITY_SLIDER), key: STICKY_DUST_PARAM.gravity, label: 'Constante de gravité',
-        section: 'dynamics', apply: 'live', summary: true, format: v => `G = ${v.toFixed(1)}` },
-    { ...slider(SUPERNOVA_THRESHOLD_SLIDER), key: STICKY_DUST_PARAM.supernovaThreshold, label: 'Seuil',
-        section: 'supernova', apply: 'live', summary: true, hint: 'Part des particules dans la zone', format: percent },
-    { ...slider(CONCENTRATION_RADIUS_SLIDER), key: STICKY_DUST_PARAM.concentrationRadius, label: 'Rayon de concentration',
-        section: 'supernova', apply: 'live', summary: true, hint: 'Zone où l\'on compte les particules', format: v => `${v} px` },
-    { ...slider(SUPERNOVA_POWER_SLIDER), key: STICKY_DUST_PARAM.supernovaPower, label: 'Puissance',
-        section: 'supernova', apply: 'live', summary: true, hint: 'Vitesse d\'éjection (100 % = max)', format: percent },
+    { ...sliderFields(PARTICLE_COUNT_SLIDER), key: STICKY_DUST_PARAM.count, tab: 'initial', label: 'Nombre de particules',
+        doc: 'Particules créées au redémarrage. Leur masse totale reste constante : en ajouter affine le rendu sans changer la dynamique, mais demande plus de calcul.',
+        format: formatInt },
+    { ...sliderFields(GRAVITY_SLIDER), key: STICKY_DUST_PARAM.gravity, tab: 'physics', label: 'Constante de gravité',
+        doc: 'Intensité de l\'attraction entre les particules. Plus elle est élevée, plus les amas se forment vite et se compriment.',
+        format: v => `G = ${v.toFixed(1)}` },
+    { ...sliderFields(SUPERNOVA_THRESHOLD_SLIDER), key: STICKY_DUST_PARAM.supernovaThreshold, tab: 'supernova', label: 'Seuil de déclenchement',
+        doc: 'Part de toutes les particules qui doit se trouver dans la zone de détection pour déclencher une supernova. Plus il est bas, plus les explosions sont fréquentes.',
+        format: percent },
+    { ...sliderFields(CONCENTRATION_RADIUS_SLIDER), key: STICKY_DUST_PARAM.concentrationRadius, tab: 'supernova', label: 'Rayon de la zone de détection',
+        doc: 'Rayon du disque placé sur l\'endroit le plus dense, où l\'on compte les particules. Ce sont les particules de ce disque qui sont éjectées par la supernova.',
+        format: v => `${v} px` },
+    { ...sliderFields(SUPERNOVA_POWER_SLIDER), key: STICKY_DUST_PARAM.supernovaPower, tab: 'supernova', label: 'Puissance d\'éjection',
+        doc: 'Vitesse donnée aux particules éjectées et à l\'onde de choc qui suit, en pourcentage de la vitesse d\'éjection maximale.',
+        format: percent },
 ];
 
 // Rendered diameters are proportional to the atomic radii, the largest atom filling the slider.
@@ -65,11 +68,6 @@ export const STICKY_DUST: AlgorithmDeclaration = {
     id: 'stickyDust',
     label: 'Poussière collante',
     description: 'Gravité sur grille multi-échelle ; les amas résistent à la compression et absorbent l\'agitation.',
-    sections: [
-        { id: 'particles', label: 'Particules' },
-        { id: 'dynamics', label: 'Dynamique' },
-        { id: 'supernova', label: 'Supernova' },
-    ],
     params,
     particleTypes: {
         labels: { title: 'Éléments', item: 'Élément', count: 'Nombre d\'éléments', active: 'Éléments actifs' },

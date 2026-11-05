@@ -13,7 +13,7 @@ import { ELEMENTS, formatMass, massToSlider, randomSpeciesMasses, randomSpeciesS
 import { formatInt } from '../../util/format';
 import { clamp } from '../../util/math';
 import {
-    linearScale, PARTICLE_COUNT_PARAM, type AlgorithmDeclaration, type NumberParam, type ParticleType,
+    linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type NumberParam, type ParticleType,
 } from '../algorithm';
 import { reactionTransitions, type FusionReaction } from './reactions';
 
@@ -52,8 +52,7 @@ export const PROTOSTAR_REACTIONS: readonly FusionReaction[] = [
         exponentParam: PROTOSTAR_PARAM.fusionExponent },
 ];
 
-const slider = (spec: SliderSpec) => ({ kind: 'number', min: spec.min, max: spec.max, step: spec.step, default: spec.default }) as const;
-const logSlider = (spec: SliderSpec) => ({ ...slider(spec), scale: 'log' }) as const;
+const logSliderFields = (spec: SliderSpec) => ({ ...sliderFields(spec), scale: 'log' }) as const;
 
 /** Three significant digits, in scientific notation below 0.01 (2e-5 -> "2,00e-5"). */
 export function formatSmall(v: number): string {
@@ -64,34 +63,35 @@ export function formatSmall(v: number): string {
 const fixed = (digits: number) => (v: number): string => v.toFixed(digits).replace('.', ',');
 
 const params: readonly NumberParam[] = [
-    { ...slider(PROTOSTAR_COUNT_SLIDER), key: PROTOSTAR_PARAM.count, label: 'Nombre de particules',
-        section: 'cloud', apply: 'restart', summary: true, format: formatInt },
-    { ...slider(PROTOSTAR_ROTATION_SLIDER), key: PROTOSTAR_PARAM.rotation, label: 'Rotation initiale',
-        section: 'cloud', apply: 'restart', summary: true, hint: 'Vitesse tangentielle, en fraction de la vitesse circulaire',
+    { ...sliderFields(PROTOSTAR_COUNT_SLIDER), key: PROTOSTAR_PARAM.count, tab: 'initial', label: 'Nombre de particules',
+        doc: 'Particules du nuage, créées au redémarrage. Sa masse totale reste constante : en ajouter affine la simulation sans changer la dynamique, mais demande plus de calcul.',
+        format: formatInt },
+    { ...sliderFields(PROTOSTAR_ROTATION_SLIDER), key: PROTOSTAR_PARAM.rotation, tab: 'initial', label: 'Rotation du nuage',
+        doc: 'Vitesse de rotation au départ, en fraction de la vitesse d\'une orbite circulaire. À 1, la rotation équilibre la gravité ; à 0, elle ne retient plus la chute vers le centre.',
         format: v => `${fixed(2)(v)} × v_circ` },
-    { ...slider(PROTOSTAR_AGITATION_SLIDER), key: PROTOSTAR_PARAM.agitation, label: 'Agitation initiale',
-        section: 'cloud', apply: 'restart', hint: 'Dispersion des vitesses, en fraction de la vitesse circulaire au bord',
+    { ...sliderFields(PROTOSTAR_AGITATION_SLIDER), key: PROTOSTAR_PARAM.agitation, tab: 'initial', label: 'Agitation thermique',
+        doc: 'Dispersion aléatoire des vitesses au départ, en fraction de la vitesse circulaire au bord du nuage. C\'est la chaleur initiale du gaz : sa pression retarde l\'effondrement.',
         format: v => `${fixed(2)(v)} × v_circ` },
-    { ...slider(PROTOSTAR_GRAVITY_SLIDER), key: PROTOSTAR_PARAM.gravity, label: 'Constante de gravité',
-        section: 'gravity', apply: 'live', summary: true, format: v => `G = ${fixed(2)(v)}` },
-    { ...slider(PROTOSTAR_SOFTENING_SLIDER), key: PROTOSTAR_PARAM.softening, label: 'Adoucissement ε',
-        section: 'gravity', apply: 'live', summary: true, hint: 'En % du petit côté de l\'écran ; la grille impose environ une maille au minimum',
+    { ...sliderFields(PROTOSTAR_GRAVITY_SLIDER), key: PROTOSTAR_PARAM.gravity, tab: 'physics', label: 'Constante de gravité',
+        doc: 'Intensité de l\'attraction entre les particules. Plus elle est élevée, plus l\'effondrement est rapide et le cœur dense et chaud.',
+        format: v => `G = ${fixed(2)(v)}` },
+    { ...sliderFields(PROTOSTAR_SOFTENING_SLIDER), key: PROTOSTAR_PARAM.softening, tab: 'physics', label: 'Adoucissement de la gravité',
+        doc: 'Distance ε en dessous de laquelle l\'attraction s\'atténue, pour éviter des forces infinies au contact. En % du petit côté de l\'écran ; la grille impose environ une maille au minimum.',
         format: v => `ε = ${fixed(1)(v)} %` },
-    { ...slider(PROTOSTAR_COOLING_SLIDER), key: PROTOSTAR_PARAM.cooling, label: 'Refroidissement',
-        section: 'cooling', apply: 'live', summary: true, hint: 'Amortissement de l\'agitation autour du flux local, par seconde',
+    { ...sliderFields(PROTOSTAR_COOLING_SLIDER), key: PROTOSTAR_PARAM.cooling, tab: 'physics', label: 'Vitesse de refroidissement',
+        doc: 'Part de l\'agitation que le gaz perd par rayonnement, par seconde ; la rotation et la chute d\'ensemble ne sont pas freinées. Plus elle est élevée, moins la pression résiste à l\'effondrement.',
         format: v => `${fixed(2)(v)} /s` },
-    { ...logSlider(PROTOSTAR_OPACITY_SLIDER), key: PROTOSTAR_PARAM.opacity, label: 'Densité d\'opacité',
-        section: 'cooling', apply: 'live', summary: true,
-        hint: 'Au-delà, le gaz piège sa chaleur : le refroidissement devient k / (1 + ρ / ρ_opq)',
+    { ...logSliderFields(PROTOSTAR_OPACITY_SLIDER), key: PROTOSTAR_PARAM.opacity, tab: 'physics', label: 'Densité d\'opacité du gaz',
+        doc: 'Densité à partir de laquelle le gaz devient opaque et piège sa chaleur : le refroidissement est divisé par 1 + ρ / ρ_opq. Plus elle est basse, plus le cœur reste chaud. ρ₀ est la densité moyenne initiale du nuage.',
         format: v => `ρ_opq = ${formatSmall(v)} ρ₀` },
-    { ...logSlider(PROTOSTAR_LAMBDA_SLIDER), key: PROTOSTAR_PARAM.fusionRate, label: 'Taux de fusion λ₀',
-        section: 'fusion', apply: 'live', summary: true, hint: 'P = λ₀ · ρ · T^α · Δt (ρ en ρ₀, T en T₀)',
+    { ...logSliderFields(PROTOSTAR_LAMBDA_SLIDER), key: PROTOSTAR_PARAM.fusionRate, tab: 'fusion', label: 'Taux de fusion',
+        doc: 'Facteur λ₀ de la probabilité de fusion d\'une particule, λ₀ · ρ · T^α par seconde (ρ en ρ₀, T en T₀). Plus il est élevé, plus l\'hydrogène se change vite en hélium.',
         format: v => `λ₀ = ${formatSmall(v)}` },
-    { ...slider(PROTOSTAR_ALPHA_SLIDER), key: PROTOSTAR_PARAM.fusionExponent, label: 'Exposant de température α',
-        section: 'fusion', apply: 'live', summary: true, hint: 'Plus il est grand, plus l\'allumage ressemble à un seuil',
+    { ...sliderFields(PROTOSTAR_ALPHA_SLIDER), key: PROTOSTAR_PARAM.fusionExponent, tab: 'fusion', label: 'Sensibilité à la température',
+        doc: 'Exposant α de la température dans la probabilité de fusion. Plus il est grand, plus la fusion se concentre dans les zones les plus chaudes et plus l\'allumage ressemble à un seuil.',
         format: v => `α = ${fixed(1)(v)}` },
-    { ...logSlider(PROTOSTAR_FEEDBACK_SLIDER), key: PROTOSTAR_PARAM.feedback, label: 'Rétroaction',
-        section: 'fusion', apply: 'live', summary: true, hint: 'Part de l\'énergie de fusion rendue au gaz sous forme de chaleur',
+    { ...logSliderFields(PROTOSTAR_FEEDBACK_SLIDER), key: PROTOSTAR_PARAM.feedback, tab: 'fusion', label: 'Chaleur rendue au gaz',
+        doc: 'Multiplie l\'énergie de fusion rendue au gaz sous forme de chaleur. Cette chaleur crée une pression qui freine l\'effondrement du cœur.',
         format: v => `× ${formatSmall(v)}` },
 ];
 
@@ -116,12 +116,6 @@ export const PROTOSTAR: AlgorithmDeclaration = {
     label: 'Protoétoile (fusion H → He)',
     description: 'Un nuage d\'hydrogène refroidit et s\'effondre ; son cœur dense et chaud allume la fusion, '
         + 'dont la chaleur freine l\'effondrement.',
-    sections: [
-        { id: 'cloud', label: 'Nuage' },
-        { id: 'gravity', label: 'Gravité' },
-        { id: 'cooling', label: 'Refroidissement' },
-        { id: 'fusion', label: 'Fusion H → He' },
-    ],
     params,
     particleTypes: {
         labels: { title: 'Éléments', item: 'Élément', count: 'Nombre d\'éléments', active: 'Éléments actifs' },

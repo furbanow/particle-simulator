@@ -12,12 +12,11 @@ import { ConfigPicker } from './ui/configPicker';
 import { setupControls, sharedControlSpecs } from './ui/controls';
 import { byId, fail, flash } from './ui/dom';
 import { ElementBar } from './ui/elementBar';
-import { setupPanelCollapsibles } from './ui/panelState';
 import { ParamPanel } from './ui/paramPanel';
 import { setupShortcuts } from './ui/shortcuts';
-import { setupSliders, syncAllRanges } from './ui/sliders';
+import { setupSliders, syncAllRanges, titleResettableRanges } from './ui/sliders';
 import { Stats } from './ui/stats';
-import { createSummaries } from './ui/summaries';
+import { setupTooltips } from './ui/tooltip';
 
 const container = byId('sim-container');
 const uiPanel = byId('ui-panel');
@@ -69,18 +68,14 @@ function resize(): void {
 }
 
 // ---- Panel ----
-// Shared controls (speed, effects) are in the markup; the algorithm's parameters and stats are
-// built from its declaration, and rebuilt when another algorithm is picked.
-setupPanelCollapsibles(uiPanel);
-const refreshSummaries = createSummaries(uiPanel);
-// Slider handlers sit on the sliders themselves, so they have run when the event bubbles here.
-uiPanel.addEventListener('input', refreshSummaries);
-uiPanel.addEventListener('change', refreshSummaries);
+// The tabs and their parameters (the algorithm's and the visual effects) are built from their
+// declarations, and rebuilt when another algorithm is picked; so are the stats.
 setupSliders(uiPanel);
+setupTooltips(uiPanel, byId('tooltip'));
 
-const params = new ParamPanel(byId('effectsSection'), simulation);
-const stats = new Stats(simulation);
 const controls = setupControls({ simulation, particles, post, renderer, onAlgorithmChange: switchAlgorithm });
+const params = new ParamPanel(byId('panelTabs'), byId('panelTabContent'), simulation, controls.effects);
+const stats = new Stats(simulation);
 
 // ---- Element bar (saved element configs, population, element editor) ----
 const elementBar = new ElementBar({
@@ -109,7 +104,6 @@ function switchAlgorithm(id: AlgorithmId): void {
     params.setAlgorithm();
     stats.setAlgorithm();
     elementBar.setAlgorithm();
-    refreshSummaries();
     restart();
 }
 
@@ -132,15 +126,14 @@ function applySimulationSetup(setup: SimulationSetup): void {
         failWith(err);
     }
     for (const [key, value] of Object.entries(setup.params)) simulation.setParam(key, value);
-    params.setAlgorithm();
+    controls.apply(setup.controls);
+    params.setAlgorithm();                 // shows the values just set
     if (algorithmChanged) {
         stats.setAlgorithm();
         elementBar.setAlgorithm();
     }
     elementBar.loadSetup(setup);
-    controls.apply(setup.controls);
     controls.showAlgorithm();
-    refreshSummaries();
     restart();
 }
 
@@ -176,6 +169,7 @@ syncTopbarHeight();
 new ResizeObserver(syncTopbarHeight).observe(elementBarEl);
 syncAllRanges(uiPanel);
 syncAllRanges(elementBarEl);
+titleResettableRanges(elementBarEl);
 
 // ---- Frame loop (60 FPS cap) ----
 let lastFrame = performance.now();
@@ -202,7 +196,6 @@ function loop(now: number): void {
 }
 
 resize();
-refreshSummaries();
 // A built-in config is not applied: the element bar stays on its own current config.
 if (simulationConfigs.canEdit(simulationConfigs.current.id)) applySimulationSetup(simulationConfigs.current);
 else restart();

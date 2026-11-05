@@ -48,10 +48,11 @@ src/
   elementMetrics.ts   propriétés éditables d'un élément (position 0..1, arrondis, défauts, tirages)
   elementConfigs.ts   configurations d'éléments enregistrées (localStorage)
   simulationConfigs.ts  configurations de la simulation entière enregistrées (localStorage)
+  visualEffects.ts    effets visuels communs à tous les algorithmes (curseurs de l'onglet Effets visuels)
   simulation/         GPGPU (Simulation), champ de densité, détection d'amas, onde de choc
   render/             couche particules, couche nébuleuse, post-traitement
   shaders/            sources GLSL (constantes injectées via #define)
-  ui/                 panneau (sections repliables, curseurs), statistiques superposées à l'animation et barre des éléments (graphe par propriété, éditeur)
+  ui/                 panneau (onglets à icônes, curseurs documentés au survol), statistiques superposées à l'animation et barre des éléments (graphe par propriété, éditeur)
   styles/             CSS découpé par composant
 tests/                tests Vitest des fonctions pures
 ```

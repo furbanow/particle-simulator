@@ -1,0 +1,28 @@
+/* ---------- Panel tabs: a row of icons above the parameters of the selected tab ---------- */
+.panel-tabs { display: flex; gap: 4px; padding: 8px 20px; border-bottom: 1px solid var(--border); }
+.panel-tab {
+    position: relative; width: 38px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--text-3); cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.panel-tab svg {
+    width: 18px; height: 18px; fill: none; stroke: currentColor;
+    stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+}
+.panel-tab:hover { background: var(--surface-hover); color: var(--text); }
+.panel-tab[aria-selected=true] {
+    background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+/* A value of this tab waits for a restart. */
+.panel-tab.pending::after {
+    content: ''; position: absolute; top: 5px; right: 6px; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 2px var(--panel);
+}
+
+.tab-panel[hidden] { display: none; }
+.tab-title {
+    margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-2);
+}
+.tab-panel .field { margin-bottom: 8px; }
+.tab-panel input[type=range] { margin-top: 2px; }

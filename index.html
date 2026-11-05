@@ -46,12 +46,11 @@
         <button id="startBtn" class="btn-primary" title="Redémarrer la simulation (R)">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>
             Redémarrer<kbd>R</kbd></button>
-        <div class="algo-picker">
+        <div id="algorithmPicker" class="algo-picker">
             <label for="algorithmSelect" class="algo-label">Algorithme</label>
             <select id="algorithmSelect"></select>
-            <div id="algorithmDescription" class="hint"></div>
         </div>
-        <div id="speedDock" class="speed-dock">
+        <div id="speedDock" class="speed-dock" data-tooltip="Fait défiler le temps simulé plus ou moins vite. N'agit que sur le rythme de l'animation : à 1×, une seconde simulée dure une seconde ; à 0, la simulation est en pause.">
             <div class="speed-head">
                 <svg class="speed-gauge" viewBox="0 0 24 24" aria-hidden="true">
                     <path class="speed-arc" d="M4.5 16a7.5 7.5 0 1 1 15 0"/>
@@ -70,83 +69,14 @@
         </div>
     </header>
 
-    <div class="panel-scroll">
-        <!-- Sections: data-key persists the open state; data-summary is a template whose {id} are
-             replaced by the text of the element with that id (shown in the head while folded). -->
-        <!-- The selected algorithm's parameter sections are built here, from its declaration (ParamPanel). -->
-        <section class="section" id="effectsSection" data-key="effects">
-            <h2 class="section-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Effets visuels</h2>
-            <div class="section-body collapse"><div class="inner">
-                <div class="card effect-card">
-                    <div class="card-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg><span class="card-name">Bloom</span>
-                        <span class="summary" data-summary="{bloomStrengthVal} · {bloomRadiusVal} · {bloomThresholdVal}"></span></div>
-                    <div class="card-body collapse"><div class="inner">
-                        <label class="field">
-                            <span class="field-row">Intensité <span id="bloomStrengthVal" class="value-display"></span></span>
-                            <input type="range" id="bloomStrengthSlider" min="0" max="3" step="0.05" value="0.35">
-                        </label>
-                        <label class="field">
-                            <span class="field-row">Rayon <span id="bloomRadiusVal" class="value-display"></span></span>
-                            <input type="range" id="bloomRadiusSlider" min="0" max="1" step="0.05" value="0.6">
-                        </label>
-                        <label class="field">
-                            <span class="field-row">Seuil <span id="bloomThresholdVal" class="value-display"></span></span>
-                            <input type="range" id="bloomThresholdSlider" min="0" max="1.5" step="0.01" value="0.3">
-                            <div class="hint">Luminosité à partir de laquelle ça brille</div>
-                        </label>
-                    </div></div>
-                </div>
-                <div class="card effect-card">
-                    <div class="card-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg><span class="card-name">Espace</span>
-                        <span class="summary" data-summary="{nebulaVal} · {lensVal}"></span></div>
-                    <div class="card-body collapse"><div class="inner">
-                        <label class="field">
-                            <span class="field-row">Nébuleuse <span id="nebulaVal" class="value-display"></span></span>
-                            <input type="range" id="nebulaSlider" min="0" max="3" step="0.05" value="1">
-                            <div class="hint">Gaz coloré autour des amas</div>
-                        </label>
-                        <label class="field">
-                            <span class="field-row">Lentille gravitationnelle <span id="lensVal" class="value-display"></span></span>
-                            <input type="range" id="lensSlider" min="0" max="3" step="0.05" value="0.05">
-                            <div class="hint">Les amas courbent l'image autour d'eux</div>
-                        </label>
-                    </div></div>
-                </div>
-                <div class="card effect-card">
-                    <div class="card-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg><span class="card-name">Particules</span>
-                        <span class="summary" data-summary="{heatVal} · {stretchVal}"></span></div>
-                    <div class="card-body collapse"><div class="inner">
-                        <label class="field">
-                            <span class="field-row">Couleur selon la vitesse <span id="heatVal" class="value-display"></span></span>
-                            <input type="range" id="heatSlider" min="0" max="2" step="0.05" value="0.25">
-                            <div class="hint">Les particules rapides chauffent vers le blanc</div>
-                        </label>
-                        <label class="field">
-                            <span class="field-row">Étirement <span id="stretchVal" class="value-display"></span></span>
-                            <input type="range" id="stretchSlider" min="0" max="3" step="0.1" value="1">
-                            <div class="hint">Flou de mouvement (1 = une frame)</div>
-                        </label>
-                    </div></div>
-                </div>
-                <div class="card effect-card">
-                    <div class="card-head"><svg class="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg><span class="card-name">Image</span>
-                        <span class="summary" data-summary="{exposureVal}"></span></div>
-                    <div class="card-body collapse"><div class="inner">
-                        <label class="field">
-                            <span class="field-row">Exposition <span id="exposureVal" class="value-display"></span></span>
-                            <input type="range" id="exposureSlider" min="0.2" max="3" step="0.05" value="0.6">
-                        </label>
-                    </div></div>
-                </div>
-                <div class="section-spacer"></div>
-            </div></div>
-        </section>
-        <div class="shortcuts">
-            <span><kbd>R</kbd>redémarrer</span>
-            <span><kbd>H</kbd>panneau</span>
-            <span>double-clic : valeur par défaut</span>
-        </div>
-    </div>
+    <!-- The tabs and the parameters they hold are built from the declarations (ParamPanel). -->
+    <div id="panelTabs" class="panel-tabs" role="tablist" aria-label="Paramètres" aria-orientation="horizontal"></div>
+    <div id="panelTabContent" class="panel-scroll"></div>
+    <footer class="shortcuts">
+        <span><kbd>R</kbd>redémarrer</span>
+        <span><kbd>H</kbd>panneau</span>
+        <span>double-clic : valeur par défaut</span>
+    </footer>
 </div>
 <header id="element-bar">
     <div class="ebar-head">
@@ -212,6 +142,7 @@
     </aside>
 </div>
 <div id="error"></div>
+<div id="tooltip" class="tooltip" role="tooltip"></div>
     <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

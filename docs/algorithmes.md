@@ -33,13 +33,16 @@ Il suffit d'écrire ses deux moitiés et de les enregistrer. **On ne touche pas 
 
 1. **Déclaration** (`src/simulation/<algo>/declaration.ts`), un objet `AlgorithmDeclaration` :
    - `id`, `label`, `description` ;
-   - `sections` : les sections du panneau (`id`, `label`). L'`id` sert aussi de clé pour retenir si la section est ouverte ;
-   - `params` : les paramètres globaux, dans l'ordre d'affichage. Chacun a une `key` (lettres, chiffres, `_`), un `label`, une `section`, un `hint` facultatif, `apply: 'live' | 'restart'` et `summary` (affiché dans l'en-tête de la section repliée). Trois sortes :
+   - `params` : les paramètres globaux, dans l'ordre d'affichage au sein de chaque onglet. Chacun a une `key` (lettres, chiffres, `_`), un `label`, un `doc` (explication concise affichée au survol : ce qu'il est et à quoi il sert dans l'algorithme) et un `tab`, l'onglet du panneau parmi `PANEL_TABS` :
+     - `initial` (Conditions initiales) : tout ce qui ne s'applique qu'au redémarrage, et seulement cela ;
+     - `physics` (Physique), `fusion` (Fusion), `supernova` (Supernova), `effects` (Effets visuels) : appliqués en direct.
+
+     Un onglet n'apparaît que si un paramètre y est déclaré : un algorithme obtient son onglet Fusion ou Supernova en y déclarant ses paramètres. Trois sortes de paramètres :
      - `kind: 'number'` → curseur : `min`, `max`, `step`, `default`, `format(v)`, et `scale: 'log'` pour les valeurs qui couvrent plusieurs ordres de grandeur (λ₀ par exemple) ;
      - `kind: 'boolean'` → case à cocher ;
      - `kind: 'choice'` → liste déroulante (`options`).
 
-     Le paramètre `count` (`PARTICLE_COUNT_PARAM`), le nombre de particules, est obligatoire et s'applique au redémarrage. Les bornes et valeurs par défaut vont dans `src/config.ts`.
+     Le paramètre `count` (`PARTICLE_COUNT_PARAM`), le nombre de particules, est obligatoire et va dans l'onglet `initial`. Les bornes et valeurs par défaut vont dans `src/config.ts`.
    - `particleTypes`, le schéma des types de particules (`ParticleTypeSchema`) :
      - un type (`ParticleType`) a toujours `name`, `symbol` et `color`. Ses propriétés numériques sont dans `values`, par clé ;
      - `properties` : les onglets du graphique, dans l'ordre. Une propriété numérique (`kind: 'number'`) a sa clé, son unité, son intervalle (`range`, qui sert aussi à valider les configurations relues), son échelle (`linearScale(range, step)` ou une échelle à soi, comme l'échelle logarithmique des masses), `live`, ses textes « Par défaut » / « Aléatoire », `format` et un `randomize` facultatif. Une seule peut avoir `role: 'population'` : c'est le poids de répartition des particules au redémarrage. `{ kind: 'color' }` ajoute l'onglet Couleur (teinte, saturation, luminosité) ;
@@ -47,7 +50,7 @@ Il suffit d'écrire ses deux moitiés et de les enregistrer. **On ne touche pas 
      - `transitions` : les transformations d'un type en un autre (`{ from, to, label }`, par rang). C'est le modèle GPU qui les réalise ; la déclaration permet à l'éditeur de les afficher (« Fusion → He ») ;
      - `defaults` (au plus `MAX_SPECIES` types), `defaultCount` facultatif, `labels` (mots de la barre : « Éléments », « Élément »…) et `builtinConfig` (identifiant et nom de la configuration intégrée, en lecture seule).
    - `stats` : les statistiques en direct. `kind: 'value'` (un nombre, `flash` pour faire clignoter la tuile quand il augmente), `kind: 'meter'` (une fraction 0..1 en barre, avec un repère facultatif placé à la position d'un curseur), `kind: 'typeCounts'` (nombre de particules par type).
-2. **Ajouter l'identifiant** à `ALGORITHM_IDS` et la déclaration à `ALGORITHMS` dans `src/simulation/algorithms.ts`. Les tests de `tests/algorithms.test.ts` vérifient la cohérence de chaque déclaration (clés uniques, sections existantes, valeurs par défaut dans leurs bornes, types par défaut complets, transitions et repères valides).
+2. **Ajouter l'identifiant** à `ALGORITHM_IDS` et la déclaration à `ALGORITHMS` dans `src/simulation/algorithms.ts`. Les tests de `tests/algorithms.test.ts` vérifient la cohérence de chaque déclaration (clés uniques, onglets existants, paramètres documentés, valeurs par défaut dans leurs bornes, types par défaut complets, transitions et repères valides).
 3. **Modèle GPU** (`src/simulation/<algo>/gpuModel.ts`), un objet `GpuModel`, enregistré dans `GPU_MODELS` (`src/simulation/gpuModels.ts`). Le type `Record<AlgorithmId, GpuModelFactory>` empêche d'oublier cette étape. La fabrique reçoit un `GpuModelContext` : renderer, géométrie, `screenSize`, `speciesUniforms`, champ de densité, et un accès aux textures d'état courantes.
    - `velocityShader` (obligatoire) et `positionShader` (facultatif ; celui par défaut intègre x += v·dt et garde le type en z). Le shader de vitesse déclare lui-même `texturePosition`, `textureVelocity` et les uniforms communs qu'il utilise (`textureDensity`, `screenSize`, `domainOffset`, `domainSize`, `densityRes`, `maxLod`, `dt`, `activeCount`, `momentumScale`) ; `GpuPipeline` les branche ;
    - `velocityUniforms` / `positionUniforms` : ses uniforms propres. Ils sont fusionnés par référence dans l'objet uniform de la passe, leurs noms ne doivent donc pas entrer en conflit avec les uniforms communs ;

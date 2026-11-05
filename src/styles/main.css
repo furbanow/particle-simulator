@@ -8,10 +8,10 @@
 @import './base.css';
 @import './panel.css';
 @import './buttons.css';
-@import './sections.css';
 @import './sliders.css';
 @import './params.css';
-@import './cards.css';
+@import './panelTabs.css';
+@import './tooltip.css';
 @import './stats.css';
 @import './elementBar.css';
 @import './elementChart.css';

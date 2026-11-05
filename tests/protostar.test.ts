@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_SPECIES, REMOVED_PARTICLE_W } from '../src/config';
-import type { ParticleType } from '../src/simulation/algorithm';
+import { tabsOf, type ParticleType } from '../src/simulation/algorithm';
 import type { InitialState } from '../src/simulation/gpuModel';
 import { ALGORITHMS } from '../src/simulation/algorithms';
 import { defaultParams } from '../src/simulation/params';
@@ -43,11 +43,10 @@ describe('protostar declaration', () => {
         const byKey = Object.fromEntries(PROTOSTAR.params.map(p => [p.key, p]));
         expect(byKey.fusionRate.kind === 'number' && byKey.fusionRate.scale).toBe('log');
         expect(byKey.feedback.kind === 'number' && byKey.feedback.scale).toBe('log');
-        expect(byKey.count.apply).toBe('restart');
-        expect(byKey.rotation.apply).toBe('restart');
-        for (const key of ['gravity', 'softening', 'cooling', 'fusionRate', 'fusionExponent', 'feedback']) {
-            expect(byKey[key].apply).toBe('live');
-        }
+        expect(tabsOf(PROTOSTAR.params).map(t => t.id)).toEqual(['initial', 'physics', 'fusion']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'initial').map(p => p.key)).toEqual(['count', 'rotation', 'agitation']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'cooling', 'opacity']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'fusion').map(p => p.key)).toEqual(['fusionRate', 'fusionExponent', 'feedback']);
         // alpha roughly 2 to 4 by default
         expect(params.fusionExponent).toBeGreaterThanOrEqual(2);
         expect(params.fusionExponent).toBeLessThanOrEqual(4);

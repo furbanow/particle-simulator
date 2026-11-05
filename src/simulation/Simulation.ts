@@ -3,7 +3,7 @@ import { BASE_DT, MAX_PARTICLES, MAX_SPECIES, TEX_SIZE } from '../config';
 import type { Uniform } from '../gl/common';
 import { splitPopulation } from '../population';
 import {
-    cloneType, PARTICLE_COUNT_PARAM, populationWeights, type AlgorithmDeclaration, type ParamValue,
+    appliesOnRestart, cloneType, PARTICLE_COUNT_PARAM, populationWeights, type AlgorithmDeclaration, type ParamValue,
     type ParamValues, type ParticleType,
 } from './algorithm';
 import { ALGORITHMS, DEFAULT_ALGORITHM, type AlgorithmId } from './algorithms';
@@ -107,7 +107,7 @@ export class Simulation {
         if (!param) return;
         const valid = validParamValue(param, value);
         this.state.params[key] = valid;
-        if (param.apply === 'live') this.pipeline.setParam(key, valid);
+        if (!appliesOnRestart(param)) this.pipeline.setParam(key, valid);
     }
 
     /** Whether a restart-applied parameter differs from its value in the running simulation. */
