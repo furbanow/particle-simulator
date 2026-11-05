@@ -30,7 +30,7 @@ export interface ConfigPickerOptions<C, S> {
 
 const UNSAVED_CONFIRM = 'Les modifications de la configuration courante ne sont pas enregistrées. Les abandonner ?';
 const SAVE_TITLE = 'Enregistrer dans la configuration';
-const READ_ONLY_SAVE_TITLE = 'La configuration par défaut ne peut pas être modifiée : dupliquez-la pour enregistrer vos changements';
+const SAVE_AS_NEW_TITLE = 'La configuration par défaut ne peut pas être modifiée : cliquer ici enregistre vos changements dans une nouvelle configuration';
 
 /**
  * The tools of a list of saved configs: load, new, duplicate, rename, delete, save, and a dot
@@ -92,7 +92,13 @@ export class ConfigPicker<C extends { readonly id: string; readonly name: string
             refreshAll();
         });
         this.saveBtn.addEventListener('click', () => {
-            if (this.store.save(this.state())) refreshAll();
+            // A read-only config (the default one) can't be saved over: its changes go to a new config.
+            if (this.store.canEdit(this.store.current.id)) {
+                if (this.store.save(this.state())) refreshAll();
+            } else {
+                this.store.duplicate(this.state());
+                refreshAll();
+            }
         });
         this.setupDelete(load);
         this.setupRename();
@@ -130,8 +136,8 @@ export class ConfigPicker<C extends { readonly id: string; readonly name: string
         const dirty = this.store.isDirty(this.state());
         const editable = this.store.canEdit(this.store.current.id);
         this.dirtyDot.hidden = !dirty;
-        this.saveBtn.disabled = !dirty || !editable;
-        this.saveBtn.title = editable ? SAVE_TITLE : READ_ONLY_SAVE_TITLE;
+        this.saveBtn.disabled = !dirty;
+        this.saveBtn.title = editable ? SAVE_TITLE : SAVE_AS_NEW_TITLE;
     }
 
     /** Asks before throwing away unsaved edits. */
