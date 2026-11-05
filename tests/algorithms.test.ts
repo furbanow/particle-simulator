@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, K_GRAVITY, MAX_PARTICLES, MAX_SPECIES,
-    MAX_SUPERNOVAE, PARTICLE_COUNT_SLIDER, SUPERNOVA_MAX_COUNT_SLIDER, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
+    PARTICLE_COUNT_SLIDER, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../src/config';
 import {
     appliesOnRestart, defaultTypeCount, numberProperties, PANEL_TABS, PARTICLE_COUNT_PARAM, populationProperty, populationWeights,
@@ -129,7 +129,7 @@ describe.each(algorithmList())('declaration of $id', algorithm => {
 describe('sticky dust keeps its defaults', () => {
     it('parameters', () => {
         expect(defaultParams(STICKY_DUST)).toEqual({
-            count: 30000, gravity: 3, supernovaThreshold: 60, concentrationRadius: 80, supernovaPower: 70, supernovaMaxCount: 6,
+            count: 30000, gravity: 3, supernovaThreshold: 60, concentrationRadius: 80, supernovaPower: 70,
         });
         const bounds = STICKY_DUST.params.map(p => p.kind === 'number' ? [p.key, p.min, p.max, p.step, p.tab] : []);
         expect(bounds).toEqual([
@@ -138,10 +138,8 @@ describe('sticky dust keeps its defaults', () => {
             ['supernovaThreshold', 0, 100, 1, 'supernova'],
             ['concentrationRadius', 10, 400, 5, 'supernova'],
             ['supernovaPower', 5, 100, 5, 'supernova'],
-            ['supernovaMaxCount', 0, 12, 1, 'supernova'],
         ]);
         expect(GRAVITY_SLIDER.default).toBe(K_GRAVITY);
-        expect(SUPERNOVA_MAX_COUNT_SLIDER.max).toBe(MAX_SUPERNOVAE);
         expect([PARTICLE_COUNT_SLIDER, SUPERNOVA_THRESHOLD_SLIDER, CONCENTRATION_RADIUS_SLIDER, SUPERNOVA_POWER_SLIDER]
             .map(s => s.default)).toEqual([30000, 60, 80, 70]);
     });
@@ -150,7 +148,7 @@ describe('sticky dust keeps its defaults', () => {
         const display = Object.fromEntries(STICKY_DUST.params.map(p => [p.key, p.kind === 'number' ? p.format(p.default) : '']));
         expect(display).toEqual({
             count: (30000).toLocaleString('fr-FR'), gravity: 'G = 3.0', supernovaThreshold: '60 %',
-            concentrationRadius: '80 px', supernovaPower: '70 %', supernovaMaxCount: '6',
+            concentrationRadius: '80 px', supernovaPower: '70 %',
         });
         expect(tabsOf(STICKY_DUST.params).map(t => t.id)).toEqual(['initial', 'physics', 'supernova']);
     });

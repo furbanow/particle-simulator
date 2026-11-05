@@ -4,7 +4,7 @@
 import {
     CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MASS_RANGE, MASS_SLIDER_STEPS,
     PARTICLE_COUNT_SLIDER, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP, SIZE_RANGE, SIZE_STEP,
-    SUPERNOVA_MAX_COUNT_SLIDER, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
+    SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../../config';
 import { randomPopulationWeights } from '../../population';
 import {
@@ -23,7 +23,6 @@ export const STICKY_DUST_PARAM = {
     supernovaThreshold: 'supernovaThreshold',
     concentrationRadius: 'concentrationRadius',
     supernovaPower: 'supernovaPower',
-    supernovaMaxCount: 'supernovaMaxCount',
 } as const;
 
 export const STICKY_DUST_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -40,17 +39,14 @@ const params: readonly NumberParam[] = [
         doc: 'Intensité de l\'attraction entre les particules. Plus elle est élevée, plus les amas se forment vite et se compriment.',
         format: v => `G = ${v.toFixed(1)}` },
     { ...sliderFields(SUPERNOVA_THRESHOLD_SLIDER), key: STICKY_DUST_PARAM.supernovaThreshold, tab: 'supernova', label: 'Seuil de déclenchement',
-        doc: 'Part de toutes les particules qu\'une zone de détection doit contenir pour exploser. Plusieurs zones peuvent exploser en même temps : plus il est bas, plus elles sont nombreuses (à 60 %, une seule peut l\'atteindre).',
+        doc: 'Part de toutes les particules qui doit se trouver dans la zone de détection pour déclencher une supernova. Plus il est bas, plus les explosions sont fréquentes.',
         format: percent },
     { ...sliderFields(CONCENTRATION_RADIUS_SLIDER), key: STICKY_DUST_PARAM.concentrationRadius, tab: 'supernova', label: 'Rayon de la zone de détection',
-        doc: 'Rayon des disques placés sur les endroits les plus denses, où l\'on compte les particules. Les particules d\'un disque qui explose sont éjectées et ne comptent plus tant qu\'elles n\'en sont pas sorties.',
+        doc: 'Rayon du disque placé sur l\'endroit le plus dense, où l\'on compte les particules. Ce sont les particules de ce disque qui sont éjectées par la supernova.',
         format: v => `${v} px` },
     { ...sliderFields(SUPERNOVA_POWER_SLIDER), key: STICKY_DUST_PARAM.supernovaPower, tab: 'supernova', label: 'Puissance d\'éjection',
         doc: 'Vitesse donnée aux particules éjectées et à l\'onde de choc qui suit, en pourcentage de la vitesse d\'éjection maximale.',
         format: percent },
-    { ...sliderFields(SUPERNOVA_MAX_COUNT_SLIDER), key: STICKY_DUST_PARAM.supernovaMaxCount, tab: 'supernova', label: 'Supernovae simultanées max',
-        doc: 'Nombre maximal de zones qui peuvent exploser en même temps, les plus denses d\'abord. À 0, il n\'y a plus aucune supernova.',
-        format: v => String(v) },
 ];
 
 // Rendered diameters are proportional to the atomic radii, the largest atom filling the slider.
