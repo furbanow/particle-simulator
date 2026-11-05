@@ -1,0 +1,35 @@
+/* ---------- Saved configs: a select, swapped for a text field while renaming, and its tools ---------- */
+.config-select, .config-name, .editor-name, #algorithmSelect {
+    height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px;
+    background-color: var(--surface); color: var(--text); font: 500 12.5px var(--font);
+    transition: border-color 0.15s, background-color 0.15s;
+}
+.config-select:hover, .config-name:hover, .editor-name:hover, #algorithmSelect:hover { border-color: var(--border-strong); }
+.config-select:focus-visible, .config-name:focus, .editor-name:focus, #algorithmSelect:focus-visible { outline: none; border-color: var(--accent); }
+.config-select, #algorithmSelect {
+    -webkit-appearance: none; appearance: none; min-width: 0; padding-right: 28px; cursor: pointer;
+    /* Caret drawn with two gradients so it follows the theme tokens. */
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%), linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
+    background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+    background-size: 5px 5px; background-repeat: no-repeat;
+}
+.config-select optgroup, .config-select option, #algorithmSelect option { background: var(--panel); color: var(--text); }
+.config-select optgroup { color: var(--text-3); }
+
+.config-picker { display: flex; align-items: center; gap: 7px; }
+.dirty-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+.dirty-dot[hidden] { display: none; }
+
+.config-tools { display: flex; align-items: center; gap: 6px; }
+.config-delete .confirm-label { display: none; }
+.btn.icon-only.config-delete.confirm {
+    width: auto; padding: 0 10px; color: var(--bad);
+    border-color: color-mix(in srgb, var(--bad) 45%, transparent); background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+.config-delete.confirm .confirm-label { display: inline; }
+
+/* The whole simulation's configs: above the restart button (pinned in the panel header). */
+.simulation-config { margin-bottom: 12px; color-scheme: dark; }
+.config-title { display: block; margin-bottom: 6px; font-size: 12.5px; color: var(--text-2); }
+.simulation-config .config-picker { margin-bottom: 6px; }
+.simulation-config .config-select, .simulation-config .config-name { flex: 1; min-width: 0; }

@@ -129,6 +129,7 @@ export const PARTICLE_GAIN = 0.45;
 // ---- UI ----
 export const PANEL_STATE_KEY = 'gpu-gravity-bloom.panel';
 export const ELEMENT_CONFIGS_KEY = 'gpu-gravity-bloom.elements';
+export const SIMULATION_CONFIGS_KEY = 'gpu-gravity-bloom.simulations';
 export const DELETE_CONFIRM_MS = 3000;            // delay to confirm a config deletion
 // Element chart: arrow keys move a bar by this fraction of its height.
 export const CHART_KEY_STEP = 0.05;

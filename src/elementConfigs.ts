@@ -59,11 +59,30 @@ export const sameSetup = (a: ElementSetup, b: ElementSetup): boolean => setupKey
 
 export const cleanName = (name: string, maxLength = MAX_NAME_LENGTH): string => name.trim().slice(0, maxLength);
 
+/** `base`, followed by the first free number when that name is taken. */
+function uniqueName(base: string, taken: ReadonlySet<string>): string {
+    if (!taken.has(base)) return base;
+    let n = 2;
+    while (taken.has(`${base} ${n}`)) n++;
+    return `${base} ${n}`;
+}
+
+/** Name of a copy of a config called `name`. */
+export const copyName = (name: string, taken: ReadonlySet<string>): string =>
+    uniqueName(cleanName(name + COPY_SUFFIX), taken);
+
+/** `prefix` followed by the first free number, starting at 1. */
+export function numberedName(prefix: string, taken: ReadonlySet<string>): string {
+    let n = 1;
+    while (taken.has(`${prefix} ${n}`)) n++;
+    return `${prefix} ${n}`;
+}
+
 // ---- Validation of stored data (anything may have been written there) ----
 
-const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null;
+export const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null;
 
-function finiteIn(x: unknown, range: readonly [number, number], fallback: number): number {
+export function finiteIn(x: unknown, range: readonly [number, number], fallback: number): number {
     return typeof x === 'number' && Number.isFinite(x) ? clamp(x, range) : fallback;
 }
 
@@ -111,7 +130,7 @@ export function sanitizeConfig(raw: unknown, catalog: AlgorithmCatalog = ALGORIT
     };
 }
 
-const randomId = (): string => Date.now().toString(36) + Math.random().toString(36).slice(2);
+export const randomId = (): string => Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 /**
  * Saved element configs, per algorithm: the methods act on the configs of the algorithm selected
@@ -155,14 +174,21 @@ export class ElementConfigStore {
         return this.current;
     }
 
+    /** Makes a config identical to `setup` current, if the current one isn't and there is one. */
+    selectMatching(setup: ElementSetup): void {
+        if (!this.isDirty(setup)) return;
+        const match = this.list().find(c => sameSetup(c, setup));
+        if (match) this.select(match.id);
+    }
+
     /** A new config with the algorithm's default types; it becomes current. */
     create(): ElementConfig {
-        return this.add(this.numberedName(NEW_CONFIG_PREFIX), defaultSetup(this.algorithm.particleTypes));
+        return this.add(numberedName(NEW_CONFIG_PREFIX, this.names()), defaultSetup(this.algorithm.particleTypes));
     }
 
     /** A copy of `setup` (the state being edited), named after the current config; it becomes current. */
     duplicate(setup: ElementSetup): ElementConfig {
-        return this.add(this.uniqueName(cleanName(this.current.name + COPY_SUFFIX)), setup);
+        return this.add(copyName(this.current.name, this.names()), setup);
     }
 
     /** Whether `id` can be saved over or renamed (every config but the built-in one). */
@@ -231,19 +257,8 @@ export class ElementConfigStore {
         return id;
     }
 
-    private uniqueName(base: string): string {
-        const taken = new Set(this.list().map(c => c.name));
-        if (!taken.has(base)) return base;
-        let n = 2;
-        while (taken.has(`${base} ${n}`)) n++;
-        return `${base} ${n}`;
-    }
-
-    private numberedName(prefix: string): string {
-        const taken = new Set(this.list().map(c => c.name));
-        let n = 1;
-        while (taken.has(`${prefix} ${n}`)) n++;
-        return `${prefix} ${n}`;
+    private names(): ReadonlySet<string> {
+        return new Set(this.list().map(c => c.name));
     }
 
     private load(): void {

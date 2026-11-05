@@ -1,10 +1,10 @@
-import { DELETE_CONFIRM_MS } from '../config';
 import type { ElementConfig, ElementConfigStore, ElementSetup } from '../elementConfigs';
 import { buildMetrics, metricGroups, type ElementMetric } from '../elementMetrics';
 import { splitPopulation } from '../population';
 import { populationWeights } from '../simulation/algorithm';
 import type { AlgorithmId } from '../simulation/algorithms';
 import type { Simulation } from '../simulation/Simulation';
+import { ConfigPicker } from './configPicker';
 import { byId } from './dom';
 import { ElementChart } from './elementChart';
 import { ElementEditor } from './elementEditor';
@@ -21,10 +21,7 @@ export interface ElementBarOptions {
 }
 
 const PENDING_HINT = 'Appliqué au redémarrage';
-const UNSAVED_CONFIRM = 'Les modifications de la configuration courante ne sont pas enregistrées. Les abandonner ?';
 const OPEN_KEY = 'elementBar';
-const SAVE_TITLE = 'Enregistrer dans la configuration';
-const READ_ONLY_SAVE_TITLE = 'La configuration par défaut ne peut pas être modifiée : dupliquez-la pour enregistrer vos changements';
 
 /**
  * Top bar dedicated to the particle types of the selected algorithm, built from its particle type
@@ -34,6 +31,8 @@ const READ_ONLY_SAVE_TITLE = 'La configuration par défaut ne peut pas être mod
  * it for another algorithm.
  */
 export class ElementBar {
+    /** The types or the type count being edited changed, whatever the means. */
+    onEdit: () => void = () => {};
     private readonly sim: Simulation;
     private readonly store: ElementConfigStore;
     private readonly onSpeciesChange: () => void;
@@ -41,16 +40,9 @@ export class ElementBar {
     private readonly title = byId('elementBarTitle');
     private readonly editorTitle = byId('elementEditorTitle');
     private readonly typeCountLabel = byId('typeCountLabel');
-    private readonly newConfigBtn = byId<HTMLButtonElement>('newConfigBtn');
     private readonly typeCountSlider = byId<HTMLInputElement>('typeCountSlider');
     private readonly typeCountVal = byId('typeCountVal');
     private readonly hint = byId('elementsHint');
-    private readonly configSelect = byId<HTMLSelectElement>('configSelect');
-    private readonly configNameInput = byId<HTMLInputElement>('configNameInput');
-    private readonly dirtyDot = byId('configDirty');
-    private readonly saveBtn = byId<HTMLButtonElement>('saveConfigBtn');
-    private readonly deleteBtn = byId<HTMLButtonElement>('deleteConfigBtn');
-    private readonly renameBtn = byId<HTMLButtonElement>('renameConfigBtn');
     private readonly toggleBtn = byId<HTMLButtonElement>('toggleElementBarBtn');
     private readonly chartCard = byId('chartCard');
     private readonly chartTabs = byId('chartTabs');
@@ -58,11 +50,11 @@ export class ElementBar {
     private readonly resetBtn = byId<HTMLButtonElement>('chartResetBtn');
     private readonly resetLabel = byId('chartResetLabel');
     private readonly randomBtn = byId<HTMLButtonElement>('chartRandomBtn');
+    private readonly picker: ConfigPicker<ElementConfig, ElementSetup>;
     private chart!: ElementChart;
     private editor!: ElementEditor;
     private metric!: ElementMetric;
     private selected = 0;
-    private deleteTimer = 0;
     /** Type count being edited, per algorithm already shown (the types themselves live in Simulation). */
     private readonly typeCounts = new Map<AlgorithmId, number>();
 
@@ -74,7 +66,16 @@ export class ElementBar {
             this.typeCounts.set(this.sim.algorithmKey, this.selectedTypeCount());
             this.refresh();
         });
-        this.setupConfigTools(onLoad);
+        this.picker = new ConfigPicker({
+            root: this.bar,
+            store,
+            state: () => this.setup(),
+            create: () => store.create(),
+            onLoad: config => {
+                this.apply(config);
+                onLoad();
+            },
+        });
         this.setupChartTools();
         this.setupCollapse();
         this.setAlgorithm();
@@ -105,7 +106,7 @@ export class ElementBar {
         this.title.textContent = labels.title;
         this.editorTitle.textContent = labels.item;
         this.typeCountLabel.textContent = labels.count;
-        this.newConfigBtn.title = `Nouvelle configuration (${schema.builtinConfig.name.toLowerCase()})`;
+        this.picker.newBtn.title = `Nouvelle configuration (${schema.builtinConfig.name.toLowerCase()})`;
         this.typeCountSlider.max = String(schema.defaults.length);
         this.updateToggleLabel();
 
@@ -121,7 +122,7 @@ export class ElementBar {
             this.apply(this.store.current);
         } else {
             this.setTypeCount(typeCount);
-            this.refreshConfigList();
+            this.picker.refreshList();
             this.refresh();
         }
         this.select(0);
@@ -138,16 +139,26 @@ export class ElementBar {
         this.typeCounts.set(this.sim.algorithmKey, this.selectedTypeCount());
     }
 
-    /** Copies a config into the shared type objects (in place: materials and UI hold references). */
-    private apply(config: ElementConfig): void {
-        config.species.forEach((s, k) => {
+    /**
+     * Shows `setup`, part of a whole simulation config: the store's config identical to it becomes
+     * current if there is one, else the bar stays on its config and shows the difference.
+     * The caller restarts the simulation.
+     */
+    loadSetup(setup: ElementSetup): void {
+        this.store.selectMatching(setup);
+        this.apply(setup);
+    }
+
+    /** Copies a setup into the shared type objects (in place: materials and UI hold references). */
+    private apply(setup: ElementSetup): void {
+        setup.species.forEach((s, k) => {
             const target = this.sim.species[k];
             Object.assign(target, s, { values: target.values });
             Object.assign(target.values, s.values);
         });
-        this.setTypeCount(config.typeCount);
+        this.setTypeCount(setup.typeCount);
         this.editor.refresh(true);
-        this.refreshConfigList();
+        this.picker.refreshList();
         this.refresh();
     }
 
@@ -172,96 +183,8 @@ export class ElementBar {
         const pending = selected !== active || counts.some((n, k) => n !== this.sim.speciesCounts[k]);
         this.hint.textContent = pending ? PENDING_HINT : '';
 
-        const dirty = this.store.isDirty(this.setup());
-        const editable = this.store.canEdit(this.store.current.id);
-        this.dirtyDot.hidden = !dirty;
-        this.saveBtn.disabled = !dirty || !editable;
-        this.saveBtn.title = editable ? SAVE_TITLE : READ_ONLY_SAVE_TITLE;
-    }
-
-    // ---- Configs ----
-
-    private refreshConfigList(): void {
-        const current = this.store.current;
-        this.configSelect.replaceChildren(...this.store.list().map(c => new Option(c.name, c.id, false, c.id === current.id)));
-        this.deleteBtn.disabled = !this.store.canRemove(current.id);
-        this.deleteBtn.title = this.deleteBtn.disabled ? 'La configuration par défaut ne peut pas être supprimée'
-            : 'Supprimer la configuration';
-        this.renameBtn.disabled = !this.store.canEdit(current.id);
-        this.renameBtn.title = this.renameBtn.disabled ? 'La configuration par défaut ne peut pas être renommée'
-            : 'Renommer la configuration';
-    }
-
-    /** Asks before throwing away unsaved edits. */
-    private confirmDiscard(): boolean {
-        return !this.store.isDirty(this.setup()) || window.confirm(UNSAVED_CONFIRM);
-    }
-
-    private setupConfigTools(onLoad: () => void): void {
-        const load = (config: ElementConfig) => {
-            this.apply(config);
-            onLoad();
-        };
-
-        this.configSelect.addEventListener('change', () => {
-            const id = this.configSelect.value;
-            if (!this.confirmDiscard()) {
-                this.configSelect.value = this.store.current.id;
-                return;
-            }
-            load(this.store.select(id));
-        });
-        this.newConfigBtn.addEventListener('click', () => {
-            if (this.confirmDiscard()) load(this.store.create());
-        });
-        byId('duplicateConfigBtn').addEventListener('click', () => {
-            this.store.duplicate(this.setup());          // same state: nothing to reload
-            this.refreshConfigList();
-            this.refresh();
-        });
-        this.saveBtn.addEventListener('click', () => {
-            if (this.store.save(this.setup())) this.refresh();
-        });
-
-        // Delete: a first click arms the button, a second one within DELETE_CONFIRM_MS deletes.
-        const disarm = () => {
-            window.clearTimeout(this.deleteTimer);
-            this.deleteBtn.classList.remove('confirm');
-            this.refreshConfigList();
-        };
-        this.deleteBtn.addEventListener('click', () => {
-            if (!this.deleteBtn.classList.contains('confirm')) {
-                this.deleteBtn.classList.add('confirm');
-                this.deleteBtn.title = 'Cliquer à nouveau pour supprimer';
-                this.deleteTimer = window.setTimeout(disarm, DELETE_CONFIRM_MS);
-                return;
-            }
-            disarm();
-            load(this.store.remove(this.store.current.id));
-        });
-        this.deleteBtn.addEventListener('blur', disarm);
-
-        // Rename in place: the select is swapped for a text field (Enter / blur commit, Escape cancels).
-        const input = this.configNameInput;
-        const endRename = (commit: boolean) => {
-            if (input.hidden) return;
-            if (commit) this.store.rename(this.store.current.id, input.value);
-            input.hidden = true;
-            this.configSelect.hidden = false;
-            this.refreshConfigList();
-        };
-        this.renameBtn.addEventListener('click', () => {
-            input.value = this.store.current.name;
-            this.configSelect.hidden = true;
-            input.hidden = false;
-            input.focus();
-            input.select();
-        });
-        input.addEventListener('keydown', e => {
-            if (e.key === 'Enter') endRename(true);
-            else if (e.key === 'Escape') endRename(false);
-        });
-        input.addEventListener('blur', () => endRename(true));
+        this.picker.refresh();
+        this.onEdit();
     }
 
     // ---- Chart tabs and tools ----

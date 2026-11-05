@@ -3,6 +3,7 @@ import type { PostProcessing } from '../render/postprocessing';
 import type { ParticleLayer } from '../render/particleLayer';
 import { algorithmList, isAlgorithmId, type AlgorithmId } from '../simulation/algorithms';
 import type { Simulation } from '../simulation/Simulation';
+import type { ControlSpec } from '../simulationConfigs';
 import { byId } from './dom';
 import { bindSlider, fixed2, percent } from './sliders';
 
@@ -15,12 +16,38 @@ export interface ControlTargets {
     onAlgorithmChange(id: AlgorithmId): void;
 }
 
+/** The controls as main.ts drives them when a simulation config is saved or loaded. */
+export interface SharedControls {
+    /** Value of each shared slider, by name. */
+    values(): Record<string, number>;
+    /** Moves the sliders to `values`, applying them like a user would. */
+    apply(values: Readonly<Record<string, number>>): void;
+    /** Shows the simulation's algorithm in the picker. */
+    showAlgorithm(): void;
+}
+
+// Sliders shared by every algorithm (`#{name}Slider`), saved in simulation configs.
+const SHARED_SLIDERS = ['speed', 'bloomStrength', 'bloomRadius', 'bloomThreshold', 'exposure', 'nebula', 'lens',
+    'heat', 'stretch'] as const;
+
+const sharedSlider = (name: string): HTMLInputElement => byId<HTMLInputElement>(`${name}Slider`);
+
+/** The shared sliders as the markup declares them. */
+export const sharedControlSpecs = (): ControlSpec[] => SHARED_SLIDERS.map(key => {
+    const slider = sharedSlider(key);
+    return {
+        key,
+        default: parseFloat(slider.defaultValue),
+        range: [parseFloat(slider.min), parseFloat(slider.max)],
+    };
+});
+
 /**
  * Wires the controls every algorithm shares: the algorithm picker, the simulation speed and the
  * visual effects (all live). The algorithm's own parameters are built by ParamPanel, its
  * particle types by the element bar.
  */
-export function setupControls({ simulation: sim, particles, post, renderer, onAlgorithmChange }: ControlTargets): void {
+export function setupControls({ simulation: sim, particles, post, renderer, onAlgorithmChange }: ControlTargets): SharedControls {
     const algorithmSelect = byId<HTMLSelectElement>('algorithmSelect');
     const algorithmDescription = byId('algorithmDescription');
     const speedSlider = byId<HTMLInputElement>('speedSlider');
@@ -29,15 +56,17 @@ export function setupControls({ simulation: sim, particles, post, renderer, onAl
 
     // ---- Algorithm ----
     for (const { id, label } of algorithmList()) algorithmSelect.add(new Option(label, id));
-    algorithmSelect.value = sim.algorithmKey;
-    const paintAlgorithm = () => { algorithmDescription.textContent = sim.algorithm.description; };
+    const showAlgorithm = () => {
+        algorithmSelect.value = sim.algorithmKey;
+        algorithmDescription.textContent = sim.algorithm.description;
+    };
     algorithmSelect.addEventListener('change', () => {
         const id = algorithmSelect.value;
         if (!isAlgorithmId(id) || id === sim.algorithmKey) return;
         onAlgorithmChange(id);
-        paintAlgorithm();
+        showAlgorithm();
     });
-    paintAlgorithm();
+    showAlgorithm();
 
     // ---- Simulation speed ----
     const paintSpeed = () => {
@@ -60,4 +89,16 @@ export function setupControls({ simulation: sim, particles, post, renderer, onAl
     bindSlider('lens', percent, v => { post.lensStrength = v; });
     bindSlider('heat', percent, v => { particles.heatAmount = v; });
     bindSlider('stretch', v => `${v.toFixed(1)}×`, v => { particles.stretchAmount = v; });
+
+    return {
+        values: () => Object.fromEntries(SHARED_SLIDERS.map(name => [name, parseFloat(sharedSlider(name).value)])),
+        apply: values => {
+            for (const name of SHARED_SLIDERS) {
+                const slider = sharedSlider(name);
+                slider.value = String(values[name]);
+                slider.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        },
+        showAlgorithm,
+    };
 }

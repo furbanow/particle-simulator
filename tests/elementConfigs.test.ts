@@ -71,6 +71,22 @@ describe('element config store', () => {
         expect(store.duplicate(store.current).name).toBe('Configuration 2 (copie) 2');
     });
 
+    it('selects a config identical to a setup, or stays where it is', () => {
+        const store = new ElementConfigStore(null, counter());
+        const custom = cloneSetup(store.current);
+        custom.typeCount = 3;
+        const saved = store.duplicate(custom);
+        store.select(BUILTIN_CONFIG_ID);
+
+        store.selectMatching(custom);
+        expect(store.current.id).toBe(saved.id);
+        const other = cloneSetup(custom);
+        other.typeCount = 2;
+        store.selectMatching(other);
+        expect(store.current.id).toBe(saved.id);
+        expect(store.isDirty(other)).toBe(true);
+    });
+
     it('selects a neighbour on removal', () => {
         const store = new ElementConfigStore(null, counter());
         const second = store.create();

@@ -15,6 +15,7 @@
 @import './stats.css';
 @import './elementBar.css';
 @import './elementChart.css';
+@import './configPicker.css';
 @import './algorithmPicker.css';
 @import './speedDock.css';
 @import './layout.css';

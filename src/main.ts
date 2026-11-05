@@ -4,10 +4,12 @@ import { BASE_DT, FRAME_MS } from './config';
 import { NebulaLayer } from './render/nebulaLayer';
 import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
-import type { AlgorithmId } from './simulation/algorithms';
+import { ALGORITHMS, DEFAULT_ALGORITHM, isAlgorithmId, type AlgorithmId } from './simulation/algorithms';
 import { Simulation } from './simulation/Simulation';
 import { ElementConfigStore } from './elementConfigs';
-import { setupControls } from './ui/controls';
+import { SimulationConfigStore, type SimulationConfig, type SimulationSetup } from './simulationConfigs';
+import { ConfigPicker } from './ui/configPicker';
+import { setupControls, sharedControlSpecs } from './ui/controls';
 import { byId, fail, flash } from './ui/dom';
 import { ElementBar } from './ui/elementBar';
 import { setupPanelCollapsibles } from './ui/panelState';
@@ -36,13 +38,19 @@ let width = container.clientWidth;
 let height = container.clientHeight;
 renderer.setSize(width, height);
 
+// ---- Saved configs ----
+let localStore: Storage | null = null;
+try { localStore = window.localStorage; } catch { /* storage blocked: configs live in memory only */ }
+const simulationConfigs = new SimulationConfigStore(localStore, sharedControlSpecs());
+
 // ---- Simulation & rendering ----
 function failWith(err: unknown): never {
     fail(err instanceof Error ? err.message : String(err));
 }
 let simulation: Simulation;
 try {
-    simulation = new Simulation(renderer);
+    const { algorithm } = simulationConfigs.current;
+    simulation = new Simulation(renderer, isAlgorithmId(algorithm) ? algorithm : DEFAULT_ALGORITHM);
 } catch (err) {
     failWith(err);
 }
@@ -72,11 +80,9 @@ setupSliders(uiPanel);
 
 const params = new ParamPanel(byId('effectsSection'), simulation);
 const stats = new Stats(simulation);
-setupControls({ simulation, particles, post, renderer, onAlgorithmChange: switchAlgorithm });
+const controls = setupControls({ simulation, particles, post, renderer, onAlgorithmChange: switchAlgorithm });
 
 // ---- Element bar (saved element configs, population, element editor) ----
-let localStore: Storage | null = null;
-try { localStore = window.localStorage; } catch { /* storage blocked: configs live in memory only */ }
 const elementBar = new ElementBar({
     simulation,
     store: new ElementConfigStore(localStore),
@@ -106,6 +112,50 @@ function switchAlgorithm(id: AlgorithmId): void {
     refreshSummaries();
     restart();
 }
+
+// ---- Simulation configs (the whole setup: algorithm, parameters, elements, shared sliders) ----
+const simulationSetup = (): SimulationSetup => ({
+    algorithm: simulation.algorithmKey,
+    params: { ...simulation.params },
+    typeCount: elementBar.selectedTypeCount(),
+    species: simulation.species,
+    controls: controls.values(),
+});
+
+/** Brings the whole simulation and its UI to `setup`, with a single restart. */
+function applySimulationSetup(setup: SimulationSetup): void {
+    if (!isAlgorithmId(setup.algorithm)) return;
+    const algorithmChanged = setup.algorithm !== simulation.algorithmKey;
+    try {
+        simulation.useAlgorithm(setup.algorithm);
+    } catch (err) {
+        failWith(err);
+    }
+    for (const [key, value] of Object.entries(setup.params)) simulation.setParam(key, value);
+    params.setAlgorithm();
+    if (algorithmChanged) {
+        stats.setAlgorithm();
+        elementBar.setAlgorithm();
+    }
+    elementBar.loadSetup(setup);
+    controls.apply(setup.controls);
+    controls.showAlgorithm();
+    refreshSummaries();
+    restart();
+}
+
+const simulationPicker = new ConfigPicker<SimulationConfig, SimulationSetup>({
+    root: byId('simulationConfig'),
+    store: simulationConfigs,
+    state: simulationSetup,
+    create: () => simulationConfigs.create(simulation.algorithmKey),
+    onLoad: applySimulationSetup,
+    groupOf: config => isAlgorithmId(config.algorithm) ? ALGORITHMS[config.algorithm].label : config.algorithm,
+});
+const refreshSimulationPicker = () => simulationPicker.refresh();
+uiPanel.addEventListener('input', refreshSimulationPicker);
+uiPanel.addEventListener('change', refreshSimulationPicker);
+elementBar.onEdit = refreshSimulationPicker;
 
 function togglePanel(): void {
     document.body.classList.toggle('panel-hidden');
@@ -153,5 +203,9 @@ function loop(now: number): void {
 
 resize();
 refreshSummaries();
-restart();
+// A built-in config is not applied: the element bar stays on its own current config.
+if (simulationConfigs.canEdit(simulationConfigs.current.id)) applySimulationSetup(simulationConfigs.current);
+else restart();
+simulationPicker.refreshList();
+simulationPicker.refresh();
 requestAnimationFrame(loop);

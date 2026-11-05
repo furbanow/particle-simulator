@@ -50,6 +50,15 @@ export function sliderToParam(param: NumberParam, position: number): number {
     return clamp(Number(v.toPrecision(LOG_PARAM_DIGITS)), [param.min, param.max]);
 }
 
+/**
+ * The value the panel's control holds for `value`: valid, and rounded by the slider for a number
+ * (a default of 30 on a log scale may well read 29.9 once the panel has shown it).
+ */
+export function panelParamValue(param: ParamDef, value: unknown): ParamValue {
+    const valid = validParamValue(param, value);
+    return param.kind === 'number' ? sliderToParam(param, paramToSlider(param, valid as number)) : valid;
+}
+
 /** Position of `value` along the slider, 0..1. */
 export function paramFraction(param: NumberParam, value: number): number {
     const { min, max } = sliderRange(param);

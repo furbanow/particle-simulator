@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { LOG_PARAM_SLIDER_STEPS } from '../src/config';
 import type { BooleanParam, ChoiceParam, NumberParam } from '../src/simulation/algorithm';
+import { algorithmList } from '../src/simulation/algorithms';
 import {
-    numberParam, paramFraction, paramToSlider, sliderRange, sliderToParam, validParamValue,
+    numberParam, panelParamValue, paramFraction, paramToSlider, sliderRange, sliderToParam, validParamValue,
 } from '../src/simulation/params';
+import { PROTOSTAR } from '../src/simulation/protostar/declaration';
 
 const base = { label: 'x', section: 's', apply: 'live', format: String } as const;
 const linear: NumberParam = { ...base, kind: 'number', key: 'lin', min: 10, max: 400, step: 5, default: 80 };
@@ -46,5 +48,22 @@ describe('parameter values', () => {
         expect(numberParam({ lin: 25 }, linear)).toBe(25);
         expect(numberParam({ lin: true }, linear)).toBe(80);
         expect(numberParam({}, linear)).toBe(80);
+    });
+});
+
+describe('panelParamValue', () => {
+    it('is what the panel gives back for every declared parameter, even read twice', () => {
+        for (const algorithm of algorithmList()) {
+            for (const param of algorithm.params) {
+                const once = panelParamValue(param, param.default);
+                expect(panelParamValue(param, once)).toBe(once);
+            }
+        }
+    });
+
+    it('rounds a number like its slider, and replaces an invalid value by the default', () => {
+        const log = PROTOSTAR.params.find(p => p.kind === 'number' && p.scale === 'log' && p.default === 30)!;
+        expect(panelParamValue(log, 30)).toBe(29.9);
+        expect(panelParamValue(log, 'x')).toBe(29.9);
     });
 });
