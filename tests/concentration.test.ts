@@ -89,6 +89,14 @@ describe('findConcentrations', () => {
         expect(Math.max(...mask)).toBe(2);
     });
 
+    it('finds no zone at a cap of 0 but still measures the densest disk', () => {
+        const { zones, maxFraction, mask } = search(cluster(80, 300, 200), { maxZones: 0 });
+
+        expect(zones).toEqual([]);
+        expect(maxFraction).toBeCloseTo(1);
+        expect(mask.every(v => v === 0)).toBe(true);
+    });
+
     it('does not count the particles still immune, and counts them again once it has passed', () => {
         const points = [...cluster(60, 100, 100), ...cluster(40, 600, 400)];
         const immuneUntil = new Float32Array(points.length);

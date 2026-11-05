@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
     CONCENTRATION_RADIUS_SLIDER, EJECT_SCALE_RANGE, EJECT_TIME, GLOBAL_DRAG, INV_REL_DENSITY_RANGE, K_GRAVITY, K_PRESSURE, LONG_RANGE,
     MAX_PARTICLES, MAX_SHOCK_WAVES, MAX_SPECIES, MAX_SPEED, MAX_SUPERNOVAE, REST_DENSITY, RESTITUTION, SHOCK_STRENGTH,
-    SUPERNOVA_SPEED, SUPERNOVA_THRESHOLD_SLIDER, TEX_SIZE, VISCOSITY_RATE,
+    SUPERNOVA_MAX_COUNT_SLIDER, SUPERNOVA_SPEED, SUPERNOVA_THRESHOLD_SLIDER, TEX_SIZE, VISCOSITY_RATE,
 } from '../../config';
 import { withDefines } from '../../gl/withDefines';
 import { clamp } from '../../util/math';
@@ -48,6 +48,7 @@ export class StickyDustModel implements GpuModel {
     // Overwritten by setParam with the panel values when the model is created.
     private supernovaThreshold = SUPERNOVA_THRESHOLD_SLIDER.default / 100; // fraction of the particles
     private concentrationRadius = CONCENTRATION_RADIUS_SLIDER.default;     // px
+    private supernovaMaxCount = SUPERNOVA_MAX_COUNT_SLIDER.default;
     private supernovaCount = 0;
     private concentration: number | null = null;
     private time = 0;                                                       // simulated s
@@ -78,6 +79,7 @@ export class StickyDustModel implements GpuModel {
             case P.gravity: this.velocityUniforms.kGravity.value = value; break;
             case P.supernovaThreshold: this.supernovaThreshold = value / 100; break;
             case P.concentrationRadius: this.concentrationRadius = value; break;
+            case P.supernovaMaxCount: this.supernovaMaxCount = value; break;
             // Ejection power, 0..100 % of SUPERNOVA_SPEED.
             case P.supernovaPower: this.velocityUniforms.supernovaSpeed.value = SUPERNOVA_SPEED * value / 100; break;
         }
@@ -144,7 +146,7 @@ export class StickyDustModel implements GpuModel {
             width: size.x,
             height: size.y,
             threshold: this.supernovaThreshold,
-            maxZones: MAX_SUPERNOVAE,
+            maxZones: this.supernovaMaxCount,
             immuneUntil: this.immuneUntil,
             now: this.time,
         }, this.supernovaMask);

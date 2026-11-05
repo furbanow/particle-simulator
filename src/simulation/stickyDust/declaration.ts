@@ -4,7 +4,7 @@
 import {
     CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MASS_RANGE, MASS_SLIDER_STEPS,
     PARTICLE_COUNT_SLIDER, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP, SIZE_RANGE, SIZE_STEP,
-    SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
+    SUPERNOVA_MAX_COUNT_SLIDER, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../../config';
 import { randomPopulationWeights } from '../../population';
 import {
@@ -23,6 +23,7 @@ export const STICKY_DUST_PARAM = {
     supernovaThreshold: 'supernovaThreshold',
     concentrationRadius: 'concentrationRadius',
     supernovaPower: 'supernovaPower',
+    supernovaMaxCount: 'supernovaMaxCount',
 } as const;
 
 export const STICKY_DUST_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -47,6 +48,9 @@ const params: readonly NumberParam[] = [
     { ...sliderFields(SUPERNOVA_POWER_SLIDER), key: STICKY_DUST_PARAM.supernovaPower, tab: 'supernova', label: 'Puissance d\'éjection',
         doc: 'Vitesse donnée aux particules éjectées et à l\'onde de choc qui suit, en pourcentage de la vitesse d\'éjection maximale.',
         format: percent },
+    { ...sliderFields(SUPERNOVA_MAX_COUNT_SLIDER), key: STICKY_DUST_PARAM.supernovaMaxCount, tab: 'supernova', label: 'Supernovae simultanées max',
+        doc: 'Nombre maximal de zones qui peuvent exploser en même temps, les plus denses d\'abord. À 0, il n\'y a plus aucune supernova.',
+        format: v => String(v) },
 ];
 
 // Rendered diameters are proportional to the atomic radii, the largest atom filling the slider.

@@ -35,7 +35,7 @@ export const MOMENTUM_SCALE = 0.01;                // keeps splatted momentum in
 export const CLUSTER_CHECK_INTERVAL = 12;          // frames
 export const SUPERNOVA_SPEED = 420;                // px/s at 100 % power (scaled by the power slider)
 export const EJECT_TIME = 0.6;                     // s during which ejecta ignore gravity/viscosity (fading back in)
-export const MAX_SUPERNOVAE = 16;                  // simultaneous explosions; at most 255 (index + 1 in the byte mask)
+export const MAX_SUPERNOVAE = 12;                  // simultaneous explosions; at most 255 (index + 1 in the byte mask)
 export const MAX_SHOCK_WAVES = 32;                 // running fronts; a new one replaces the oldest beyond that
 // Shock wave: the front moves at the ejection speed; the outward kick it gives is
 // SHOCK_STRENGTH * ejection speed at the aggregate edge and falls off as 1/r beyond it.
@@ -48,6 +48,7 @@ export const GRAVITY_SLIDER: SliderSpec = { min: 0, max: 15, step: 0.1, default:
 export const SUPERNOVA_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 60 };  // % of the particles
 export const CONCENTRATION_RADIUS_SLIDER: SliderSpec = { min: 10, max: 400, step: 5, default: 80 }; // px
 export const SUPERNOVA_POWER_SLIDER: SliderSpec = { min: 5, max: 100, step: 5, default: 70 };      // % of SUPERNOVA_SPEED
+export const SUPERNOVA_MAX_COUNT_SLIDER: SliderSpec = { min: 0, max: MAX_SUPERNOVAE, step: 1, default: 6 };
 
 // ---- Removed particles (common GPU contract) ----
 // A particle whose position w is negative has been removed (e.g. absorbed by a fusion): it is

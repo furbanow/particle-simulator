@@ -14,7 +14,7 @@ export interface ConcentrationSearch {
     height: number;
     /** Fraction (0..1) of all the particles a disk must hold to become a zone. */
     threshold: number;
-    /** At most this many zones are returned (the mask holds index + 1 in a byte). */
+    /** At most this many zones are returned, possibly none (the mask holds index + 1 in a byte). */
     maxZones: number;
     /** Per particle: the time until which it is not counted. */
     immuneUntil: ArrayLike<number>;
@@ -92,7 +92,8 @@ export function findConcentrations(positions: ArrayLike<number>, n: number, sear
     const r2 = radius * radius;
     const zones: Concentration[] = [];
     let maxFraction = 0;
-    for (let attempt = 0; attempt < maxZones; attempt++) {
+    // The first disk is always measured, for maxFraction.
+    for (let attempt = 0; attempt < Math.max(maxZones, 1); attempt++) {
         let bestCell = -1, bestSum = 0;
         for (let cell = 0; cell < cells; cell++) {
             if (cellCounts[cell] > 0 && diskSums[cell] > bestSum) { bestSum = diskSums[cell]; bestCell = cell; }
@@ -123,7 +124,7 @@ export function findConcentrations(positions: ArrayLike<number>, n: number, sear
         }
         const fraction = members / n;
         if (attempt === 0) maxFraction = fraction;
-        if (members === 0 || fraction < threshold) break;
+        if (zones.length === maxZones || members === 0 || fraction < threshold) break;
 
         const claimed = new Map<number, number>();
         for (let m = 0; m < members; m++) {
