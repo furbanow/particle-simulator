@@ -198,7 +198,7 @@ function loop(now: number): void {
     simulation.endFrame();
 
     stats.update();
-    if (stats.tick(now)) refreshSummaries();
+    stats.tick(now);
 }
 
 resize();

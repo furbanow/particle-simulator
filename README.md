@@ -51,7 +51,7 @@ src/
   simulation/         GPGPU (Simulation), champ de densité, détection d'amas, onde de choc
   render/             couche particules, couche nébuleuse, post-traitement
   shaders/            sources GLSL (constantes injectées via #define)
-  ui/                 panneau (sections repliables, curseurs, stats) et barre des éléments (graphe par propriété, éditeur)
+  ui/                 panneau (sections repliables, curseurs), statistiques superposées à l'animation et barre des éléments (graphe par propriété, éditeur)
   styles/             CSS découpé par composant
 tests/                tests Vitest des fonctions pures
 ```

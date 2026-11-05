@@ -1,39 +1,55 @@
-/* ---------- Statistics ---------- */
-.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+/* ---------- Statistics: discreet, see-through overlay in the bottom-right corner of the animation ---------- */
+.stats-overlay {
+    --stats-content-w: 200px;
+    --stats-opacity: 0.55;
+    position: fixed; right: 12px; bottom: 12px; z-index: 8;
+    display: flex; align-items: flex-end; gap: 4px;
+}
+.stats-toggle { width: 22px; height: 22px; color: var(--text-2); opacity: var(--stats-opacity); transition: opacity 0.2s, background 0.15s, color 0.15s; }
+.stats-toggle:hover, .stats-toggle:focus-visible { opacity: 1; }
+.stats-toggle .eye-slash { display: none; }
+.stats-overlay:not(.open) .eye-slash { display: inline; }
+.stats-overlay:not(.open) .stat-grid { display: none; }
+.stat-grid {
+    display: grid; gap: 3px;
+    width: calc(var(--stats-content-w) + 20px); padding: 8px 10px; border-radius: var(--radius);
+    background: rgba(0, 0, 0, 0.16);
+    color: var(--text); font-size: 10.5px; line-height: 1.35;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+    -webkit-font-smoothing: antialiased;
+    opacity: var(--stats-opacity); transition: opacity 0.2s;
+}
+.stat-grid:hover { opacity: 1; }
 .stat {
-    padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    margin: 0 -4px; padding: 0 4px; border-radius: 4px;
 }
-.stat.wide { grid-column: 1 / -1; }
-.stat-label { font-size: 11px; color: var(--text-3); }
-.stat-value {
-    margin-top: 3px; font: 500 15px var(--mono); color: var(--text); font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-}
+.stat.wide { display: block; margin-top: 3px; }
+.stat-label { color: var(--text-2); }
+.stat-value { font: 500 10.5px var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.stat-value.mid { color: var(--warn); }
+.stat-value.low { color: var(--bad); }
 .stat-row { display: flex; align-items: baseline; justify-content: space-between; }
-.stat-row .stat-value { margin: 0; font-size: 12px; }
 .stat.flash { animation: stat-flash 1.2s ease-out; }
 @keyframes stat-flash {
-    from { background: rgba(251, 191, 36, 0.22); border-color: rgba(251, 191, 36, 0.6); }
+    from { background: rgba(251, 191, 36, 0.3); }
 }
-.meter { position: relative; height: 6px; margin-top: 10px; border-radius: 6px; background: var(--track); }
+.meter { position: relative; height: 3px; margin-top: 4px; border-radius: 3px; background: var(--track); }
 .meter-fill {
     height: 100%; width: 0; border-radius: inherit;
     background: linear-gradient(90deg, #7c3aed, #c084fc 60%, #fbbf24);
-    background-size: 320px 100%; transition: width 0.35s var(--ease);
+    background-size: var(--stats-content-w) 100%; transition: width 0.35s var(--ease);
 }
 .meter-mark {
-    position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 2px;
-    background: var(--text); box-shadow: 0 0 0 2px var(--panel);
+    position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; border-radius: 2px;
+    background: var(--text);
 }
-.meter-legend { position: relative; height: 14px; margin-top: 7px; font: 400 10.5px var(--mono); color: var(--text-3); }
+.meter-legend { position: relative; height: 12px; margin-top: 3px; font: 400 9.5px var(--mono); color: var(--text-2); }
 .meter-legend span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
 
 /* Live particle count per type (stat declared by an algorithm). */
-.type-counts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font: 500 12px var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.type-counts { display: flex; flex-wrap: wrap; gap: 1px 10px; margin-top: 2px; font: 500 10.5px var(--mono); font-variant-numeric: tabular-nums; }
 .type-count::before {
-    content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%;
+    content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%;
     background: var(--type-color); vertical-align: 1px;
 }
-
-.shortcuts { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 18px; font-size: 11px; color: var(--text-3); }
-.shortcuts kbd { background: var(--surface-hover); color: var(--text-2); border: 1px solid var(--border); margin-right: 4px; }

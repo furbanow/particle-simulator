@@ -5,8 +5,11 @@ import type { Simulation } from '../simulation/Simulation';
 import { formatInt } from '../util/format';
 import { clamp } from '../util/math';
 import { byId, flash } from './dom';
+import { rememberedOpen, rememberOpen } from './panelState';
 
 const UNKNOWN = '–';
+const OPEN_KEY = 'statsOverlay';
+const TOGGLE_LABEL = { open: 'Masquer les statistiques', closed: 'Afficher les statistiques' };
 
 /** A tile of an algorithm stat: paint() re-reads its value, only touching the DOM when it changed. */
 interface StatTile {
@@ -15,25 +18,39 @@ interface StatTile {
 }
 
 /**
- * Statistics: FPS badge and tile, active particles and types (every algorithm), then the live
+ * Statistics shown over the animation: FPS, active particles and types (every algorithm), then the live
  * stats the selected algorithm declares (values, meters, counts per type), built by setAlgorithm()
- * and polled every frame by update().
+ * and polled every frame by update(). A small button next to them hides or shows them.
  */
 export class Stats {
     private readonly fpsVal = byId('fpsVal');
-    private readonly fpsBadge = byId('fpsBadge');
-    private readonly fpsBadgeVal = byId('fpsBadgeVal');
     private readonly activeVal = byId('activeVal');
     private readonly typesActiveLabel = byId('typesActiveLabel');
     private readonly typesActiveVal = byId('typesActiveVal');
     private readonly grid = byId('statGrid');
+    private readonly overlay = byId('statsOverlay');
+    private readonly toggleBtn = byId<HTMLButtonElement>('toggleStatsBtn');
     private tiles: StatTile[] = [];
 
     private fpsFrames = 0;
     private fpsTime = performance.now();
 
     constructor(private readonly sim: Simulation) {
+        this.setOpen(rememberedOpen(OPEN_KEY, true));
+        this.toggleBtn.addEventListener('click', () => {
+            const open = !this.overlay.classList.contains('open');
+            this.setOpen(open);
+            rememberOpen(OPEN_KEY, open);
+        });
         this.setAlgorithm();
+    }
+
+    private setOpen(open: boolean): void {
+        this.overlay.classList.toggle('open', open);
+        this.toggleBtn.setAttribute('aria-expanded', String(open));
+        const label = open ? TOGGLE_LABEL.open : TOGGLE_LABEL.closed;
+        this.toggleBtn.title = label;
+        this.toggleBtn.setAttribute('aria-label', label);
     }
 
     /** Rebuilds the algorithm's stat tiles. */
@@ -57,18 +74,16 @@ export class Stats {
         for (const tile of this.tiles) tile.paint();
     }
 
-    /** Counts a frame; returns true once per second, when the FPS display was refreshed. */
-    tick(now: number): boolean {
+    /** Counts a frame; refreshes the FPS display once per second. */
+    tick(now: number): void {
         this.fpsFrames++;
-        if (now - this.fpsTime < 1000) return false;
+        if (now - this.fpsTime < 1000) return;
         const fps = Math.round(this.fpsFrames * 1000 / (now - this.fpsTime));
         this.fpsVal.textContent = String(fps);
-        this.fpsBadgeVal.textContent = `${fps} FPS`;
-        this.fpsBadge.classList.toggle('mid', fps < 50 && fps >= 30);
-        this.fpsBadge.classList.toggle('low', fps < 30);
+        this.fpsVal.classList.toggle('mid', fps < 50 && fps >= 30);
+        this.fpsVal.classList.toggle('low', fps < 30);
         this.fpsFrames = 0;
         this.fpsTime = now;
-        return true;
     }
 
     private buildTile(def: StatDef): StatTile {
