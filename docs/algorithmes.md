@@ -91,7 +91,7 @@ Paramètres : nombre de particules (au redémarrage), constante de gravité, seu
 2. **Pression à seuil.** La pression vaut `max(densité − REST_DENSITY, 0)`. Elle est nulle tant que les particules ne sont pas tassées. La poussée est divisée par la densité relative de l'espèce : les éléments denses tombent au cœur des amas et les légers restent au bord.
 3. **Viscosité collante.** Dans les zones denses, la vitesse de chaque particule est ramenée vers le flux moyen local (`VISCOSITY_RATE`). L'agitation désordonnée est effacée.
 4. **Pertes d'énergie.** Il y a un frottement global (`GLOBAL_DRAG`), une vitesse maximale (`MAX_SPEED`), et les murs renvoient 80 % de la vitesse (`RESTITUTION`).
-5. **Supernovae.** Elles se déclenchent sur un critère géométrique : une part des particules (60 % par défaut) dans un disque. Toutes les espèces reçoivent la même énergie cinétique (v ∝ 1/√m). Une onde de choc pousse ensuite le milieu environnant.
+5. **Supernovae.** Elles se déclenchent sur un critère géométrique : une part de toutes les particules (60 % par défaut) dans un disque. Plusieurs disques peuvent exploser en même temps : ils peuvent se chevaucher, mais une particule n'appartient qu'à un seul. Toutes les espèces reçoivent la même énergie cinétique (v ∝ 1/√m). Une onde de choc par explosion pousse ensuite le milieu environnant. Les particules éjectées ne sont plus comptées pendant `rayon / vitesse d'éjection`, avec au minimum `EJECT_TIME`, en temps simulé : un amas ne réexplose pas à vide, mais une zone peut exploser de nouveau dès que de la matière fraîche y dépasse le seuil.
 
 ### Comportement
 

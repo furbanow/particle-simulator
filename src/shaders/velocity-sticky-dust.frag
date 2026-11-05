@@ -1,5 +1,5 @@
 // GPGPU velocity step of the "sticky dust" algorithm: multi-scale gravity, threshold pressure,
-// viscosity toward the local flow. Defines: MAX_SPECIES. Provided by GPUComputationRenderer: resolution.
+// viscosity toward the local flow. Defines: MAX_SPECIES, MAX_SUPERNOVAE, MAX_SHOCK_WAVES. Provided by GPUComputationRenderer: resolution.
 // The state samplers are bound by GpuPipeline (the velocity pass declares no dependencies).
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
@@ -22,14 +22,12 @@ uniform float maxSpeed;
 uniform float restitution;
 uniform float momentumScale;
 uniform float supernovaActive;
-uniform vec2 supernovaCenter;
+uniform vec2 supernovaCenters[MAX_SUPERNOVAE];
 uniform float supernovaSpeed;
 uniform float ejectTime;
-uniform float shockActive;
-uniform vec2 shockCenter;
-uniform float shockInner;               // front radius at the previous step
-uniform float shockOuter;               // front radius now
-uniform float shockRef;                 // aggregate radius (kick reference distance)
+uniform int shockCount;                 // running waves, in the first slots of the arrays below
+uniform vec4 shockFronts[MAX_SHOCK_WAVES];  // center x, center y, front radius at the previous step, front radius now
+uniform float shockRefs[MAX_SHOCK_WAVES];   // aggregate radius (kick reference distance)
 uniform float shockStrength;
 uniform float speciesInvRelDensity[MAX_SPECIES];  // mean density / species density
 uniform float speciesEjectScale[MAX_SPECIES];     // sqrt(mean mass / species mass)
@@ -48,27 +46,31 @@ void main() {
     int species = clamp(int(posData.z + 0.5), 0, MAX_SPECIES - 1);
     float ejectScale = speciesEjectScale[species];
 
-    if (supernovaActive > 0.5 && texture2D(textureSupernova, uv).r > 0.5) {
-        vec2 d = pos - supernovaCenter;
-        float angle = length(d) > 0.001 ? atan(d.y, d.x) : hash(uv) * 6.2831853;
-        angle += (hash(uv + 0.37) - 0.5) * 0.25;
-        // Same kinetic energy for every species: light ones fly faster.
-        float speed = supernovaSpeed * ejectScale * (0.8 + 0.4 * hash(uv + 1.71));
-        gl_FragColor = vec4(cos(angle) * speed, sin(angle) * speed, ejectTime, 0.0);
-        return;
+    if (supernovaActive > 0.5) {
+        // The byte mask holds the index + 1 of the supernova ejecting this particle (0: none).
+        int zone = int(texture2D(textureSupernova, uv).r * 255.0 + 0.5) - 1;
+        if (zone >= 0) {
+            vec2 d = pos - supernovaCenters[zone];
+            float angle = length(d) > 0.001 ? atan(d.y, d.x) : hash(uv) * 6.2831853;
+            angle += (hash(uv + 0.37) - 0.5) * 0.25;
+            // Same kinetic energy for every species: light ones fly faster.
+            float speed = supernovaSpeed * ejectScale * (0.8 + 0.4 * hash(uv + 1.71));
+            gl_FragColor = vec4(cos(angle) * speed, sin(angle) * speed, ejectTime, 0.0);
+            return;
+        }
     }
 
     // vel.z = remaining ejection time after a supernova
     float eject = max(vel.z - dt, 0.0);
 
-    // Shock wave: when the front sweeps over a particle, its outward radial velocity is
+    // Shock waves: when a front sweeps over a particle, its outward radial velocity is
     // raised to at least the local kick (1/r falloff). Faster ejecta are left untouched.
-    if (shockActive > 0.5) {
-        vec2 d = pos - shockCenter;
+    for (int i = 0; i < shockCount; i++) {
+        vec2 d = pos - shockFronts[i].xy;
         float r = length(d);
-        if (r > shockInner && r <= shockOuter) {
+        if (r > shockFronts[i].z && r <= shockFronts[i].w) {
             vec2 n = d / r;
-            float rel = shockStrength * shockRef / r;   // kick / ejection speed
+            float rel = shockStrength * shockRefs[i] / r;   // kick / ejection speed
             float kick = supernovaSpeed * rel * ejectScale;
             float vr = dot(vel.xy, n);
             if (vr < kick) {

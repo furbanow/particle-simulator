@@ -35,7 +35,8 @@ export const MOMENTUM_SCALE = 0.01;                // keeps splatted momentum in
 export const CLUSTER_CHECK_INTERVAL = 12;          // frames
 export const SUPERNOVA_SPEED = 420;                // px/s at 100 % power (scaled by the power slider)
 export const EJECT_TIME = 0.6;                     // s during which ejecta ignore gravity/viscosity (fading back in)
-export const SUPERNOVA_COOLDOWN = 120;             // frames
+export const MAX_SUPERNOVAE = 16;                  // simultaneous explosions; at most 255 (index + 1 in the byte mask)
+export const MAX_SHOCK_WAVES = 32;                 // running fronts; a new one replaces the oldest beyond that
 // Shock wave: the front moves at the ejection speed; the outward kick it gives is
 // SHOCK_STRENGTH * ejection speed at the aggregate edge and falls off as 1/r beyond it.
 export const SHOCK_STRENGTH = 0.9;
