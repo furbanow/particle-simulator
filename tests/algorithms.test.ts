@@ -133,7 +133,7 @@ describe('sticky dust keeps its defaults', () => {
         });
         const bounds = STICKY_DUST.params.map(p => p.kind === 'number' ? [p.key, p.min, p.max, p.step, p.tab] : []);
         expect(bounds).toEqual([
-            ['count', 1000, 500000, 1000, 'initial'],
+            ['count', 1000, 1000000, 1000, 'initial'],
             ['gravity', 0, 15, 0.1, 'physics'],
             ['supernovaThreshold', 0, 100, 1, 'supernova'],
             ['concentrationRadius', 10, 400, 5, 'supernova'],

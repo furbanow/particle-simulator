@@ -1,7 +1,7 @@
 // Every tunable constant of the simulation and its rendering.
 
 // ---- Simulation ----
-export const TEX_SIZE = 708;                       // 708x708 = 501 264 slots (>= 500 000)
+export const TEX_SIZE = 1000;                      // 1000x1000 = 1 000 000 slots (>= 1 000 000)
 export const MAX_PARTICLES = TEX_SIZE * TEX_SIZE;
 export const FRAME_MS = 1000 / 60;
 export const BASE_DT = 1 / 60;
@@ -42,7 +42,7 @@ export const SHOCK_STRENGTH = 0.9;
 export const SHOCK_MIN_KICK = 0.03;                // fraction of the ejection speed below which the wave dies
 
 // ---- Panel parameters of the sticky dust algorithm (slider min, max, step and default) ----
-export const PARTICLE_COUNT_SLIDER: SliderSpec = { min: 1000, max: 500000, step: 1000, default: 30000 };
+export const PARTICLE_COUNT_SLIDER: SliderSpec = { min: 1000, max: 1000000, step: 1000, default: 30000 };
 export const GRAVITY_SLIDER: SliderSpec = { min: 0, max: 15, step: 0.1, default: K_GRAVITY };
 export const SUPERNOVA_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 60 };  // % of the particles
 export const CONCENTRATION_RADIUS_SLIDER: SliderSpec = { min: 10, max: 400, step: 5, default: 80 }; // px
@@ -85,7 +85,7 @@ export const PROTOSTAR_GLOW_HEATING_REF = 0.3;
 export const PROTOSTAR_GLOW_FUSION = 1.3;
 export const PROTOSTAR_GLOW_MAX = 2;
 // Panel parameters (slider min, max, step, default).
-export const PROTOSTAR_COUNT_SLIDER: SliderSpec = { min: 1000, max: 200000, step: 1000, default: 30000 };
+export const PROTOSTAR_COUNT_SLIDER: SliderSpec = { min: 1000, max: 500000, step: 1000, default: 30000 };
 export const PROTOSTAR_ROTATION_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.01, default: 0.2 };       // x v_circ
 export const PROTOSTAR_AGITATION_SLIDER: SliderSpec = { min: 0, max: 1.5, step: 0.01, default: 0.8 };    // x v_circ(R)
 export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 5, step: 0.05, default: 1.5 };
