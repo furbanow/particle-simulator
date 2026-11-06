@@ -1,30 +1,30 @@
 # particle-simulator
 
-Application web locale en TypeScript (Vite + Three.js 0.169, WebGL2) : un simulateur de particules GPGPU multi-espèces avec gravité, supernovae et rendu HDR. Elle est issue du POC `particule-system.0005.html`.
+Local TypeScript web application (Vite + Three.js 0.169, WebGL2): a multi-species GPGPU particle simulator with gravity, supernovae and HDR rendering. It originates from the POC `particule-system.0005.html`.
 
-## Commandes
+## Commands
 
-- `make dev` : serveur de dev sur http://localhost:5173
-- `make check` : vérification des types et tests. À lancer après chaque modification.
-- `make build` : build de production dans `dist/`
+- `make dev`: development server at http://localhost:5173
+- `make check`: type checking and tests. Run after every change.
+- `make build`: production build in `dist/`
 
-## Organisation
+## Organization
 
-- `src/config.ts` : toutes les constantes. On n'écrit pas de nombre magique dans le reste du code.
-- `src/simulation/` : physique (GPGPU, champ de densité, détection d'amas, onde de choc). Aucun accès au DOM.
-- `src/render/` : couches de rendu et post-traitement.
-- `src/ui/` : panneau latéral, barre des éléments en haut de page (`elementBar.ts`) et statistiques superposées à l'animation en bas à droite (`stats.ts`). Ils communiquent avec la simulation par ses propriétés publiques et par les callbacks `onSupernova` / `onConcentration`.
-- `src/elementConfigs.ts` : configurations d'éléments dans le `localStorage`. On applique une config en mutant en place les objets de `simulation.species` (ils sont partagés par référence avec l'UI) ; tout JSON relu passe par `sanitizeConfig()`.
-- `src/simulationConfigs.ts` : configurations de la simulation entière dans le `localStorage` (algorithme, paramètres, éléments, curseurs communs). Les éléments relus passent aussi par `sanitizeConfig()`. Les valeurs sont gardées telles que le panneau les arrondit (`panelParamValue`), sinon une configuration paraîtrait modifiée dès son chargement. Les curseurs communs sont la vitesse (`index.html`) et les effets visuels.
-- Panneau latéral : chaque paramètre déclare son onglet (`tab`, parmi `PANEL_TABS` de `src/simulation/algorithm.ts`) et sa documentation affichée au survol (`doc`, obligatoire). `ParamPanel` construit tout depuis ces déclarations : un onglet n'apparaît que s'il contient un paramètre, et seul l'onglet `initial` attend le redémarrage (`appliesOnRestart`). Les effets visuels, communs à tous les algorithmes, sont déclarés de la même façon dans `src/visualEffects.ts` et appliqués au rendu dans `src/ui/controls.ts`.
-- `src/ui/configPicker.ts` : outils d'une liste de configurations (charger, nouvelle, dupliquer, renommer, supprimer, enregistrer), partagés par la barre des éléments et le panneau.
-- `src/shaders/*.vert|.frag` : GLSL importé avec `?raw`. Les constantes viennent de `config.ts` et sont injectées par `withDefines()` (`src/gl/withDefines.ts`) ; on ne les recopie pas en dur dans les shaders.
-- Plusieurs matériaux partagent le même objet uniform (`screenSize`, `speciesUniforms`, `texturePosition`, …). Il faut garder ce partage par référence, car c'est lui qui synchronise le splat de densité, les particules et la nébuleuse.
-- `src/styles/` : un fichier CSS par composant ; les variables de thème sont dans `tokens.css`.
-- La logique pure (concentration, masses, couleurs, répartition, configs) est séparée du DOM et testée dans `tests/`.
+- `src/config.ts`: all constants. No magic numbers in the rest of the code.
+- `src/simulation/`: physics (GPGPU, density field, cluster detection, shock wave). No DOM access.
+- `src/render/`: rendering layers and post-processing.
+- `src/ui/`: side panel, element bar at the top of the page (`elementBar.ts`) and statistics overlaid on the animation at the bottom right (`stats.ts`). They communicate with the simulation through its public properties and through the `onSupernova` / `onConcentration` callbacks.
+- `src/elementConfigs.ts`: element configurations in `localStorage`. A configuration is applied by mutating in place the objects of `simulation.species` (they are shared by reference with the UI); any JSON read back goes through `sanitizeConfig()`.
+- `src/simulationConfigs.ts`: whole-simulation configurations in `localStorage` (algorithm, parameters, elements, shared sliders). Elements read back also go through `sanitizeConfig()`. Values are kept as the panel rounds them (`panelParamValue`); otherwise a configuration would appear modified as soon as it is loaded. The shared sliders are speed (`index.html`) and visual effects.
+- Side panel: each parameter declares its tab (`tab`, one of `PANEL_TABS` in `src/simulation/algorithm.ts`) and its documentation shown on hover (`doc`, mandatory). `ParamPanel` builds everything from these declarations: a tab appears only if it contains a parameter, and only the `initial` tab waits for a restart (`appliesOnRestart`). Visual effects, common to all algorithms, are declared the same way in `src/visualEffects.ts` and applied to rendering in `src/ui/controls.ts`.
+- `src/ui/configPicker.ts`: tools for a list of configurations (load, new, duplicate, rename, delete, save), shared by the element bar and the panel.
+- `src/shaders/*.vert|.frag`: GLSL imported with `?raw`. Constants come from `config.ts` and are injected by `withDefines()` (`src/gl/withDefines.ts`); do not copy them by hand into the shaders.
+- Several materials share the same uniform object (`screenSize`, `speciesUniforms`, `texturePosition`, …). This sharing by reference must be kept, because it is what keeps the density splat, the particles and the nebula in sync.
+- `src/styles/`: one CSS file per component; theme variables are in `tokens.css`.
+- Pure logic (concentration, masses, colors, distribution, configurations) is separated from the DOM and tested in `tests/`.
 
 ## Conventions
 
-- Textes de l'interface en français.
-- Commentaires de code en anglais, comme dans le code existant.
-- TypeScript strict : pas de `any`.
+- UI texts in French.
+- Code comments in English, as in the existing code.
+- Strict TypeScript: no `any`.

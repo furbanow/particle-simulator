@@ -1,58 +1,58 @@
-# Particle Simulator — Gravité & Supernova
+# Particle Simulator — Gravity & Supernova
 
-Simulateur de particules GPGPU multi-espèces dans le navigateur (TypeScript, Three.js, WebGL2).
+Multi-species GPGPU particle simulator running in the browser (TypeScript, Three.js, WebGL2).
 
-- **Physique** : de 1 000 à 500 000 particules ; leurs positions et vitesses sont stockées dans des textures flottantes. La gravité est calculée sur un champ de densité *cloud-in-cell* mipmappé, avec pression et viscosité relative.
-- **Éléments** : les 10 premiers éléments du tableau périodique (hydrogène → néon), avec leurs masses atomiques réelles (en u), des tailles proportionnelles aux rayons atomiques et les couleurs CPK. Ils se stratifient selon leur densité. Une barre dédiée en haut de la page permet d'en activer de 1 à 10 et d'éditer leurs propriétés sur un graphe en barres, une propriété à la fois (répartition de la population, masse atomique, taille, couleur en teinte · saturation · luminosité), avec des valeurs par défaut et des tirages aléatoires. L'élément sélectionné a aussi tous ses curseurs à droite, avec son nom et son symbole. Les configurations d'éléments s'enregistrent dans le navigateur : nouvelle, dupliquer, renommer, supprimer, charger.
-- **Configurations de simulation** : au-dessus du bouton « Redémarrer », on enregistre la simulation entière dans le navigateur (algorithme, paramètres, définition des éléments, effets visuels, vitesse) : nouvelle, dupliquer, renommer, supprimer, charger. Charger une configuration redémarre la simulation ; la dernière sélectionnée revient à l'ouverture de la page.
-- **Supernovae** : quand la zone la plus dense dépasse le seuil choisi, elle explose (éjection radiale) puis une onde de choc en 1/r balaie les autres amas.
-- **Rendu** : pipeline HDR demi-float, enchaînant nébuleuse colorée, lentille gravitationnelle à séparation chromatique, bloom, vignette, grain et tone mapping Khronos Neutral.
+- **Physics**: from 1,000 to 500,000 particles; their positions and velocities are stored in floating-point textures. Gravity is computed on a mipmapped *cloud-in-cell* density field, with relative pressure and viscosity.
+- **Elements**: the first 10 elements of the periodic table (hydrogen → neon), with their real atomic masses (in u), sizes proportional to atomic radii, and CPK colors. They stratify according to their density. A dedicated bar at the top of the page lets you activate 1 to 10 of them and edit their properties on a bar chart, one property at a time (population share, atomic mass, size, color as hue · saturation · lightness), with default values and random draws. The selected element also has all its sliders on the right, with its name and symbol. Element configurations are saved in the browser: new, duplicate, rename, delete, load.
+- **Simulation configurations**: above the « Redémarrer » (Restart) button, the entire simulation can be saved in the browser (algorithm, parameters, element definitions, visual effects, speed): new, duplicate, rename, delete, load. Loading a configuration restarts the simulation; the last one selected is restored when the page opens.
+- **Supernovae**: when the densest zone exceeds the chosen threshold, it explodes (radial ejection), then a 1/r shock wave sweeps through the other clusters.
+- **Rendering**: half-float HDR pipeline, chaining a colored nebula, a gravitational lens with chromatic separation, bloom, vignette, grain and Khronos Neutral tone mapping.
 
-## Prérequis
+## Prerequisites
 
-- Node.js ≥ 18 et npm
-- Un navigateur WebGL2 qui gère `EXT_color_buffer_float` (Chrome, Firefox ou Edge récents)
+- Node.js ≥ 18 and npm
+- A WebGL2 browser supporting `EXT_color_buffer_float` (recent Chrome, Firefox or Edge)
 
-## Démarrage
+## Getting started
 
 ```sh
-make install   # dépendances npm
-make dev       # serveur de dev sur http://localhost:5173
+make install   # npm dependencies
+make dev       # development server at http://localhost:5173
 ```
 
-| Commande         | Effet                                              |
+| Command          | Effect                                             |
 |------------------|----------------------------------------------------|
-| `make dev`       | serveur de développement avec rechargement à chaud |
-| `make build`     | vérification des types puis build dans `dist/`     |
-| `make preview`   | sert le build de production                        |
-| `make typecheck` | vérification TypeScript                            |
-| `make test`      | tests unitaires (Vitest)                           |
+| `make dev`       | development server with hot reload                 |
+| `make build`     | type checking, then build in `dist/`               |
+| `make preview`   | serves the production build                        |
+| `make typecheck` | TypeScript type checking                           |
+| `make test`      | unit tests (Vitest)                                |
 | `make check`     | types + tests                                      |
-| `make clean`     | supprime `dist/`                                   |
+| `make clean`     | removes `dist/`                                    |
 
-## Raccourcis
+## Shortcuts
 
-- **R** : redémarrer la simulation
-- **H** : masquer ou afficher le panneau
-- **Double-clic sur un curseur ou une barre de répartition** : revenir à la valeur par défaut
+- **R**: restart the simulation
+- **H**: hide or show the panel
+- **Double-click on a slider or a distribution bar**: reset to the default value
 
 ## Structure
 
 ```
-index.html            markup du panneau de contrôle et de la barre des éléments
+index.html            markup of the control panel and the element bar
 src/
-  main.ts             assemblage : renderer, simulation, rendu, UI, boucle 60 FPS
-  config.ts           constantes physiques et visuelles
-  species.ts          espèces, échelle de masse logarithmique, tirages aléatoires
-  population.ts       répartition des particules selon les poids de population
-  elementMetrics.ts   propriétés éditables d'un élément (position 0..1, arrondis, défauts, tirages)
-  elementConfigs.ts   configurations d'éléments enregistrées (localStorage)
-  simulationConfigs.ts  configurations de la simulation entière enregistrées (localStorage)
-  visualEffects.ts    effets visuels communs à tous les algorithmes (curseurs de l'onglet Effets visuels)
-  simulation/         GPGPU (Simulation), champ de densité, détection d'amas, onde de choc
-  render/             couche particules, couche nébuleuse, post-traitement
-  shaders/            sources GLSL (constantes injectées via #define)
-  ui/                 panneau (onglets à icônes, curseurs documentés au survol), statistiques superposées à l'animation et barre des éléments (graphe par propriété, éditeur)
-  styles/             CSS découpé par composant
-tests/                tests Vitest des fonctions pures
+  main.ts             assembly: renderer, simulation, rendering, UI, 60 FPS loop
+  config.ts           physical and visual constants
+  species.ts          species, logarithmic mass scale, random draws
+  population.ts       distribution of particles according to population weights
+  elementMetrics.ts   editable properties of an element (position 0..1, rounding, defaults, draws)
+  elementConfigs.ts   saved element configurations (localStorage)
+  simulationConfigs.ts  saved whole-simulation configurations (localStorage)
+  visualEffects.ts    visual effects common to all algorithms (sliders of the Visual effects tab)
+  simulation/         GPGPU (Simulation), density field, cluster detection, shock wave
+  render/             particle layer, nebula layer, post-processing
+  shaders/            GLSL sources (constants injected via #define)
+  ui/                 panel (icon tabs, sliders documented on hover), overlaid statistics and element bar (chart per property, editor)
+  styles/             CSS split by component
+tests/                Vitest tests of the pure functions
 ```
