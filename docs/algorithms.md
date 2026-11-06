@@ -111,16 +111,16 @@ Parameters: number of particles (at restart), gravity constant, threshold, conce
 
 ## Protostar (`protostar`), available
 
-Declaration: `src/simulation/protostar/declaration.ts`. GPU model: `src/simulation/protostar/gpuModel.ts` and `grids.ts`. Pure logic: `reactions.ts` (reaction table, mass balance) and `initialConditions.ts` (initial cloud). Shaders: `src/shaders/protostar-*.{vert,frag,glsl}`.
+Declaration: `src/simulation/protostar/declaration.ts`. GPU model: `src/simulation/protostar/gpuModel.ts` and `grids.ts`. Pure logic: `reactions.ts` (reaction table, rate law, mass balance), `drift.ts` (statistical drift) and `initialConditions.ts` (initial cloud). Shaders: `src/shaders/protostar-*.{vert,frag,glsl}`.
 
-A hydrogen cloud cools and collapses under its own gravity. Its core becomes dense and hot until it ignites hydrogen fusion into helium. The released energy heats the core, which expands: fusion slows down, and cooling and gravity contract it again. The star settles into a self-regulated equilibrium. Everything runs on the GPU; the CPU orchestrates the passes and reads back three numbers for the statistics.
+A hydrogen cloud contracts under its own gravity while it cools, and hydrogen fuses into helium (proton-proton chain). The released energy heats the core, which expands: fusion slows down, and cooling and gravity contract it again. The star settles into a self-regulated equilibrium. Once the hydrogen is exhausted, nothing supports the helium core any more: it contracts and heats up to about 100 MK, where helium fuses into carbon (triple alpha). Everything runs on the GPU; the CPU orchestrates the passes and reads back three numbers for the statistics, plus the positions to count the types and measure the drift.
 
 ### Units
 
 Lengths are expressed relative to L, the short side of the simulation area, fixed at restart: the behavior does not depend on the screen size. The total mass of the cloud is `TOTAL_MASS`; times are in seconds.
 
 - **ρ₀**: the initial mean density of the cloud. Densities (statistic, fusion law, opacity) are in ρ₀.
-- **T₀** = `PROTOSTAR_FUSION_T_REF` · (L/s)²: the reference temperature of the fusion law. Displayed temperatures are in T₀.
+- **T₀** = `PROTOSTAR_FUSION_T_REF` · (L/s)²: the temperature unit, which stands for **15 MK** (`PROTOSTAR_T0_KELVIN`, the core of the Sun). Displayed temperatures are in MK.
 - **G** (slider): G_eff = G · `PROTOSTAR_GRAVITY_UNIT` · L³ / `TOTAL_MASS`.
 - **ε** (slider): in % of L.
 
@@ -169,33 +169,51 @@ A uniform disk of radius 0.38 L (`PROTOSTAR_CLOUD_RADIUS`), centered on the scre
 
 At each step, the disordered part of the velocity is damped: v ← v̄ + (v − v̄)·e^(−k_eff·Δt). Rotation and overall infall (carried by v̄) are preserved.
 
+**Why cooling is slow by default**: the contraction must stay quasi-static. A faster cooling (or a cold cloud) makes the cloud fall in freely: the center reaches very high temperatures at once and all the hydrogen burns in one explosion.
+
 **Opacity**: k_eff = k / (1 + ρ/ρ_opq). Without this term, the core, once smaller than ε, is no longer heated by its compression (the softened potential is harmonic there): cooling won, fusion went out and the whole cloud ended as a cold point. With it, dense gas keeps the heat of its compression, like a protostellar core that has become opaque to its own radiation. Heating by collapse comes from gravity alone: gravitational potential energy becomes agitation in the core.
 
-### Fusion H → He
+### Fusion laws
 
-Per step, a hydrogen particle fuses with probability P = 1 − exp(−λ₀ · ρ · T^α · Δt) ≈ λ₀ · ρ · T^α · Δt (ρ in ρ₀, T in T₀; `fusionRateOf` in `protostar-common.glsl`, `fusionProbability` in `reactions.ts`). With α = 3, ignition behaves almost like a threshold and stays confined to the core. The draw is made in the position pass (PCG generator per particle and per substep), which rewrites the type.
+A particle of a type that fuses does so per step with probability P = 1 − exp(−r · Δt), with a rate per particle
+
+r = min(λ · ρⁿ · (T / T_ref)^α, `PROTOSTAR_FUSION_RATE_MAX`), ρ in ρ₀ (`fusionRateOf` in `protostar-common.glsl`, `fusionRate` in `reactions.ts`).
+
+| | Proton-proton chain | Triple alpha |
+|---|---|---|
+| Reaction | 4 ¹H → ⁴He + 26.7 MeV | 3 ⁴He → ¹²C + 7.275 MeV |
+| T_ref (`referenceTemperature`) | 15 MK, core of the Sun | 100 MK, real ignition |
+| n (`densityExponent`) | 1: two bodies | 2: three bodies |
+| α | 4 | 40 |
+| Mass turned into energy | 0.71 % | 0.065 %, 11 times less |
+
+These n and α are the real values around T_ref: the energy production goes as ρX²T⁴ and ρ²Y³T⁴⁰, so per fusing particle as ρXT⁴ and ρ²Y²T⁴⁰. The composition terms X and Y are left out: the law uses the total density.
+
+With α = 40, 10 % hotter is about 45 times faster: ignition is almost a threshold, and changing λ moves the ignition temperature very little. The rate is computed from logarithms, as the powers alone would overflow a 32-bit float, and capped above 1 / Δt. The draw is made in the position pass (PCG generator per particle and per substep), which rewrites the type.
 
 ### Mass balance
 
-**One particle = one atom.** 4 H → 1 He: a hydrogen particle that fuses becomes helium with probability 1/4, otherwise it is **removed** (absorbed by the reaction, w = −1). On average, four fused hydrogens leave one helium: the mean mass left per fused hydrogen is m_He / 4 = 1.00065 u instead of 1.008 u. The difference, the **mass defect** (4 × 1.008 − 4.0026 = 0.0294 u, i.e. 0.73%), becomes energy.
+**One particle = one atom.** 4 H → 1 He: a hydrogen particle that fuses becomes helium with probability 1/4, otherwise it is **removed** (absorbed by the reaction, w = −1). On average, four fused hydrogens leave one helium: the mean mass left per fused hydrogen is m_He / 4 = 1.00065 u instead of 1.00783 u. The difference, the **mass defect** (4 × 1.00783 − 4.0026 = 0.0287 u, i.e. 0.71%), becomes energy. In the same way, 3 He → 1 C: a helium that fuses becomes carbon with probability 1/3, and 3 × 4.0026 − 12 = 0.0078 u becomes energy.
 
-- The number of particles decreases (three out of four fused ones disappear); mass is conserved on average, apart from the mass defect. In calibration, (30,000 − remaining H) / 4 matches the number of helium formed to within 1 or 2% (random draws).
-- Momentum is conserved on average (the helium keeps the velocity of the hydrogen that survives).
-- The masses of the types come from the editor (in u): they set the mass deposited on the gravity grid and the mass defect. If helium is made heavier than four hydrogens, the reaction no longer releases energy (no feedback).
+- The number of particles decreases; mass is conserved on average, apart from the mass defect. In calibration, 30,000 hydrogens end up as 2,470 to 2,558 carbons, for 2,500 expected.
+- **Masses are those of the isotopes that react**, as their differences give the energy: ¹H (`HYDROGEN_1_MASS`), ⁴He, ¹²C (`CARBON_12_MASS`). With the standard atomic weight of carbon (12.011 u, a mix with ¹³C), three heliums would weigh less than one carbon and triple alpha would release no energy.
+- The masses of the types come from the editor (in u): they set the mass deposited on the gravity grid and the mass defect. If the product is made heavier than what it consumes, the reaction no longer releases energy (no feedback).
+
+**Statistical drift** (`drift.ts`): momentum is conserved only on average, as a survivor carries its velocity with three or four times the mass. In a hot star, that noise made the star cross the screen at about 5 px/s with 30,000 particles (about 3 times slower with 10 times more, as expected for a noise). The GPU model measures the velocity of the center of mass on the read-back positions and takes half of it off every particle (`driftKick`, `PROTOSTAR_DRIFT_GAIN`): the center of mass now stays within about 10 px of its place.
 
 ### Feedback
 
 The energy released per unit of fused mass is feedback × (mass defect / fused mass) × c², with c² = `PROTOSTAR_FUSION_C2` × T₀. We inject the **expected** power (rate × energy, pass 3), not the energy of the fusions actually drawn: heating is smooth instead of arriving in bursts, and the fusions drawn correspond to it on average. Each particle in the neighborhood receives q·Δt of energy per unit mass as a velocity kick √(2·q·Δt) in a random direction: velocity dispersion (heat) increases, and with it the outward push.
 
-The loop: fusion heats the core → it expands, its density drops (and its cooling rises, becoming less opaque) → fusion slows down → gravity and cooling contract it again.
+The loop: fusion heats the core → it expands, its density drops (and its cooling rises, becoming less opaque) → fusion slows down → gravity and cooling contract it again. A kick is bounded by the speed limit, which also keeps it finite if the power grid saturates in half floats.
 
 ### Transitions: extensible model
 
-Reactions are a table (`PROTOSTAR_REACTIONS`, type `FusionReaction`): fusing type, product type, number of particles consumed, label, and keys of the λ₀ and α parameters. The GPU model translates it into arrays of uniforms indexed by the fusing type (`reactionTo`, `reactionKeep`, `reactionRate`, `reactionExponent`, `reactionEnergy`; `reactionArrays()`), which the shaders read as they are. To add He → C (triple alpha), it is enough to add type C to the default types, one line `{ from: He, to: C, consumed: 3, … }` and its two parameters: neither the shaders nor the model change. Limitation: a type fuses in only one reaction. The declaration derives `particleTypes.transitions` from it, which the editor displays (« Fusion (4 pour 1) → He »).
+Reactions are a table (`PROTOSTAR_REACTIONS`, type `FusionReaction`): fusing type, product type, number of particles consumed, label, keys of the λ and α parameters, reference temperature and density exponent. The GPU model translates it into arrays of uniforms indexed by the fusing type (`reactionTo`, `reactionKeep`, `reactionRate`, `reactionExponent`, `reactionReference`, `reactionDensityExponent`, `reactionEnergy`; `reactionArrays()`), which the shaders read as they are. To add another reaction, it is enough to add its product to the default types, one line in the table and its two parameters: neither the shaders nor the model change. Limitation: a type fuses in only one reaction, so C + He → O could not coexist with a second helium reaction. The declaration derives `particleTypes.transitions` from it, which the editor displays (« Chaîne proton-proton (4 pour 1) → He »).
 
 ### Rendering
 
-The color comes from the type (editor). The model declares `glow: 'state'`: each particle's brightness is written in the w channel of velocity, based on the local temperature (from 0.25 to 1.5 T₀) and the local fusion heating. The core lights up and whitens at ignition; the helium formed, yellow, accumulates there. The « Chaleur » (Heat) slider of the visual effects adjusts this brightness.
+The color comes from the type (editor). The model declares `glow: 'state'`: each particle's brightness is written in the w channel of velocity, based on the local temperature (from 1 to 7 T₀, i.e. 15 to 105 MK) and the local fusion heating. The core lights up and whitens as it burns; the helium formed, yellow, accumulates there, then the core turns to carbon, grey, and shines brightest. The « Chaleur » (Heat) slider of the visual effects adjusts this brightness.
 
 ### Parameters
 
@@ -203,45 +221,56 @@ The color comes from the type (editor). The model declares `glow: 'state'`: each
 |---|---|---|---|
 | Number of particles | `count` | 30,000 | restart |
 | Initial rotation (× v_circ) | `rotation` | 0.2 | restart |
-| Initial agitation (× v_circ(R)) | `agitation` | 0.8 | restart |
-| Gravity constant G | `gravity` | 1.5 | live |
+| Initial agitation (× v_circ(R)) | `agitation` | 0.7 | restart |
+| Gravity constant G | `gravity` | 12 | live |
 | Softening ε (% of L) | `softening` | 1% | live |
-| Cooling k (/s) | `cooling` | 0.5 | live |
-| Opacity density ρ_opq (ρ₀, log) | `opacity` | 30 | live |
-| Fusion rate λ₀ (/s, log) | `fusionRate` | 1e-4 | live |
-| Temperature exponent α | `fusionExponent` | 3 | live |
+| Cooling k (/s) | `cooling` | 0.1 | live |
+| Opacity density ρ_opq (ρ₀, log) | `opacity` | 15 | live |
+| H → He rate λ₀ (/s, log) | `fusionRate` | 1.5e-4 | live |
+| H → He temperature exponent α | `fusionExponent` | 4 | live |
+| He → C rate λ (/s, log) | `heFusionRate` | 3e-6 | live |
+| He → C temperature exponent α | `heFusionExponent` | 40 | live |
 | Feedback (log) | `feedback` | 1 | live |
 
-Types: hydrogen (1.008 u, cool blue-white, the entire initial population) and helium (4.0026 u, yellow, none at the start; a share can be given to it for primordial helium). Statistics: particles per type, core temperature (densest cell, in T₀), maximum density (in ρ₀), fusions per second (expected, smoothed).
+Types: hydrogen (1.00783 u, cool blue-white, the entire initial population), helium (4.0026 u, yellow) and carbon (12 u, grey), none at the start; a share can be given to them. Statistics: particles per type, core temperature (densest cell, in MK), maximum density (in ρ₀), fusions per second, of both reactions together (expected, smoothed).
 
-### Calibration (Chrome, GTX 1060, 1080 × 813 px area, 30,000 particles, speed 1×)
+### Calibration (headless Chrome, GTX 1060, 1180 × 726 px area, 30,000 particles)
 
-With default values (read every 4 s, then every 15 s):
+With default values. Times are simulated; they do not depend on the speed slider.
 
-| t | H | He | T core | ρ max | Fusions / s | What we see |
-|---|---|---|---|---|---|---|
-| 4 s | 30,000 | 0 | 0.02 T₀ | 2.6 ρ₀ | 0 | blue cloud cooling and contracting |
-| 12 s | 29,718 | 71 | 0.61 T₀ | 113 ρ₀ | 18 | collapsed core igniting (filaments, fragments) |
-| 24 s | 28,857 | 275 | 0.91 T₀ | 183 ρ₀ | 125 | the core whitens, helium appears |
-| 40 s | 26,298 | 927 | 1.07 T₀ | 161 ρ₀ | 188 | equilibrium |
-| 60 s | 25,391 | 1,178 | 1.11 T₀ | 163 ρ₀ | 193 | equilibrium |
-| 75 s | 23,336 | 1,680 | 1.10 T₀ | 162 ρ₀ | 199 | equilibrium |
+| t | H | He | C | T core | ρ max | Fusions / s | What we see |
+|---|---|---|---|---|---|---|---|
+| 2 s | 29,980 | 1 | 0 | 21 MK | 1.9 ρ₀ | 15 | blue-white cloud, contracting |
+| 26 s | 23,570 | 1,594 | 0 | 51 MK | 6.7 ρ₀ | 258 | self-regulated hydrogen burning |
+| 51 s | 16,603 | 3,347 | 0 | 47 MK | 7.3 ρ₀ | 276 | the star turns yellow |
+| 76 s | 9,208 | 5,163 | 0 | 49 MK | 8.5 ρ₀ | 304 | |
+| 102 s | 1,870 | 7,058 | 0 | 71 MK | 19 ρ₀ | 250 | hydrogen exhausted, the core contracts and heats up |
+| 126 s | 5 | 4,069 | 1,167 | 117 MK | 75 ρ₀ | 730 | helium ignited, carbon forming |
+| 151 s | 0 | 14 | 2,556 | 128 MK | 143 ρ₀ | 0.4 | carbon core |
+| 276 s | 0 | 6 | 2,558 | 96 MK | 284 ρ₀ | ≈ 0 | end: the core stays hot and slowly cools |
 
-Two other runs give the same values to within a few %. The equilibrium (T ≈ 1.1 T₀, ρ ≈ 160 ρ₀) does not depend on the number of particles (5,000 and 100,000: same T and ρ, and about 0.65% of the hydrogen fused per second). It lasts as long as the core has hydrogen: at 3×, the equilibrium holds until about 2 min 30 simulated (ρ ≈ 165 → 270 ρ₀ as helium accumulates), then fusion dies down (6.5 fusions/s at 4 min, 1,338 H and 7,072 He remaining, i.e. (30,000 − 1,338) / 4 ≈ 7,166 He expected) and the helium core contracts and cools. Lowering ρ_opq or the feedback extends the star's life.
+The first carbons appear when the core passes about 105 MK. Hydrogen burns for about 100 s, helium for about 25 s. At 10 minutes, the simulation is still stable.
 
-Effect of settings (75 s each):
+Robustness at default values:
+
+| Run | Result |
+|---|---|
+| 100,000 and 300,000 particles | same temperatures, densities and times, within a few % |
+| 5,000 particles | same sequence, with a noisier core: helium burning is slower and still incomplete at 240 s (355 C, 71 He) |
+| Area 1920 × 913 px (coarser grid cells relative to L) | same sequence, T max 111 MK; about 590 He stay unburned |
+| Area 780 × 913 px | same sequence, T max 141 MK, about 7 He left |
+| Half-float grids (no `EXT_float_blend`) | same sequence, no invalid value |
+
+Effect of settings, from the runs that led to these defaults. Unless stated otherwise, the other settings are the defaults:
 
 | Setting | Result |
 |---|---|
-| Cooling 0 | **no ignition**: the cloud virializes (ρ max ≈ 1.5 ρ₀, T ≈ 0.2 T₀, 0 fusion) |
-| Cooling 0.02 /s | slow contraction, late and weak ignition (5 fusions/s at 75 s) |
-| Feedback × 2 | stable star, cooler and slower (≈ 105 fusions/s) |
-| Feedback × 4 | the first ignition blows the core apart (ρ max 2.8 ρ₀ at 15 s), then cycles of collapse and bursts |
-| Feedback × 20 | **runaway**: nearly all the hydrogen burns in a few seconds, the cloud is dispersed |
-| Feedback × 0.01 | collapse without brake (ρ ≈ 460 ρ₀), rapid burning, then the core cools |
-| ρ_opq = 15 | longer-lived star (≈ 125 fusions/s) |
-| Without opacity (first version) | the core ignites then ends as a cold point: hence the opacity term |
+| λ₀ = 4e-4 | **explosion**: hydrogen and helium are gone by 20 s, in a dispersed cloud (ρ max 1.6 ρ₀). λ₀ = 2e-4 still works: the margin is less than a factor of 3 |
+| G = 10, λ₀ = 1e-4, agitation 0.8, ρ_opq = 30 | T max 102 MK: helium burning stalls (5,694 He left, 627 C) |
+| Former defaults: G = 1.5, k = 0.5, ρ_opq = 30, agitation 0.8, λ₀ = 1e-4, α = 3 | stable hydrogen burning around 15 MK, but T max 16 MK: **no carbon**. The core ends cold at ρ ≈ 310 ρ₀ |
+| The same with G = 5 | T max 50 MK: **no carbon** |
 
+**Why G = 12**: at the end of the contraction, all the mass sits in the 3 × 3 neighborhood (ρ max ≈ 300 ρ₀ is that limit, set by the grid). The core cannot get hotter than about 10 MK per unit of G, so 100 MK requires G ≥ 10 to 12.
 
 ### Differences from real physics
 
@@ -250,7 +279,11 @@ Effect of settings (75 s each):
 - Cooling is a damping of agitation, with an ad hoc opacity; there is no radiative transfer.
 - Feedback is isotropic (heat), without explicit radial push: pressure comes from agitation.
 - There is no thermal pressure of a fluid: without agitation, nothing resists compression.
-- Once the core's hydrogen is exhausted, the star contracts and cools: helium fusion does not exist yet.
+- **Hydrogen burns at about 50 MK, not 15 MK.** The law keeps its real reference, but the star cannot settle at 15 MK. To reach 100 MK at the end of the contraction, gravity must be so strong that the cloud itself is already at about 20 MK at the start. Real hydrogen burning spans about 4 to 40 MK depending on the mass of the star, so this is above the range of the most massive stars. The ratio of the two temperatures, 2 to 2.5 instead of 6.7, is the main approximation: a finer grid would be needed to widen it. As a consequence, there is no longer a cold collapse phase: fusion starts within seconds.
+- The proton-proton law is kept at all temperatures; at 50 MK, a real star would burn hydrogen through the CNO cycle (around T¹⁷).
+- The fusion laws use the total density, without the local fractions of hydrogen or helium. The sensitivity of triple alpha is kept at α = 40 at all temperatures, while it really falls with temperature (about 19 at 200 MK).
+- Only ¹²C is formed: no C + He → O, no electron degeneracy, hence no helium flash.
+- Momentum is conserved by a global correction (`drift.ts`), not reaction by reaction.
 
 ---
 

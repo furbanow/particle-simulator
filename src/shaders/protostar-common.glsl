@@ -1,5 +1,5 @@
 // Shared by the protostar shaders: sampling of the grids at a particle, fusion rate, random numbers.
-// Defines: MAX_SPECIES, GRID_RES.
+// Defines: MAX_SPECIES, GRID_RES, FUSION_RATE_MAX.
 uniform sampler2D gridForce;            // gravitational acceleration at the cell centers (px/s^2)
 uniform sampler2D gridGas;              // (rho / rho0, T px^2/s^2, mean vx, mean vy) of the 3x3 neighborhood
 uniform sampler2D gridHeat;             // fusion heating per unit mass of the 3x3 neighborhood, T0 per s
@@ -10,6 +10,8 @@ uniform float reactionTo[MAX_SPECIES];  // rank the type fuses into, -1: none
 uniform float reactionKeep[MAX_SPECIES];
 uniform float reactionRate[MAX_SPECIES];
 uniform float reactionExponent[MAX_SPECIES];
+uniform float reactionReference[MAX_SPECIES];   // temperature of the law, in T0
+uniform float reactionDensityExponent[MAX_SPECIES];
 uniform float reactionEnergy[MAX_SPECIES];
 
 /** The four cells around x (cell centers) and their bilinear weights. */
@@ -66,10 +68,15 @@ Gas gasAt(vec2 x) {
     return g;
 }
 
-/** Expected fusions per second of one particle of type `k`: lambda0 * rho * (T / T0)^alpha. */
+/**
+ * Expected fusions per second of one particle of type `k`: lambda * rho^n * (T / T_ref)^alpha,
+ * capped. Computed from logarithms: the powers alone would overflow (T^40).
+ */
 float fusionRateOf(int k, Gas g) {
-    if (reactionTo[k] < 0.0) return 0.0;
-    return reactionRate[k] * g.rho * pow(max(g.t / fusionTRef, 0.0), reactionExponent[k]);
+    if (reactionTo[k] < 0.0 || reactionRate[k] <= 0.0 || g.rho <= 0.0 || g.t <= 0.0) return 0.0;
+    float logRate = log(reactionRate[k]) + reactionDensityExponent[k] * log(g.rho)
+                  + reactionExponent[k] * log(g.t / (fusionTRef * reactionReference[k]));
+    return exp(min(logRate, log(FUSION_RATE_MAX)));
 }
 
 uint pcgHash(uint v) {

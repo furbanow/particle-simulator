@@ -1,6 +1,6 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import {
-    MAX_SPECIES, PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_FUSION_C2, PROTOSTAR_FUSION_T_REF,
+    MAX_SPECIES, PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_DRIFT_GAIN, PROTOSTAR_FUSION_C2, PROTOSTAR_FUSION_T_REF,
     PROTOSTAR_GLOW_FUSION, PROTOSTAR_GLOW_HEATING_REF, PROTOSTAR_GLOW_MAX, PROTOSTAR_GLOW_T_RANGE,
     PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_MAX_SPEED,
     PROTOSTAR_RATE_SMOOTHING, PROTOSTAR_RESTITUTION, PROTOSTAR_STATS_INTERVAL, REMOVED_PARTICLE_W, TOTAL_MASS,
@@ -9,6 +9,7 @@ import { glslFloat } from '../../gl/withDefines';
 import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
 import type { GpuModel, GpuModelContext, GpuVariable, InitialState } from '../gpuModel';
 import { countTypes } from '../typeCounts';
+import { centerOfMass, driftCorrection, type Vec2 } from './drift';
 import { PROTOSTAR_PARAM, PROTOSTAR_PROPERTY, PROTOSTAR_REACTIONS, PROTOSTAR_STAT } from './declaration';
 import { ProtostarGrids, withProtostarCommon } from './grids';
 import { fillCloud } from './initialConditions';
@@ -20,6 +21,9 @@ import accelFrag from '../../shaders/protostar-accel.frag?raw';
 const P = PROTOSTAR_PARAM;
 const ACCEL = 'textureAccel';
 const SEED_PERIOD = 1 << 24;                       // the substep seed stays an exact float
+const REACTION_PARAMS: ReadonlySet<string> = new Set([
+    P.feedback, ...PROTOSTAR_REACTIONS.flatMap(r => [r.rateParam, r.exponentParam]),
+]);
 
 /** Physical scales of a run, from the area size at restart (L = min(width, height)). */
 interface RunScales {
@@ -36,7 +40,7 @@ const numberOr = (value: ParamValue | undefined, fallback: number): number => ty
  * gravity; the GPGPU pass then integrates with velocity Verlet (the previous acceleration is the
  * extra state variable `textureAccel`), cools, heats and fuses (types change in the position pass).
  * Every few frames the grids are reduced on the GPU to three numbers for the stats, and the
- * positions are read back to count the particles per type.
+ * positions are read back to count the particles per type and measure the drift of the star.
  */
 export class ProtostarModel implements GpuModel {
     readonly usesDensityField = false;
@@ -52,6 +56,7 @@ export class ProtostarModel implements GpuModel {
         opacityDensity: { value: 1 },
         maxSpeed: { value: 1 },
         restitution: { value: PROTOSTAR_RESTITUTION },
+        driftKick: { value: new THREE.Vector2() },
     };
 
     private params: ParamValues = {};
@@ -67,6 +72,9 @@ export class ProtostarModel implements GpuModel {
     private coreDensity: number | null = null;
     private fusionRate: number | null = null;
     private typeCounts: number[] | null = null;
+    private lastCenter: Vec2 | null = null;
+    private sinceLastCenter = 0;                       // s
+    private pendingKick: Vec2 | null = null;
 
     constructor(private readonly context: GpuModelContext) {
         this.grids = new ProtostarGrids(context.renderer, context.geometry, context.speciesUniforms.splatMass);
@@ -102,7 +110,7 @@ export class ProtostarModel implements GpuModel {
         this.params[key] = value;
         if (key === P.cooling && typeof value === 'number') this.own.coolingRate.value = value;
         if (key === P.opacity && typeof value === 'number') this.own.opacityDensity.value = value;
-        if (key === P.feedback || key === P.fusionRate || key === P.fusionExponent) this.updateReactions();
+        if (REACTION_PARAMS.has(key)) this.updateReactions();
     }
 
     /** G_eff (px^3 / (mass s^2)) for a run of length scale L. */
@@ -135,6 +143,8 @@ export class ProtostarModel implements GpuModel {
         this.coreDensity = null;
         this.fusionRate = null;
         this.typeCounts = null;
+        this.lastCenter = null;
+        this.pendingKick = null;
         this.own.maxSpeed.value = PROTOSTAR_MAX_SPEED * length;
         this.grids.common.fusionTRef.value = PROTOSTAR_FUSION_T_REF * length * length;
     }
@@ -155,12 +165,18 @@ export class ProtostarModel implements GpuModel {
             c.reactionKeep.value[k] = arrays.keep[k];
             c.reactionRate.value[k] = arrays.rate[k];
             c.reactionExponent.value[k] = arrays.exponent[k];
+            c.reactionReference.value[k] = arrays.reference[k];
+            c.reactionDensityExponent.value[k] = arrays.densityExponent[k];
             c.reactionEnergy.value[k] = arrays.energy[k];
         }
     }
 
-    beforeSubstep(): void {
+    beforeSubstep(dt: number): void {
         const { context, grids } = this;
+        // The kick lasts one substep.
+        this.own.driftKick.value.set(this.pendingKick?.x ?? 0, this.pendingKick?.y ?? 0);
+        this.pendingKick = null;
+        this.sinceLastCenter += dt;
         const { length, cloudRadius, count } = this.scales;
         const size = context.screenSize.value;
         const cell = Math.max(size.x, size.y, 1) / PROTOSTAR_GRID_RES;
@@ -203,6 +219,12 @@ export class ProtostarModel implements GpuModel {
 
     onReadback(positions: Float32Array, count: number): void {
         this.typeCounts = countTypes(positions, count, Math.max(1, this.types.length));
+        const center = centerOfMass(positions, count, this.types.map(t => this.typeMass(t)));
+        if (center && this.lastCenter) {
+            this.pendingKick = driftCorrection(this.lastCenter, center, this.sinceLastCenter, PROTOSTAR_DRIFT_GAIN);
+        }
+        this.lastCenter = center;
+        this.sinceLastCenter = 0;
     }
 
     stat(key: string): number | null {

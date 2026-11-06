@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import {
-    MAX_SPECIES, PROTOSTAR_COARSE_FACTOR, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_STATS_REDUCE_RES,
+    MAX_SPECIES, PROTOSTAR_COARSE_FACTOR, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_STATS_REDUCE_RES,
 } from '../../config';
 import { additiveBlending, clipSpaceCamera, type Uniform } from '../../gl/common';
-import { withDefines } from '../../gl/withDefines';
+import { glslFloat, withDefines } from '../../gl/withDefines';
 import commonGlsl from '../../shaders/protostar-common.glsl?raw';
 import depositVert from '../../shaders/protostar-deposit.vert?raw';
 import depositFrag from '../../shaders/protostar-deposit.frag?raw';
@@ -18,7 +18,9 @@ const COARSE_RES = PROTOSTAR_GRID_RES / PROTOSTAR_COARSE_FACTOR;
 const REDUCE_BLOCK = PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES;
 
 /** Defines of every shader including protostar-common.glsl. */
-export const PROTOSTAR_DEFINES = { MAX_SPECIES, GRID_RES: PROTOSTAR_GRID_RES } as const;
+export const PROTOSTAR_DEFINES = {
+    MAX_SPECIES, GRID_RES: PROTOSTAR_GRID_RES, FUSION_RATE_MAX: glslFloat(PROTOSTAR_FUSION_RATE_MAX),
+} as const;
 
 /** Prepends the defines and the shared GLSL (grid sampling, fusion rate, random numbers). */
 export const withProtostarCommon = (source: string, defines: Record<string, string | number> = {}): string =>
@@ -36,6 +38,8 @@ export interface ProtostarCommonUniforms {
     reactionKeep: Uniform<number[]>;
     reactionRate: Uniform<number[]>;
     reactionExponent: Uniform<number[]>;
+    reactionReference: Uniform<number[]>;
+    reactionDensityExponent: Uniform<number[]>;
     reactionEnergy: Uniform<number[]>;
 }
 
@@ -45,7 +49,8 @@ export function createCommonUniforms(): ProtostarCommonUniforms {
         gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null },
         gridCell: { value: 1 }, fusionTRef: { value: 1 }, seed: { value: 0 },
         reactionTo: perType(-1), reactionKeep: perType(0), reactionRate: perType(0),
-        reactionExponent: perType(0), reactionEnergy: perType(0),
+        reactionExponent: perType(0), reactionReference: perType(1), reactionDensityExponent: perType(1),
+        reactionEnergy: perType(0),
     };
 }
 
