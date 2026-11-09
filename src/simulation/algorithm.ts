@@ -23,6 +23,7 @@ export const PANEL_TABS = [
     { id: 'physics', label: 'Physique' },
     { id: 'fusion', label: 'Fusion' },
     { id: 'supernova', label: 'Supernova' },
+    { id: 'darkMatter', label: 'Matière noire' },
     { id: 'effects', label: 'Effets visuels' },
 ] as const;
 

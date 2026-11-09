@@ -1,6 +1,7 @@
 import type * as THREE from 'three';
 import type { Uniform } from '../gl/common';
 import type { ParamValue, ParamValues, ParticleType } from './algorithm';
+import type { DarkMatterField } from './darkMatter/DarkMatterField';
 import type { DensityField } from './densityField';
 
 /** Per-type uniforms shared by the simulation, particle and nebula materials. */
@@ -25,6 +26,12 @@ export interface GpuModelContext {
     readonly speciesUniforms: SpeciesUniforms;
     /** Mipmapped mass/momentum grid, rendered before every substep. */
     readonly density: DensityField;
+    /**
+     * The static dark matter. Every model pulls its particles with it: its velocity shader includes
+     * dark-matter.glsl (darkMatterGlsl, DARK_MATTER_DEFINES), merges `darkMatter.uniforms` into its
+     * own by reference and adds darkMatterAccel(pos) to the acceleration.
+     */
+    readonly darkMatter: DarkMatterField;
     positionTexture(): THREE.Texture;
     velocityTexture(): THREE.Texture;
     /** Current texture of one of the model's extra state variables. */

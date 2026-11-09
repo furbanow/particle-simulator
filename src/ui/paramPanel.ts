@@ -1,5 +1,5 @@
 import {
-    appliesOnRestart, tabsOf, type PanelTab, type PanelTabId, type ParamDef, type ParamValue,
+    appliesOnRestart, PANEL_TABS, tabsOf, type PanelTab, type PanelTabId, type ParamDef, type ParamValue,
 } from '../simulation/algorithm';
 import { paramToSlider, sliderRange, sliderToParam } from '../simulation/params';
 import type { Simulation } from '../simulation/Simulation';
@@ -21,6 +21,8 @@ const TAB_ICONS: Readonly<Record<PanelTabId, string>> = {
     fusion: '<path d="M12 3c.5 3 2.2 4.9 3.9 6.6C17.3 11 18 12.7 18 14.5a6 6 0 0 1-12 0c0-1.5.5-2.8 1.4-3.8.3 1.3 1.1 2.1 2.1 2.3-.5-3.5.3-7 2.5-10z"/>',
     // A burst.
     supernova: '<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/>',
+    // A dashed halo around a core: unseen mass.
+    darkMatter: '<circle cx="12" cy="12" r="8.5" stroke-dasharray="2.6 2.4"/><circle cx="12" cy="12" r="2.6"/>',
     // A sparkle.
     effects: '<path d="m12 3 1.9 5.6a2 2 0 0 0 1.3 1.3L21 12l-5.8 2.1a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.6a2 2 0 0 0-1.3-1.3L3 12l5.8-2.1a2 2 0 0 0 1.3-1.3z"/>',
 };
@@ -31,11 +33,27 @@ export interface ParamStore {
     set(key: string, value: ParamValue): void;
 }
 
-interface Control {
-    param: ParamDef;
+/** A parameter's control, as paramField() builds it. */
+export interface ParamField {
+    readonly param: ParamDef;
+    /** The labelled field: name, value display, input. */
+    readonly element: HTMLElement;
     /** Pushes the control's value into its store and paints its display. */
     update(): void;
+}
+
+interface Control {
+    param: ParamDef;
+    update(): void;
     pending?: HTMLElement;
+}
+
+/** What the panel shows besides the parameters. */
+export interface ParamPanelOptions {
+    /** Content appended to a tab, after its parameters; the tab shows even without parameters. */
+    readonly extraContent?: Partial<Record<PanelTabId, HTMLElement>>;
+    /** Called with the tab shown, whenever it changes (also when the panel is rebuilt). */
+    onTabChange?(id: PanelTabId): void;
 }
 
 /**
@@ -52,7 +70,8 @@ export class ParamPanel {
     private selected: PanelTabId | null = null;
 
     constructor(private readonly tabBar: HTMLElement, private readonly content: HTMLElement,
-                private readonly sim: Simulation, private readonly effects: ParamStore) {
+                private readonly sim: Simulation, private readonly effects: ParamStore,
+                private readonly options: ParamPanelOptions = {}) {
         this.tabBar.addEventListener('keydown', e => this.moveWithKeyboard(e));
         this.setAlgorithm();
     }
@@ -66,12 +85,15 @@ export class ParamPanel {
             ...this.sim.algorithm.params.map(param => ({ param, store: simulationStore })),
             ...VISUAL_EFFECTS.map(param => ({ param, store: this.effects })),
         ];
-        const tabs = tabsOf(entries.map(e => e.param));
+        const extra = this.options.extraContent ?? {};
+        const withParams = new Set(tabsOf(entries.map(e => e.param)).map(t => t.id));
+        const tabs = PANEL_TABS.filter(tab => withParams.has(tab.id) || extra[tab.id]);
         this.controls = [];
         this.tabButtons = new Map(tabs.map(tab => [tab.id, this.buildTabButton(tab)]));
         this.tabPanels = new Map(tabs.map(tab => {
             const fields = entries.filter(e => e.param.tab === tab.id).map(e => this.buildControl(e.param, e.store));
-            return [tab.id, buildTabPanel(tab, fields)];
+            const more = extra[tab.id];
+            return [tab.id, buildTabPanel(tab, more ? [...fields, more] : fields)];
         }));
         this.tabBar.replaceChildren(...this.tabButtons.values());
         this.content.replaceChildren(...this.tabPanels.values());
@@ -96,6 +118,7 @@ export class ParamPanel {
         }
         for (const [tab, panel] of this.tabPanels) panel.hidden = tab !== id;
         this.content.scrollTop = 0;
+        this.options.onTabChange?.(id);
     }
 
     private choose(id: PanelTabId): void {
@@ -146,70 +169,82 @@ export class ParamPanel {
     }
 
     private buildControl(param: ParamDef, store: ParamStore): HTMLElement {
-        const field = document.createElement('label');
-        field.className = 'field';
-        field.dataset.tooltip = param.doc;
-        const row = document.createElement('span');
-        row.className = 'field-row';
-        row.append(param.label);
-        field.appendChild(row);
-
-        const value = store.value(param.key);
-        let input: HTMLInputElement | HTMLSelectElement;
-        let update: () => void;
-        switch (param.kind) {
-            case 'number': {
-                const slider = input = document.createElement('input');
-                slider.type = 'range';
-                const range = sliderRange(param);
-                slider.min = String(range.min);
-                slider.max = String(range.max);
-                slider.step = String(range.step);
-                // The default value is the value attribute: double-click goes back to it.
-                slider.defaultValue = String(paramToSlider(param, param.default));
-                slider.value = String(paramToSlider(param, typeof value === 'number' ? value : param.default));
-                const out = document.createElement('span');
-                out.className = 'value-display';
-                row.appendChild(out);
-                field.appendChild(slider);
-                update = () => {
-                    const v = sliderToParam(param, parseFloat(slider.value));
-                    store.set(param.key, v);
-                    out.textContent = param.format(v);
-                };
-                break;
-            }
-            case 'boolean': {
-                const box = input = document.createElement('input');
-                box.type = 'checkbox';
-                box.defaultChecked = param.default;
-                box.checked = typeof value === 'boolean' ? value : param.default;
-                row.appendChild(box);
-                update = () => store.set(param.key, box.checked);
-                break;
-            }
-            case 'choice': {
-                const select = input = document.createElement('select');
-                select.className = 'param-select';
-                for (const o of param.options) select.add(new Option(o.label, o.value, o.value === param.default));
-                select.value = typeof value === 'string' ? value : param.default;
-                row.appendChild(select);
-                update = () => store.set(param.key, select.value);
-                break;
-            }
-        }
-        input.setAttribute('aria-description', param.doc);
         let pending: HTMLElement | undefined;
+        const field = paramField(param, store, () => this.refreshPending());
         if (appliesOnRestart(param)) {
             pending = document.createElement('div');
             pending.className = 'hint pending';
-            field.appendChild(pending);
+            field.element.appendChild(pending);
         }
-        const control: Control = { param, pending, update: () => { update(); this.refreshPending(); } };
-        input.addEventListener(param.kind === 'number' ? 'input' : 'change', control.update);
-        this.controls.push(control);
-        return field;
+        this.controls.push({
+            param, pending,
+            update: () => { field.update(); this.refreshPending(); },
+        });
+        return field.element;
     }
+}
+
+/**
+ * The control of a parameter: a slider (number), a checkbox (switch) or a select (choice), showing
+ * the store's value (its default when missing) and documented on hover. Every change of the input
+ * goes to the store, then `onChange` is called. The display is painted by update().
+ */
+export function paramField(param: ParamDef, store: ParamStore, onChange: () => void = () => {}): ParamField {
+    const field = document.createElement('label');
+    field.className = 'field';
+    field.dataset.tooltip = param.doc;
+    const row = document.createElement('span');
+    row.className = 'field-row';
+    row.append(param.label);
+    field.appendChild(row);
+
+    const value = store.value(param.key);
+    let input: HTMLInputElement | HTMLSelectElement;
+    let update: () => void;
+    switch (param.kind) {
+        case 'number': {
+            const slider = input = document.createElement('input');
+            slider.type = 'range';
+            const range = sliderRange(param);
+            slider.min = String(range.min);
+            slider.max = String(range.max);
+            slider.step = String(range.step);
+            // The default value is the value attribute: double-click goes back to it.
+            slider.defaultValue = String(paramToSlider(param, param.default));
+            slider.value = String(paramToSlider(param, typeof value === 'number' ? value : param.default));
+            const out = document.createElement('span');
+            out.className = 'value-display';
+            row.appendChild(out);
+            field.appendChild(slider);
+            update = () => {
+                const v = sliderToParam(param, parseFloat(slider.value));
+                store.set(param.key, v);
+                out.textContent = param.format(v);
+            };
+            break;
+        }
+        case 'boolean': {
+            const box = input = document.createElement('input');
+            box.type = 'checkbox';
+            box.defaultChecked = param.default;
+            box.checked = typeof value === 'boolean' ? value : param.default;
+            row.appendChild(box);
+            update = () => store.set(param.key, box.checked);
+            break;
+        }
+        case 'choice': {
+            const select = input = document.createElement('select');
+            select.className = 'param-select';
+            for (const o of param.options) select.add(new Option(o.label, o.value, o.value === param.default));
+            select.value = typeof value === 'string' ? value : param.default;
+            row.appendChild(select);
+            update = () => store.set(param.key, select.value);
+            break;
+        }
+    }
+    input.setAttribute('aria-description', param.doc);
+    input.addEventListener(param.kind === 'number' ? 'input' : 'change', () => { update(); onChange(); });
+    return { param, element: field, update };
 }
 
 const tabButtonId = (id: PanelTabId): string => `panelTab_${id}`;

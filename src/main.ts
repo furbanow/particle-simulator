@@ -9,6 +9,7 @@ import { Simulation } from './simulation/Simulation';
 import { ElementConfigStore } from './elementConfigs';
 import { SimulationConfigStore, type SimulationConfig, type SimulationSetup } from './simulationConfigs';
 import { ConfigPicker } from './ui/configPicker';
+import { DarkMatterPanel } from './ui/darkMatterPanel';
 import { setupControls, sharedControlSpecs } from './ui/controls';
 import { byId, fail, flash } from './ui/dom';
 import { ElementBar } from './ui/elementBar';
@@ -64,6 +65,7 @@ function resize(): void {
     height = container.clientHeight;
     renderer.setSize(width, height);
     simulation.resize(width, height);
+    darkMatter.resize(width, height);
     post.resize(width, height, nebula.resize(width, height));
 }
 
@@ -74,7 +76,12 @@ setupSliders(uiPanel);
 setupTooltips(uiPanel, byId('tooltip'));
 
 const controls = setupControls({ simulation, particles, post, renderer, onAlgorithmChange: switchAlgorithm });
-const params = new ParamPanel(byId('panelTabs'), byId('panelTabContent'), simulation, controls.effects);
+// The static dark matter: its tab is built once and kept when the panel is rebuilt for another algorithm.
+const darkMatter = new DarkMatterPanel({ field: simulation.darkMatter, container, surface: renderer.domElement });
+const params = new ParamPanel(byId('panelTabs'), byId('panelTabContent'), simulation, controls.effects, {
+    extraContent: { darkMatter: darkMatter.element },
+    onTabChange: id => darkMatter.setTabOpen(id === 'darkMatter'),
+});
 const stats = new Stats(simulation);
 
 // ---- Element bar (saved element configs, population, element editor) ----
@@ -107,13 +114,14 @@ function switchAlgorithm(id: AlgorithmId): void {
     restart();
 }
 
-// ---- Simulation configs (the whole setup: algorithm, parameters, elements, shared sliders) ----
+// ---- Simulation configs (the whole setup: algorithm, parameters, elements, shared sliders, dark matter) ----
 const simulationSetup = (): SimulationSetup => ({
     algorithm: simulation.algorithmKey,
     params: { ...simulation.params },
     typeCount: elementBar.selectedTypeCount(),
     species: simulation.species,
     controls: controls.values(),
+    darkMatter: darkMatter.values(),
 });
 
 /** Brings the whole simulation and its UI to `setup`, with a single restart. */
@@ -127,6 +135,7 @@ function applySimulationSetup(setup: SimulationSetup): void {
     }
     for (const [key, value] of Object.entries(setup.params)) simulation.setParam(key, value);
     controls.apply(setup.controls);
+    darkMatter.apply(setup.darkMatter);
     params.setAlgorithm();                 // shows the values just set
     if (algorithmChanged) {
         stats.setAlgorithm();

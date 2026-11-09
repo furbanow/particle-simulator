@@ -77,7 +77,8 @@ export class ProtostarModel implements GpuModel {
     private pendingKick: Vec2 | null = null;
 
     constructor(private readonly context: GpuModelContext) {
-        this.grids = new ProtostarGrids(context.renderer, context.geometry, context.speciesUniforms.splatMass);
+        this.grids = new ProtostarGrids(context.renderer, context.geometry, context.speciesUniforms.splatMass,
+            context.darkMatter.uniforms);
         const common = this.grids.common;
         const [tMin, tMax] = PROTOSTAR_GLOW_T_RANGE;
         this.velocityShader = withProtostarCommon(velocityFrag, {
@@ -220,7 +221,8 @@ export class ProtostarModel implements GpuModel {
     onReadback(positions: Float32Array, count: number): void {
         this.typeCounts = countTypes(positions, count, Math.max(1, this.types.length));
         const center = centerOfMass(positions, count, this.types.map(t => this.typeMass(t)));
-        if (center && this.lastCenter) {
+        // The dark matter moves the star for real: no correction then, it would hold the star in place.
+        if (center && this.lastCenter && !this.context.darkMatter.active) {
             this.pendingKick = driftCorrection(this.lastCenter, center, this.sinceLastCenter, PROTOSTAR_DRIFT_GAIN);
         }
         this.lastCenter = center;

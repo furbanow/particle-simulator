@@ -8,6 +8,7 @@ import { withDefines } from '../../gl/withDefines';
 import { clamp } from '../../util/math';
 import type { ParamValue, ParticleType } from '../algorithm';
 import { analyzeConcentration } from '../concentration';
+import { DARK_MATTER_DEFINES, darkMatterGlsl } from '../darkMatter/DarkMatterField';
 import type { GpuModel, GpuModelContext } from '../gpuModel';
 import { ShockWave } from '../shockWave';
 import { STICKY_DUST_PARAM, STICKY_DUST_PROPERTY, STICKY_DUST_STAT, stickyDustDensity } from './declaration';
@@ -21,7 +22,7 @@ const P = STICKY_DUST_PARAM;
  * disk; above the threshold it goes supernova (ejection, then a shock wave).
  */
 export class StickyDustModel implements GpuModel {
-    readonly velocityShader = withDefines(stickyDustFrag, { MAX_SPECIES });
+    readonly velocityShader = withDefines(`${darkMatterGlsl}\n${stickyDustFrag}`, { MAX_SPECIES, ...DARK_MATTER_DEFINES });
     readonly velocityUniforms = {
         kGravity: { value: K_GRAVITY },
         longRange: { value: LONG_RANGE },
@@ -59,6 +60,7 @@ export class StickyDustModel implements GpuModel {
     private readonly shock = new ShockWave(this.velocityUniforms);
 
     constructor(private readonly context: GpuModelContext) {
+        Object.assign(this.velocityUniforms, context.darkMatter.uniforms);   // by reference
         this.supernovaTexture.needsUpdate = true;
         this.velocityUniforms.textureSupernova.value = this.supernovaTexture;
     }

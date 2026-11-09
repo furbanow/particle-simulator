@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PARTICLE_COUNT_SLIDER, SIMULATION_CONFIGS_KEY } from '../src/config';
+import { defaultDarkMatter } from '../src/darkMatter';
 import type { KeyValueStorage } from '../src/elementConfigs';
 import { ALGORITHMS, algorithmList } from '../src/simulation/algorithms';
 import { sliderToParam, paramToSlider } from '../src/simulation/params';
@@ -78,6 +79,8 @@ describe('simulation config store', () => {
             s => { s.typeCount = 1; },
             s => { s.species[1].values.weight = 0.9; },
             s => { s.species[1].symbol = 'X'; },
+            s => { s.darkMatter.params.strength = 7; },
+            s => { s.darkMatter.text = 'Autre texte'; },
         ];
         for (const edit of edits) {
             const setup = cloneSimulationSetup(store.current);
@@ -85,6 +88,20 @@ describe('simulation config store', () => {
             edit(setup);
             expect(store.isDirty(setup)).toBe(true);
         }
+    });
+
+    it('saves the dark matter settings, and gives them their defaults in older configs', () => {
+        const storage = new MemoryStorage();
+        const store = newStore(storage);
+        store.create('stickyDust');
+        const edited = cloneSimulationSetup(store.current);
+        edited.darkMatter.params.mode = 'text';
+        edited.darkMatter.text = 'Bonjour\nle monde';
+        expect(store.save(edited)).toBe(true);
+        expect(newStore(storage).current.darkMatter).toEqual(edited.darkMatter);
+
+        const older = { ...store.current, darkMatter: undefined };
+        expect(sanitizeSimulationConfig(older, CONTROLS)?.darkMatter).toEqual(defaultDarkMatter());
     });
 
     it('keeps the built-in configs read-only', () => {

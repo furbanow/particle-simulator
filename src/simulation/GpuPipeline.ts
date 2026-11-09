@@ -6,6 +6,7 @@ import {
 import { hexToVector, type Uniform } from '../gl/common';
 import type { ParamValue, ParamValues, ParticleType } from './algorithm';
 import { ClusterProbe } from './clusterProbe';
+import type { DarkMatterField } from './darkMatter/DarkMatterField';
 import { DensityField } from './densityField';
 import type { GpuModel, GpuModelContext, GpuModelFactory, InitialState, SpeciesUniforms } from './gpuModel';
 import positionFrag from '../shaders/position.frag?raw';
@@ -17,6 +18,7 @@ export interface SharedGpuState {
     speciesUniforms: SpeciesUniforms;
     /** 1 when the particle glow comes from the model's state (velocity w), 0 for the speed. */
     glowFromState: Uniform<number>;
+    darkMatter: DarkMatterField;
 }
 
 /** Initial state: a donut, uniform in area, with small random velocities. */
@@ -70,6 +72,7 @@ export class GpuPipeline {
             screenSize: shared.screenSize,
             speciesUniforms: shared.speciesUniforms,
             density: this.density,
+            darkMatter: shared.darkMatter,
             positionTexture: () => this.positionTexture,
             velocityTexture: () => this.velocityTexture,
             variableTexture: name => {

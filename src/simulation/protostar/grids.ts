@@ -3,15 +3,16 @@ import {
     MAX_SPECIES, PROTOSTAR_COARSE_FACTOR, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_STATS_REDUCE_RES,
 } from '../../config';
 import { additiveBlending, clipSpaceCamera, type Uniform } from '../../gl/common';
+import { GridPass, gridTarget } from '../../gl/gridPass';
 import { glslFloat, withDefines } from '../../gl/withDefines';
+import { DARK_MATTER_DEFINES, darkMatterGlsl, type DarkMatterUniforms } from '../darkMatter/DarkMatterField';
 import commonGlsl from '../../shaders/protostar-common.glsl?raw';
 import depositVert from '../../shaders/protostar-deposit.vert?raw';
 import depositFrag from '../../shaders/protostar-deposit.frag?raw';
-import gridVert from '../../shaders/protostar-grid.vert?raw';
 import gasFrag from '../../shaders/protostar-gas.frag?raw';
 import heatFrag from '../../shaders/protostar-heat.frag?raw';
-import coarseFrag from '../../shaders/protostar-coarse.frag?raw';
-import gravityFrag from '../../shaders/protostar-gravity.frag?raw';
+import coarseFrag from '../../shaders/grid-coarse.frag?raw';
+import gravityFrag from '../../shaders/grid-gravity.frag?raw';
 import reduceFrag from '../../shaders/protostar-reduce.frag?raw';
 
 const COARSE_RES = PROTOSTAR_GRID_RES / PROTOSTAR_COARSE_FACTOR;
@@ -20,14 +21,18 @@ const REDUCE_BLOCK = PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES;
 /** Defines of every shader including protostar-common.glsl. */
 export const PROTOSTAR_DEFINES = {
     MAX_SPECIES, GRID_RES: PROTOSTAR_GRID_RES, FUSION_RATE_MAX: glslFloat(PROTOSTAR_FUSION_RATE_MAX),
+    ...DARK_MATTER_DEFINES,
 } as const;
 
-/** Prepends the defines and the shared GLSL (grid sampling, fusion rate, random numbers). */
+/** Prepends the defines and the shared GLSL (grid sampling and dark matter, fusion rate, random numbers). */
 export const withProtostarCommon = (source: string, defines: Record<string, string | number> = {}): string =>
-    withDefines(`${commonGlsl}\n${source}`, { ...PROTOSTAR_DEFINES, ...defines });
+    withDefines(`${darkMatterGlsl}\n${commonGlsl}\n${source}`, { ...PROTOSTAR_DEFINES, ...defines });
 
-/** The uniforms of protostar-common.glsl, shared by reference by every material that includes it. */
-export interface ProtostarCommonUniforms {
+/**
+ * The uniforms of protostar-common.glsl (and of dark-matter.glsl, which it uses), shared by reference
+ * by every material that includes it.
+ */
+export interface ProtostarCommonUniforms extends DarkMatterUniforms {
     gridForce: Uniform<THREE.Texture | null>;
     gridGas: Uniform<THREE.Texture | null>;
     gridHeat: Uniform<THREE.Texture | null>;
@@ -43,9 +48,10 @@ export interface ProtostarCommonUniforms {
     reactionEnergy: Uniform<number[]>;
 }
 
-export function createCommonUniforms(): ProtostarCommonUniforms {
+export function createCommonUniforms(darkMatter: DarkMatterUniforms): ProtostarCommonUniforms {
     const perType = (fill: number): Uniform<number[]> => ({ value: new Array<number>(MAX_SPECIES).fill(fill) });
     return {
+        ...darkMatter,
         gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null },
         gridCell: { value: 1 }, fusionTRef: { value: 1 }, seed: { value: 0 },
         reactionTo: perType(-1), reactionKeep: perType(0), reactionRate: perType(0),
@@ -65,37 +71,6 @@ export interface GridScales {
     /** G_eff x simulation mass of one deposit unit. */
     gravityPerDeposit: number;
     softening: number;
-}
-
-function gridTarget(size: number, type: THREE.TextureDataType): THREE.WebGLRenderTarget {
-    return new THREE.WebGLRenderTarget(size, size, {
-        type, format: THREE.RGBAFormat, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
-        generateMipmaps: false, depthBuffer: false,
-    });
-}
-
-/** A full-grid fragment pass into a render target. */
-class GridPass {
-    readonly material: THREE.ShaderMaterial;
-    private readonly scene = new THREE.Scene();
-
-    constructor(fragmentShader: string, uniforms: Record<string, THREE.IUniform>, readonly target: THREE.WebGLRenderTarget) {
-        this.material = new THREE.ShaderMaterial({ uniforms, vertexShader: gridVert, fragmentShader, depthTest: false, depthWrite: false });
-        const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material);
-        quad.frustumCulled = false;
-        this.scene.add(quad);
-    }
-
-    render(renderer: THREE.WebGLRenderer): void {
-        renderer.setRenderTarget(this.target);
-        renderer.render(this.scene, clipSpaceCamera);
-    }
-
-    dispose(): void {
-        this.target.dispose();
-        this.material.dispose();
-        (this.scene.children[0] as THREE.Mesh).geometry.dispose();
-    }
 }
 
 /** An additive cloud-in-cell deposit of the particles into a render target. */
@@ -139,7 +114,7 @@ class DepositPass {
  * reduces the gas and power grids to one texel (max density, temperature there, fusions / s).
  */
 export class ProtostarGrids {
-    readonly common = createCommonUniforms();
+    readonly common: ProtostarCommonUniforms;
     private readonly moments: DepositPass;
     private readonly power: DepositPass;
     private readonly gas: GridPass;
@@ -159,7 +134,8 @@ export class ProtostarGrids {
     };
 
     constructor(private readonly renderer: THREE.WebGLRenderer, geometry: THREE.BufferGeometry,
-                splatMass: Uniform<number[]>) {
+                splatMass: Uniform<number[]>, darkMatter: DarkMatterUniforms) {
+        this.common = createCommonUniforms(darkMatter);
         // Additive float32 blending needs EXT_float_blend (asking for it enables it); half floats otherwise.
         const blendType = renderer.extensions.has('EXT_float_blend') ? THREE.FloatType : THREE.HalfFloatType;
         const res = PROTOSTAR_GRID_RES;
