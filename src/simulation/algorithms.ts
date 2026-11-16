@@ -14,7 +14,7 @@ export const ALGORITHMS: Readonly<Record<AlgorithmId, AlgorithmDeclaration>> = {
     protostar: PROTOSTAR,
 };
 
-export const DEFAULT_ALGORITHM: AlgorithmId = 'stickyDust';
+export const DEFAULT_ALGORITHM: AlgorithmId = 'protostar';
 
 export const isAlgorithmId = (value: string): value is AlgorithmId =>
     (ALGORITHM_IDS as readonly string[]).includes(value);

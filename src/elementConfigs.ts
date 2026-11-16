@@ -3,7 +3,7 @@ import {
     cloneType, defaultTypeCount, numberProperties, type AlgorithmDeclaration, type ParticleType,
     type ParticleTypeSchema,
 } from './simulation/algorithm';
-import { ALGORITHMS, DEFAULT_ALGORITHM } from './simulation/algorithms';
+import { ALGORITHMS, DEFAULT_ALGORITHM, type AlgorithmId } from './simulation/algorithms';
 import { clamp } from './util/math';
 
 /** What the element bar edits: the particle types of an algorithm and how many of them are used. */
@@ -37,7 +37,7 @@ interface StoredState {
 }
 
 /** Configs saved before configs belonged to an algorithm (version 1) are sticky dust ones. */
-const LEGACY_ALGORITHM = DEFAULT_ALGORITHM;
+const LEGACY_ALGORITHM: AlgorithmId = 'stickyDust';
 const NEW_CONFIG_PREFIX = 'Configuration';
 const COPY_SUFFIX = ' (copie)';
 const MAX_NAME_LENGTH = 40;

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ELEMENT_CONFIGS_KEY, MASS_RANGE, MAX_SPECIES, POPULATION_WEIGHT_RANGE } from '../src/config';
 import { cloneSetup, ElementConfigStore, sanitizeConfig, type KeyValueStorage } from '../src/elementConfigs';
 import { linearScale, type AlgorithmDeclaration } from '../src/simulation/algorithm';
+import { ALGORITHMS } from '../src/simulation/algorithms';
 import { STICKY_DUST, STICKY_DUST_TYPES } from '../src/simulation/stickyDust/declaration';
 
 const DEFAULT_SPECIES = STICKY_DUST_TYPES;
@@ -17,7 +18,7 @@ const counter = () => { let n = 0; return () => `id${++n}`; };
 
 describe('element config store', () => {
     it('starts with the chemical elements on an empty storage', () => {
-        const store = new ElementConfigStore(new MemoryStorage(), counter());
+        const store = new ElementConfigStore(new MemoryStorage(), counter(), ALGORITHMS, STICKY_DUST.id);
         expect(store.list()).toHaveLength(1);
         expect(store.current.name).toBe(DEFAULT_CONFIG_NAME);
         expect(store.current.id).toBe(BUILTIN_CONFIG_ID);
@@ -26,14 +27,14 @@ describe('element config store', () => {
     });
 
     it('works without storage', () => {
-        const store = new ElementConfigStore(null, counter());
+        const store = new ElementConfigStore(null, counter(), ALGORITHMS, STICKY_DUST.id);
         store.create();
         expect(store.list()).toHaveLength(2);
     });
 
     it('creates, duplicates, renames, saves and reloads configs', () => {
         const storage = new MemoryStorage();
-        const store = new ElementConfigStore(storage, counter());
+        const store = new ElementConfigStore(storage, counter(), ALGORITHMS, STICKY_DUST.id);
         const created = store.create();
         expect(created.name).toBe('Configuration 1');
         expect(store.current.id).toBe(created.id);
@@ -55,7 +56,7 @@ describe('element config store', () => {
         edited.species[1].color = '#654321';           // the saved copy is detached from the edited state
         expect(store.current.species[1].color).toBe('#123456');
 
-        const reloaded = new ElementConfigStore(storage, counter());
+        const reloaded = new ElementConfigStore(storage, counter(), ALGORITHMS, STICKY_DUST.id);
         expect(reloaded.list().map(c => c.name)).toEqual([DEFAULT_CONFIG_NAME, 'Configuration 1', 'Mélange léger']);
         expect(reloaded.current.id).toBe(copy.id);
         expect(reloaded.current.typeCount).toBe(4);
@@ -63,7 +64,7 @@ describe('element config store', () => {
     });
 
     it('numbers new configs and copies without clashing', () => {
-        const store = new ElementConfigStore(null, counter());
+        const store = new ElementConfigStore(null, counter(), ALGORITHMS, STICKY_DUST.id);
         expect(store.create().name).toBe('Configuration 1');
         expect(store.create().name).toBe('Configuration 2');
         store.duplicate(store.current);
@@ -72,7 +73,7 @@ describe('element config store', () => {
     });
 
     it('selects a config identical to a setup, or stays where it is', () => {
-        const store = new ElementConfigStore(null, counter());
+        const store = new ElementConfigStore(null, counter(), ALGORITHMS, STICKY_DUST.id);
         const custom = cloneSetup(store.current);
         custom.typeCount = 5;
         const saved = store.duplicate(custom);
@@ -88,7 +89,7 @@ describe('element config store', () => {
     });
 
     it('selects a neighbour on removal', () => {
-        const store = new ElementConfigStore(null, counter());
+        const store = new ElementConfigStore(null, counter(), ALGORITHMS, STICKY_DUST.id);
         const second = store.create();
         const third = store.create();
         store.select(second.id);
@@ -97,7 +98,7 @@ describe('element config store', () => {
     });
 
     it('never removes the built-in config', () => {
-        const store = new ElementConfigStore(null, counter());
+        const store = new ElementConfigStore(null, counter(), ALGORITHMS, STICKY_DUST.id);
         expect(store.canRemove(BUILTIN_CONFIG_ID)).toBe(false);
         expect(store.canRemove(store.create().id)).toBe(true);
         store.select(BUILTIN_CONFIG_ID);
@@ -107,7 +108,7 @@ describe('element config store', () => {
 
     it('keeps the built-in config read-only', () => {
         const storage = new MemoryStorage();
-        const store = new ElementConfigStore(storage, counter());
+        const store = new ElementConfigStore(storage, counter(), ALGORITHMS, STICKY_DUST.id);
         expect(store.canEdit(BUILTIN_CONFIG_ID)).toBe(false);
         const edited = cloneSetup(store.current);
         edited.species[0].values.mass = MASS_RANGE[1];
@@ -122,7 +123,7 @@ describe('element config store', () => {
         const storage = new MemoryStorage();
         const overwritten = { id: BUILTIN_CONFIG_ID, name: 'Modifiée', typeCount: 3, species: [{ mass: MASS_RANGE[1] }] };
         storage.setItem(ELEMENT_CONFIGS_KEY, JSON.stringify({ currentId: BUILTIN_CONFIG_ID, configs: [{ id: 'a' }, overwritten] }));
-        const store = new ElementConfigStore(storage, counter());
+        const store = new ElementConfigStore(storage, counter(), ALGORITHMS, STICKY_DUST.id);
         expect(store.list().map(c => c.id)).toEqual(['a', BUILTIN_CONFIG_ID]);
         expect(store.current.name).toBe(DEFAULT_CONFIG_NAME);
         expect(store.current.typeCount).toBe(3);
@@ -132,7 +133,7 @@ describe('element config store', () => {
     it('restores the built-in config if the storage lost it', () => {
         const storage = new MemoryStorage();
         storage.setItem(ELEMENT_CONFIGS_KEY, JSON.stringify({ currentId: 'a', configs: [{ id: 'a', name: 'A' }] }));
-        const store = new ElementConfigStore(storage, counter());
+        const store = new ElementConfigStore(storage, counter(), ALGORITHMS, STICKY_DUST.id);
         expect(store.list().map(c => c.id)).toEqual([BUILTIN_CONFIG_ID, 'a']);
         expect(store.current.id).toBe('a');
     });
@@ -140,9 +141,9 @@ describe('element config store', () => {
     it('recovers from corrupt storage', () => {
         const storage = new MemoryStorage();
         storage.setItem(ELEMENT_CONFIGS_KEY, '{not json');
-        expect(new ElementConfigStore(storage, counter()).current.name).toBe(DEFAULT_CONFIG_NAME);
+        expect(new ElementConfigStore(storage, counter(), ALGORITHMS, STICKY_DUST.id).current.name).toBe(DEFAULT_CONFIG_NAME);
         storage.setItem(ELEMENT_CONFIGS_KEY, JSON.stringify({ currentId: 'missing', configs: [{ id: 'a', name: 'A' }, 42, { id: 'a' }] }));
-        const store = new ElementConfigStore(storage, counter());
+        const store = new ElementConfigStore(storage, counter(), ALGORITHMS, STICKY_DUST.id);
         expect(store.list().map(c => c.id)).toEqual([BUILTIN_CONFIG_ID, 'a']);
         expect(store.current.id).toBe(BUILTIN_CONFIG_ID);
     });
@@ -204,7 +205,7 @@ describe('configs per algorithm', () => {
             configs: [{ id: BUILTIN_CONFIG_ID, name: DEFAULT_CONFIG_NAME, typeCount: 10, species: DEFAULT_SPECIES.map(() => ({})) },
                 { id: 'old', name: 'Ancienne', typeCount: 4, species: legacySpecies }],
         }));
-        const store = new ElementConfigStore(storage, counter());
+        const store = new ElementConfigStore(storage, counter(), ALGORITHMS, STICKY_DUST.id);
         expect(store.current.id).toBe('old');
         expect(store.current.algorithm).toBe('stickyDust');
         expect(store.current.typeCount).toBe(4);
@@ -212,12 +213,12 @@ describe('configs per algorithm', () => {
         expect(store.current.species[0]).toEqual(DEFAULT_SPECIES[0]);
         // Written back in the new layout, and read again the same.
         store.select('old');
-        expect(new ElementConfigStore(storage, counter()).current).toEqual(store.current);
+        expect(new ElementConfigStore(storage, counter(), ALGORITHMS, STICKY_DUST.id).current).toEqual(store.current);
     });
 
     it('keeps each algorithm its own configs, built-in config and current config', () => {
         const storage = new MemoryStorage();
-        const store = new ElementConfigStore(storage, counter(), CATALOG);
+        const store = new ElementConfigStore(storage, counter(), CATALOG, STICKY_DUST.id);
         const dust = store.create();
         store.use('fake');
         expect(store.list().map(c => c.id)).toEqual(['builtin:fake']);
@@ -231,7 +232,7 @@ describe('configs per algorithm', () => {
         expect(store.current.id).toBe(dust.id);
         expect(store.list().map(c => c.id)).toEqual([BUILTIN_CONFIG_ID, dust.id]);
 
-        const reloaded = new ElementConfigStore(storage, counter(), CATALOG);
+        const reloaded = new ElementConfigStore(storage, counter(), CATALOG, STICKY_DUST.id);
         expect(reloaded.current.id).toBe(dust.id);
         reloaded.use('fake');
         expect(reloaded.current.id).toBe(fake.id);
@@ -239,13 +240,13 @@ describe('configs per algorithm', () => {
 
     it('keeps the configs of algorithms it does not know', () => {
         const storage = new MemoryStorage();
-        const store = new ElementConfigStore(storage, counter(), CATALOG);
+        const store = new ElementConfigStore(storage, counter(), CATALOG, STICKY_DUST.id);
         store.use('fake');
         store.create();
         // An older build without the "fake" algorithm leaves its configs alone.
-        const older = new ElementConfigStore(storage, counter());
+        const older = new ElementConfigStore(storage, counter(), ALGORITHMS, STICKY_DUST.id);
         older.create();
-        const ids = new ElementConfigStore(storage, counter(), CATALOG);
+        const ids = new ElementConfigStore(storage, counter(), CATALOG, STICKY_DUST.id);
         ids.use('fake');
         expect(ids.list()).toHaveLength(2);
     });

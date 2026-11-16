@@ -27,7 +27,7 @@ describe('algorithm catalog', () => {
 
     it('has a known default', () => {
         expect(isAlgorithmId(DEFAULT_ALGORITHM)).toBe(true);
-        expect(ALGORITHMS[DEFAULT_ALGORITHM].label).toBe('Poussière collante');
+        expect(ALGORITHMS[DEFAULT_ALGORITHM].label).toBe(PROTOSTAR.label);
     });
 
     it('rejects unknown ids', () => {
