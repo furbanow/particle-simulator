@@ -18,10 +18,10 @@ describe('visual effects', () => {
             bloomStrength: [0, 3, 0.05, 0.35],
             bloomRadius: [0, 1, 0.05, 0.6],
             bloomThreshold: [0, 1.5, 0.01, 0.3],
-            nebula: [0, 3, 0.05, 1],
+            nebula: [0, 3, 0.05, 0],
             lens: [0, 3, 0.05, 0.05],
-            heat: [0, 2, 0.05, 0.25],
-            stretch: [0, 3, 0.1, 1],
+            heat: [0, 2, 0.05, 0.1],
+            stretch: [0, 3, 0.1, 1.5],
         });
     });
 

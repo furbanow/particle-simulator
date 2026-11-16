@@ -21,7 +21,7 @@ describe('element config store', () => {
         expect(store.list()).toHaveLength(1);
         expect(store.current.name).toBe(DEFAULT_CONFIG_NAME);
         expect(store.current.id).toBe(BUILTIN_CONFIG_ID);
-        expect(store.current.typeCount).toBe(MAX_SPECIES);
+        expect(store.current.typeCount).toBe(3);
         expect(store.current.species).toEqual(DEFAULT_SPECIES);
     });
 
@@ -74,14 +74,14 @@ describe('element config store', () => {
     it('selects a config identical to a setup, or stays where it is', () => {
         const store = new ElementConfigStore(null, counter());
         const custom = cloneSetup(store.current);
-        custom.typeCount = 3;
+        custom.typeCount = 5;
         const saved = store.duplicate(custom);
         store.select(BUILTIN_CONFIG_ID);
 
         store.selectMatching(custom);
         expect(store.current.id).toBe(saved.id);
         const other = cloneSetup(custom);
-        other.typeCount = 2;
+        other.typeCount = 4;
         store.selectMatching(other);
         expect(store.current.id).toBe(saved.id);
         expect(store.isDirty(other)).toBe(true);
@@ -125,7 +125,7 @@ describe('element config store', () => {
         const store = new ElementConfigStore(storage, counter());
         expect(store.list().map(c => c.id)).toEqual(['a', BUILTIN_CONFIG_ID]);
         expect(store.current.name).toBe(DEFAULT_CONFIG_NAME);
-        expect(store.current.typeCount).toBe(MAX_SPECIES);
+        expect(store.current.typeCount).toBe(3);
         expect(store.current.species).toEqual(DEFAULT_SPECIES);
     });
 
@@ -179,6 +179,7 @@ const FAKE: AlgorithmDeclaration = {
     id: 'fake',
     particleTypes: {
         ...STICKY_DUST.particleTypes,
+        defaultCount: undefined,
         properties: [{
             kind: 'number', key: 'charge', label: 'Charge', unit: 'e', range: [-1, 1], scale: linearScale([-1, 1], 1),
             live: true, resetLabel: '', resetTitle: '', randomTitle: '', format: String,

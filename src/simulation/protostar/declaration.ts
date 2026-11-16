@@ -135,6 +135,7 @@ const UNIT = [0, 1] as const;
 export const PROTOSTAR: AlgorithmDeclaration = {
     id: 'protostar',
     label: 'Protoétoile (H → He → C)',
+    defaultSpeed: 1.7,
     description: 'Un nuage d\'hydrogène refroidit et s\'effondre ; son cœur dense et chaud allume la fusion, '
         + 'dont la chaleur freine l\'effondrement. L\'hydrogène épuisé, le cœur d\'hélium se contracte '
         + 'jusqu\'à 100 MK et forme du carbone.',

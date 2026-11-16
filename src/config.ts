@@ -1,9 +1,8 @@
 // Every tunable constant of the simulation and its rendering.
 
 // ---- Simulation ----
-export const TEX_SIZE = 1000;                      // 1000x1000 = 1 000 000 slots (>= 1 000 000)
+export const TEX_SIZE = 1733;                      // 1733x1733 = 3 003 289 slots (>= the largest particle count slider, 3 000 000)
 export const MAX_PARTICLES = TEX_SIZE * TEX_SIZE;
-export const FRAME_MS = 1000 / 60;
 export const BASE_DT = 1 / 60;
 
 // ---- Initial donut ----
@@ -42,10 +41,10 @@ export const SHOCK_STRENGTH = 0.9;
 export const SHOCK_MIN_KICK = 0.03;                // fraction of the ejection speed below which the wave dies
 
 // ---- Panel parameters of the sticky dust algorithm (slider min, max, step and default) ----
-export const PARTICLE_COUNT_SLIDER: SliderSpec = { min: 1000, max: 1000000, step: 1000, default: 30000 };
-export const GRAVITY_SLIDER: SliderSpec = { min: 0, max: 15, step: 0.1, default: K_GRAVITY };
-export const SUPERNOVA_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 60 };  // % of the particles
-export const CONCENTRATION_RADIUS_SLIDER: SliderSpec = { min: 10, max: 400, step: 5, default: 80 }; // px
+export const PARTICLE_COUNT_SLIDER: SliderSpec = { min: 1000, max: 3000000, step: 1000, default: 400000 };
+export const GRAVITY_SLIDER: SliderSpec = { min: 0, max: 15, step: 0.1, default: 2.5 };
+export const SUPERNOVA_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 37 };  // % of the particles
+export const CONCENTRATION_RADIUS_SLIDER: SliderSpec = { min: 10, max: 400, step: 5, default: 65 }; // px
 export const SUPERNOVA_POWER_SLIDER: SliderSpec = { min: 5, max: 100, step: 5, default: 70 };      // % of SUPERNOVA_SPEED
 
 // ---- Removed particles (common GPU contract) ----
@@ -91,18 +90,18 @@ export const PROTOSTAR_GLOW_HEATING_REF = 0.3;
 export const PROTOSTAR_GLOW_FUSION = 1.3;
 export const PROTOSTAR_GLOW_MAX = 2;
 // Panel parameters (slider min, max, step, default).
-export const PROTOSTAR_COUNT_SLIDER: SliderSpec = { min: 1000, max: 500000, step: 1000, default: 30000 };
-export const PROTOSTAR_ROTATION_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.01, default: 0.2 };       // x v_circ
-export const PROTOSTAR_AGITATION_SLIDER: SliderSpec = { min: 0, max: 1.5, step: 0.01, default: 0.7 };    // x v_circ(R)
-export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 20, step: 0.05, default: 12 };
-export const PROTOSTAR_SOFTENING_SLIDER: SliderSpec = { min: 0.2, max: 5, step: 0.1, default: 1 };       // % of L
-export const PROTOSTAR_COOLING_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.1 };        // 1/s
-export const PROTOSTAR_OPACITY_SLIDER: SliderSpec = { min: 1, max: 1000, step: 0, default: 15 };         // rho0, log
+export const PROTOSTAR_COUNT_SLIDER: SliderSpec = { min: 1000, max: 2000000, step: 1000, default: 400000 };
+export const PROTOSTAR_ROTATION_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.01, default: 0.44 };       // x v_circ
+export const PROTOSTAR_AGITATION_SLIDER: SliderSpec = { min: 0, max: 1.5, step: 0.01, default: 0.26 };    // x v_circ(R)
+export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 20, step: 0.05, default: 13.85 };
+export const PROTOSTAR_SOFTENING_SLIDER: SliderSpec = { min: 0.2, max: 5, step: 0.1, default: 1.6 };       // % of L
+export const PROTOSTAR_COOLING_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.51 };        // 1/s
+export const PROTOSTAR_OPACITY_SLIDER: SliderSpec = { min: 1, max: 1000, step: 0, default: 5.32 };         // rho0, log
 export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 1.5e-4 };     // 1/s, log
-export const PROTOSTAR_ALPHA_SLIDER: SliderSpec = { min: 1, max: 6, step: 0.1, default: 4 };            // real value: about 4 at 15 MK
-export const PROTOSTAR_HE_LAMBDA_SLIDER: SliderSpec = { min: 1e-10, max: 1e-2, step: 0, default: 3e-6 };  // 1/s at 100 MK and rho0, log
-export const PROTOSTAR_HE_ALPHA_SLIDER: SliderSpec = { min: 1, max: 45, step: 0.5, default: 40 };        // real value: about 40 at 100 MK
-export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 1 };       // log
+export const PROTOSTAR_ALPHA_SLIDER: SliderSpec = { min: 1, max: 6, step: 0.1, default: 2.8 };            // real value: about 4 at 15 MK
+export const PROTOSTAR_HE_LAMBDA_SLIDER: SliderSpec = { min: 1e-10, max: 1e-2, step: 0, default: 3.75e-5 };  // 1/s at 100 MK and rho0, log
+export const PROTOSTAR_HE_ALPHA_SLIDER: SliderSpec = { min: 1, max: 45, step: 0.5, default: 16 };        // real value: about 40 at 100 MK
+export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 0.146 };       // log
 export const PROTOSTAR_H_SIZE = 1.6;               // px, default rendered diameters
 export const PROTOSTAR_HE_SIZE = 2.4;
 export const PROTOSTAR_C_SIZE = 3.2;
@@ -173,13 +172,16 @@ export const EXPOSURE_SLIDER: SliderSpec = { min: 0.2, max: 3, step: 0.05, defau
 export const BLOOM_STRENGTH_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 0.35 };
 export const BLOOM_RADIUS_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.05, default: 0.6 };
 export const BLOOM_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 1.5, step: 0.01, default: 0.3 };
-export const NEBULA_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 1 };
+export const NEBULA_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 0 };
 export const LENS_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 0.05 };
-export const HEAT_SLIDER: SliderSpec = { min: 0, max: 2, step: 0.05, default: 0.25 };
-export const STRETCH_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.1, default: 1 };
+export const HEAT_SLIDER: SliderSpec = { min: 0, max: 2, step: 0.05, default: 0.1 };
+export const STRETCH_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.1, default: 1.5 };
 
 // ---- UI ----
 export const PANEL_STATE_KEY = 'gpu-gravity-bloom.panel';
+export const DISPLAY_SETTINGS_KEY = 'gpu-gravity-bloom.display';
+export const FPS_LIMIT_OPTIONS = [30, 60, 120, 144, 0]; // frames per second; 0 = unlimited (display refresh rate)
+export const DEFAULT_FPS_LIMIT = 60;
 export const PANEL_TAB_KEY = 'gpu-gravity-bloom.panelTab';
 export const TOOLTIP_DELAY_MS = 200;               // hover time before a tooltip shows
 export const TOOLTIP_GAP = 10;                     // px between a tooltip and what it documents

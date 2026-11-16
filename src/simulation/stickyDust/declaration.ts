@@ -67,6 +67,7 @@ const UNIT = [0, 1] as const;
 export const STICKY_DUST: AlgorithmDeclaration = {
     id: 'stickyDust',
     label: 'Poussière collante',
+    defaultSpeed: 1.5,
     description: 'Gravité sur grille multi-échelle ; les amas résistent à la compression et absorbent l\'agitation.',
     params,
     particleTypes: {
@@ -103,7 +104,8 @@ export const STICKY_DUST: AlgorithmDeclaration = {
         ],
         readouts: [{ label: 'Densité', format: t => `ρ ${stickyDustDensity(t).toFixed(2)}` }],
         defaults: STICKY_DUST_TYPES,
-        builtinConfig: { id: 'builtin:chemical-elements', name: 'Éléments chimiques' },
+        defaultCount: 3,
+    builtinConfig: { id: 'builtin:chemical-elements', name: 'Éléments chimiques' },
     },
     stats: [
         { kind: 'value', key: STICKY_DUST_STAT.supernovae, label: 'Supernovae', flash: true, format: v => String(v) },

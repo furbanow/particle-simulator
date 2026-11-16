@@ -56,7 +56,7 @@ function defaultSimulationSetup(algorithm: AlgorithmDeclaration, controls: reado
     return {
         algorithm: algorithm.id,
         params: panelParams(algorithm, {}),
-        controls: defaultControls(controls),
+        controls: { ...defaultControls(controls), ...(algorithm.defaultSpeed === undefined ? {} : { speed: algorithm.defaultSpeed }) },
         darkMatter: defaultDarkMatter(),
         ...defaultSetup(algorithm.particleTypes),
     };

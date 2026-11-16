@@ -51,9 +51,8 @@ describe('protostar declaration', () => {
         expect(PROTOSTAR.params.filter(p => p.tab === 'initial').map(p => p.key)).toEqual(['count', 'rotation', 'agitation']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'cooling', 'opacity']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'fusion').map(p => p.key)).toEqual(['fusionRate', 'fusionExponent', 'heFusionRate', 'heFusionExponent', 'feedback']);
-        // Real sensitivities: proton-proton chain at 15 MK, triple alpha at 100 MK.
-        expect(params.fusionExponent).toBe(4);
-        expect(params.heFusionExponent).toBe(40);
+        expect(params.fusionExponent).toBe(2.8);
+        expect(params.heFusionExponent).toBe(16);
     });
 
     it('has hydrogen, helium and carbon 12, atomic masses in u, only hydrogen at first', () => {

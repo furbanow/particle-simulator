@@ -68,7 +68,7 @@
                 <label for="speedSlider" class="speed-label">Vitesse de simulation</label>
                 <span id="speedVal" class="speed-value">1.0×</span>
             </div>
-            <input type="range" id="speedSlider" min="0" max="3" step="0.1" value="1" aria-label="Vitesse de simulation">
+            <input type="range" id="speedSlider" min="0" max="3" step="0.1" value="1.5" aria-label="Vitesse de simulation">
             <div class="speed-ticks" aria-hidden="true">
                 <span style="--at: 0">Pause</span>
                 <span style="--at: 1">1×</span>
@@ -81,6 +81,10 @@
     <!-- The tabs and the parameters they hold are built from the declarations (ParamPanel). -->
     <div id="panelTabs" class="panel-tabs" role="tablist" aria-label="Paramètres" aria-orientation="horizontal"></div>
     <div id="panelTabContent" class="panel-scroll"></div>
+    <footer class="panel-footer">
+        <button id="settingsBtn" class="icon-btn" type="button" title="Paramètres" aria-label="Paramètres" aria-haspopup="dialog">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </footer>
 </div>
 <!-- Advanced element editor: a large, semi-transparent modal opened from the panel's Elements tab (ElementBar). -->
 <div id="elements-modal" class="modal" hidden>
@@ -131,6 +135,32 @@
     <span>Author: <a class="author-email" href="mailto:furbanow@gmail.com">furbanow@gmail.com</a></span>
     <span class="author-title">Software Engineering</span>
 </address>
+<!-- Display settings: same modal as the advanced element editor, in a narrower card (DisplaySettingsPanel). -->
+<div id="settings-modal" class="modal" hidden>
+    <div class="modal-card modal-card-narrow" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <button class="icon-btn modal-close" type="button" title="Fermer (Échap)" aria-label="Fermer">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        <section class="settings">
+            <h2 class="settings-title" id="settingsTitle">Paramètres</h2>
+            <label class="settings-row">
+                <span class="settings-label">Limiteur de FPS</span>
+                <select id="fpsLimitSelect" class="config-select"></select>
+            </label>
+            <label class="settings-row">
+                <span class="settings-label">Afficher l'aide (raccourcis)</span>
+                <input type="checkbox" id="showHelpBox">
+            </label>
+            <label class="settings-row">
+                <span class="settings-label">Afficher les statistiques</span>
+                <input type="checkbox" id="showStatsBox">
+            </label>
+            <label class="settings-row">
+                <span class="settings-label">Afficher l'auteur</span>
+                <input type="checkbox" id="showAuthorBox">
+            </label>
+        </section>
+    </div>
+</div>
 <!-- Keyboard shortcuts: discreet overlay in the top-left corner of the animation, under the element bar. -->
 <footer class="shortcuts">
     <span><kbd>R</kbd>redémarrer</span>

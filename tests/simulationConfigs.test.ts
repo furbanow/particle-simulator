@@ -25,7 +25,7 @@ describe('simulation config store', () => {
         const store = newStore();
         expect(store.list().map(c => c.algorithm)).toEqual(algorithmList().map(a => a.id));
         expect(store.current.algorithm).toBe('stickyDust');
-        expect(store.current.controls).toEqual({ speed: 1, bloom: 0.35 });
+        expect(store.current.controls).toEqual({ speed: 1.5, bloom: 0.35 });
         expect(store.current.species).toEqual(ALGORITHMS.stickyDust.particleTypes.defaults);
     });
 
@@ -114,7 +114,7 @@ describe('simulation config store', () => {
         expect(store.save(edited)).toBe(false);
         expect(store.rename(builtin.id, 'Autre')).toBe(false);
         expect(store.remove(builtin.id)).toBe(builtin);
-        expect(store.current.controls.speed).toBe(1);
+        expect(store.current.controls.speed).toBe(1.5);
     });
 
     it('lets a saved config change algorithm, like any other part of the setup', () => {
@@ -156,7 +156,7 @@ describe('simulation config store', () => {
         const reloaded = newStore(storage);
         expect(reloaded.current.id).toBe(builtin.id);
         expect(reloaded.current.name).toBe('Par défaut');
-        expect(reloaded.current.controls.speed).toBe(1);
+        expect(reloaded.current.controls.speed).toBe(1.5);
     });
 
     it('keeps configs of unknown algorithms untouched', () => {

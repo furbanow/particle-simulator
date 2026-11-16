@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import './styles/main.css';
-import { BASE_DT, FRAME_MS } from './config';
+import { BASE_DT } from './config';
+import { DisplaySettingsStore, frameMs } from './displaySettings';
 import { NebulaLayer } from './render/nebulaLayer';
 import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
@@ -13,6 +14,7 @@ import { DarkMatterPanel } from './ui/darkMatterPanel';
 import { setupControls, sharedControlSpecs } from './ui/controls';
 import { byId, fail, flash } from './ui/dom';
 import { ElementBar } from './ui/elementBar';
+import { DisplaySettingsPanel } from './ui/displaySettingsPanel';
 import { ElementsQuickPanel } from './ui/elementsQuickPanel';
 import { Modal } from './ui/modal';
 import { ParamPanel } from './ui/paramPanel';
@@ -95,6 +97,11 @@ const params = new ParamPanel(byId('panelTabs'), byId('panelTabContent'), simula
     onTabChange: id => darkMatter.setTabOpen(id === 'darkMatter'),
 });
 const stats = new Stats(simulation);
+
+// ---- Display settings (FPS cap, visibility of the help, the stats and the author) ----
+const displaySettings = new DisplaySettingsStore(localStore);
+const settingsModal = new Modal(byId('settings-modal'));
+new DisplaySettingsPanel(displaySettings, () => settingsModal.open());
 
 
 function restart(): void {
@@ -182,7 +189,7 @@ syncAllRanges(uiPanel);
 syncAllRanges(byId('element-bar'));
 titleResettableRanges(byId('element-bar'));
 
-// ---- Frame loop (60 FPS cap) ----
+// ---- Frame loop (FPS cap from the display settings) ----
 let lastFrame = performance.now();
 // Clock of the background (nebula, grain): it stops while the simulation is paused (speed 0).
 let visualTime = 0;
@@ -190,9 +197,10 @@ let lastVisualNow = lastFrame;
 
 function loop(now: number): void {
     requestAnimationFrame(loop);
-    if (now - lastFrame < FRAME_MS - 1) return; // 1 ms tolerance for rAF jitter
-    lastFrame += FRAME_MS;
-    if (now - lastFrame > FRAME_MS) lastFrame = now;
+    const frame = frameMs(displaySettings.values.fpsLimit);
+    if (now - lastFrame < frame - 1) return; // 1 ms tolerance for rAF jitter
+    lastFrame += frame;
+    if (now - lastFrame > frame) lastFrame = now;
 
     simulation.step();
     particles.update(simulation.positionTexture, simulation.velocityTexture, BASE_DT * simulation.timeScale);

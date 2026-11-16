@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, K_GRAVITY, MAX_PARTICLES, MAX_SPECIES,
+    CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MAX_PARTICLES, MAX_SPECIES,
     PARTICLE_COUNT_SLIDER, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../src/config';
 import {
@@ -129,26 +129,26 @@ describe.each(algorithmList())('declaration of $id', algorithm => {
 describe('sticky dust keeps its defaults', () => {
     it('parameters', () => {
         expect(defaultParams(STICKY_DUST)).toEqual({
-            count: 30000, gravity: 3, supernovaThreshold: 60, concentrationRadius: 80, supernovaPower: 70,
+            count: 400000, gravity: 2.5, supernovaThreshold: 37, concentrationRadius: 65, supernovaPower: 70,
         });
         const bounds = STICKY_DUST.params.map(p => p.kind === 'number' ? [p.key, p.min, p.max, p.step, p.tab] : []);
         expect(bounds).toEqual([
-            ['count', 1000, 1000000, 1000, 'initial'],
+            ['count', 1000, 3000000, 1000, 'initial'],
             ['gravity', 0, 15, 0.1, 'physics'],
             ['supernovaThreshold', 0, 100, 1, 'supernova'],
             ['concentrationRadius', 10, 400, 5, 'supernova'],
             ['supernovaPower', 5, 100, 5, 'supernova'],
         ]);
-        expect(GRAVITY_SLIDER.default).toBe(K_GRAVITY);
         expect([PARTICLE_COUNT_SLIDER, SUPERNOVA_THRESHOLD_SLIDER, CONCENTRATION_RADIUS_SLIDER, SUPERNOVA_POWER_SLIDER]
-            .map(s => s.default)).toEqual([30000, 60, 80, 70]);
+            .map(s => s.default)).toEqual([400000, 37, 65, 70]);
+        expect(GRAVITY_SLIDER.default).toBe(2.5);
     });
 
     it('displays', () => {
         const display = Object.fromEntries(STICKY_DUST.params.map(p => [p.key, p.kind === 'number' ? p.format(p.default) : '']));
         expect(display).toEqual({
-            count: (30000).toLocaleString('fr-FR'), gravity: 'G = 3.0', supernovaThreshold: '60 %',
-            concentrationRadius: '80 px', supernovaPower: '70 %',
+            count: (400000).toLocaleString('fr-FR'), gravity: 'G = 2.5', supernovaThreshold: '37 %',
+            concentrationRadius: '65 px', supernovaPower: '70 %',
         });
         expect(tabsOf(STICKY_DUST.params).map(t => t.id)).toEqual(['initial', 'physics', 'supernova']);
     });
@@ -162,7 +162,7 @@ describe('sticky dust keeps its defaults', () => {
         ]);
         expect(STICKY_DUST_TYPES[0].values.size).toBeCloseTo(1.9041916167664672, 12);
         expect(STICKY_DUST_TYPES.every(t => t.values.weight === DEFAULT_POPULATION_WEIGHT)).toBe(true);
-        expect(defaultTypeCount(STICKY_DUST.particleTypes)).toBe(MAX_SPECIES);
+        expect(defaultTypeCount(STICKY_DUST.particleTypes)).toBe(3);
         expect(populationProperty(STICKY_DUST.particleTypes)?.key).toBe('weight');
         expect(populationWeights(STICKY_DUST.particleTypes, STICKY_DUST_TYPES)).toEqual(new Array(10).fill(0.5));
         expect(STICKY_DUST.particleTypes.builtinConfig).toEqual({ id: 'builtin:chemical-elements', name: 'Éléments chimiques' });

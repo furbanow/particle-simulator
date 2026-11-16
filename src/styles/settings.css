@@ -1,0 +1,10 @@
+/* ---------- Settings dialog: the modal of the element editor, in a narrower card ---------- */
+.modal-card-narrow { width: min(460px, 100%); }
+.settings { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 12px; }
+.settings-title { margin: 0 32px 4px 0; font-size: 15px; font-weight: 600; color: var(--text); }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 13px; color: var(--text); }
+.settings-row input[type=checkbox] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.settings-row .config-select { width: 140px; }
+
+/* Visibility toggles (body classes set from the display settings). */
+body.hide-help .shortcuts, body.hide-stats .stats-overlay, body.hide-author .author { display: none; }

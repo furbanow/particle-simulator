@@ -214,6 +214,8 @@ export interface AlgorithmDeclaration {
     readonly params: readonly ParamDef[];
     readonly particleTypes: ParticleTypeSchema;
     readonly stats?: readonly StatDef[];
+    /** Simulation speed of the built-in simulation config (the shared speed slider default when omitted). */
+    readonly defaultSpeed?: number;
 }
 
 // ---- Helpers ----
