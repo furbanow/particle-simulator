@@ -29,5 +29,3 @@ h1 { margin: 0; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; co
 .panel-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 8px; border: 2px solid var(--panel); }
 .panel-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
 
-.shortcuts { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 10px 20px 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-3); }
-.shortcuts kbd { background: var(--surface-hover); color: var(--text-2); border: 1px solid var(--border); margin-right: 4px; }
