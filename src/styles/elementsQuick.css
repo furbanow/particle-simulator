@@ -1,0 +1,18 @@
+/* ---------- Elements tab of the panel (simple editor) ---------- */
+.eq-advanced { width: 100%; margin: 4px 0 14px; justify-content: center; }
+.eq-row { margin: 0 0 14px; padding: 10px 12px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.eq-row[hidden] { display: none; }
+.eq-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12.5px; color: var(--text); }
+.eq-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eq-head input[type=color] {
+    -webkit-appearance: none; appearance: none; flex: none; width: 18px; height: 18px; margin: 0; padding: 0;
+    border: 0; border-radius: 50%; background: none; cursor: pointer;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 0 12px var(--card-color, transparent);
+    transition: transform 0.15s var(--ease);
+}
+.eq-head input[type=color]:hover { transform: scale(1.15); }
+.eq-head input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+.eq-head input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.eq-head input[type=color]::-moz-color-swatch { border: 0; border-radius: 50%; }
+.eq-row .field { margin: 0 0 4px; }
+.eq-row .value-display { min-width: 64px; }

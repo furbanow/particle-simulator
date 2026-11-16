@@ -1,5 +1,5 @@
 import type { ElementConfig, ElementConfigStore, ElementSetup } from '../elementConfigs';
-import { buildMetrics, metricGroups, type ElementMetric } from '../elementMetrics';
+import { buildMetrics, type ElementMetric } from '../elementMetrics';
 import { splitPopulation } from '../population';
 import { populationWeights } from '../simulation/algorithm';
 import type { AlgorithmId } from '../simulation/algorithms';
@@ -8,7 +8,6 @@ import { ConfigPicker } from './configPicker';
 import { byId } from './dom';
 import { ElementChart } from './elementChart';
 import { ElementEditor } from './elementEditor';
-import { rememberedOpen, rememberOpen } from './panelState';
 import { syncRange } from './sliders';
 
 export interface ElementBarOptions {
@@ -21,14 +20,19 @@ export interface ElementBarOptions {
 }
 
 const PENDING_HINT = 'Appliqué au redémarrage';
-const OPEN_KEY = 'elementBar';
+
+interface ChartCard {
+    chart: ElementChart;
+    metric: ElementMetric;
+}
 
 /**
- * Top bar dedicated to the particle types of the selected algorithm, built from its particle type
- * schema: saved configs (load, new, duplicate, rename, delete, save), type count, a chart of one
- * property at a time and a compact editor of the selected type (color, name, readouts). Live
- * properties apply at once; the type count and the population on restart. setAlgorithm() rebuilds
- * it for another algorithm.
+ * Advanced editor of the particle types of the selected algorithm, shown in a modal and built from
+ * its particle type schema: saved configs (load, new, duplicate, rename, delete, save), type count,
+ * one chart per property, all visible at once, and a compact editor of the selected type (color,
+ * name, readouts). Live properties apply at once; the type count and the population on restart.
+ * setAlgorithm() rebuilds it for another algorithm. The simple editor lives in the panel
+ * (ElementsQuickPanel) and shares the same type objects.
  */
 export class ElementBar {
     /** The types or the type count being edited changed, whatever the means. */
@@ -43,17 +47,10 @@ export class ElementBar {
     private readonly typeCountSlider = byId<HTMLInputElement>('typeCountSlider');
     private readonly typeCountVal = byId('typeCountVal');
     private readonly hint = byId('elementsHint');
-    private readonly toggleBtn = byId<HTMLButtonElement>('toggleElementBarBtn');
-    private readonly chartCard = byId('chartCard');
-    private readonly chartTabs = byId('chartTabs');
-    private readonly chartChannels = byId('chartChannels');
-    private readonly resetBtn = byId<HTMLButtonElement>('chartResetBtn');
-    private readonly resetLabel = byId('chartResetLabel');
-    private readonly randomBtn = byId<HTMLButtonElement>('chartRandomBtn');
+    private readonly chartGrid = byId('chartGrid');
     private readonly picker: ConfigPicker<ElementConfig, ElementSetup>;
-    private chart!: ElementChart;
+    private charts: ChartCard[] = [];
     private editor!: ElementEditor;
-    private metric!: ElementMetric;
     private selected = 0;
     /** Type count being edited, per algorithm already shown (the types themselves live in Simulation). */
     private readonly typeCounts = new Map<AlgorithmId, number>();
@@ -76,13 +73,24 @@ export class ElementBar {
                 onLoad();
             },
         });
-        this.setupChartTools();
-        this.setupCollapse();
         this.setAlgorithm();
     }
 
     selectedTypeCount(): number {
         return parseInt(this.typeCountSlider.value, 10);
+    }
+
+    /** Sets the type count from outside (the panel's simple editor). */
+    changeTypeCount(count: number): void {
+        this.setTypeCount(count);
+        this.refresh();
+    }
+
+    /** The types were edited from outside (the panel's simple editor): follow them. */
+    speciesEdited(live: boolean): void {
+        if (live) this.onSpeciesChange();
+        this.editor.refresh(true);
+        this.refresh();
     }
 
     /** Refreshes the pending state after a restart. */
@@ -108,14 +116,9 @@ export class ElementBar {
         this.typeCountLabel.textContent = labels.count;
         this.picker.newBtn.title = `Nouvelle configuration (${schema.builtinConfig.name.toLowerCase()})`;
         this.typeCountSlider.max = String(schema.defaults.length);
-        this.updateToggleLabel();
 
-        const metrics = buildMetrics(schema);
-        this.metric = metrics[0];
-        this.chart = new ElementChart(byId('elementChart'), [byId('populationBand'), byId('miniBand')],
-            schema, species, this.metric, { onChange: m => liveChange(m.live), onSelect: k => this.select(k) });
+        this.buildCharts(buildMetrics(schema), liveChange);
         this.editor = new ElementEditor(byId('elementEditor'), schema, species, liveChange);
-        this.buildChartTabs(metrics);
 
         const typeCount = this.typeCounts.get(this.sim.algorithmKey);
         if (typeCount === undefined) {
@@ -164,7 +167,7 @@ export class ElementBar {
 
     private select(k: number): void {
         this.selected = k;
-        this.chart.select(k);
+        for (const { chart } of this.charts) chart.select(k);
         this.editor.show(k);
     }
 
@@ -172,7 +175,7 @@ export class ElementBar {
         const selected = this.selectedTypeCount();
         const active = this.sim.activeTypeCount;
         this.typeCountVal.textContent = String(selected);
-        this.chart.showCounts(selected, active);
+        for (const { chart } of this.charts) chart.showCounts(selected, active);
         // Keep the editor on a visible type.
         const shown = Math.max(selected, active);
         if (this.selected >= shown) this.select(shown - 1);
@@ -187,94 +190,77 @@ export class ElementBar {
         this.onEdit();
     }
 
-    // ---- Chart tabs and tools ----
+    // ---- Charts ----
 
-    /** Default / Random act on the property shown. */
-    private setupChartTools(): void {
+    /**
+     * One card per property (the three color channels are three cards), all shown at once. The
+     * first card of a property holds its Default / Random tools; the population one also shows the
+     * stacked shares.
+     */
+    private buildCharts(metrics: readonly ElementMetric[], liveChange: (live: boolean) => void): void {
+        const schema = this.sim.algorithm.particleTypes;
+        const species = this.sim.species;
         const visible = () => Math.max(this.selectedTypeCount(), this.sim.activeTypeCount);
         const changed = (live: boolean) => {
             if (live) this.onSpeciesChange();
             this.editor.refresh(true);
             this.refresh();
         };
-        this.resetBtn.addEventListener('click', () => {
-            this.sim.species.forEach((s, k) => this.metric.reset(s, k));
-            changed(this.metric.live);
-        });
-        this.randomBtn.addEventListener('click', () => {
-            this.metric.randomize(this.sim.species, visible());
-            changed(this.metric.live);
-        });
-    }
-
-    /**
-     * One tab per property; a property with several channels (color) also gets a channel
-     * switch, which remembers the last channel.
-     */
-    private buildChartTabs(metrics: readonly ElementMetric[]): void {
-        const groups = metricGroups(metrics);
-        const channels = this.chartChannels;
-        const lastChannel = new Map<string, ElementMetric>();
-        this.chartTabs.replaceChildren();
-        channels.replaceChildren();
-
-        const tabButton = (parent: HTMLElement, html: string, onClick: () => void): HTMLButtonElement => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'chart-tab';
-            btn.setAttribute('role', 'tab');
-            btn.innerHTML = html;
-            btn.addEventListener('click', onClick);
-            parent.appendChild(btn);
-            return btn;
-        };
-        const groupTabs = groups.map(g => tabButton(this.chartTabs,
-            g.unit ? `${g.label}<span class="unit">${g.unit}</span>` : g.label,
-            () => show(lastChannel.get(g.label) ?? g.metrics[0])));
-        const channelTabs = groups.flatMap(g => g.metrics.length > 1 ? g.metrics : [])
-            .map(m => ({ metric: m, btn: tabButton(channels, m.label, () => show(m)) }));
-
-        const show = (metric: ElementMetric) => {
-            this.metric = metric;
-            lastChannel.set(metric.group, metric);
-            groups.forEach((g, i) => groupTabs[i].setAttribute('aria-selected', String(g.label === metric.group)));
-            for (const { metric: m, btn } of channelTabs) {
-                btn.hidden = m.group !== metric.group;
-                btn.setAttribute('aria-selected', String(m === metric));
+        this.chartGrid.replaceChildren();
+        this.charts = metrics.map((metric, i) => {
+            const first = metrics.findIndex(m => m.group === metric.group) === i;
+            const card = document.createElement('section');
+            card.className = 'ebar-card ebar-chart';
+            card.classList.toggle('gradient', metric.track !== undefined);
+            card.dataset.metric = metric.id;
+            card.innerHTML = `
+                <div class="ebar-card-head">
+                    <h3 class="chart-title"></h3>
+                    <div class="ebar-tools"></div>
+                </div>
+                <div class="element-chart"></div>`;
+            const title = card.querySelector<HTMLElement>('.chart-title')!;
+            title.textContent = metric.label;
+            if (metric.unit) {
+                const unit = document.createElement('span');
+                unit.className = 'unit';
+                unit.textContent = metric.unit;
+                title.appendChild(unit);
             }
-            channels.hidden = channelTabs.every(({ btn }) => btn.hidden);
-            this.chartCard.dataset.metric = metric.id;
-            this.chartCard.classList.toggle('population', metric.population);
-            this.chartCard.classList.toggle('gradient', metric.track !== undefined);
-            this.resetLabel.textContent = metric.resetLabel;
-            this.resetBtn.title = metric.resetTitle;
-            this.randomBtn.title = metric.randomTitle;
-            this.chart.setMetric(metric);
-        };
-        show(this.metric);
-    }
-
-    // ---- Collapse ----
-
-    private updateToggleLabel(): void {
-        const open = this.bar.classList.contains('open');
-        const what = this.sim.algorithm.particleTypes.labels.title.toLowerCase();
-        const label = `${open ? 'Replier' : 'Déplier'} la barre des ${what}`;
-        this.toggleBtn.title = label;
-        this.toggleBtn.setAttribute('aria-label', label);
-        this.toggleBtn.setAttribute('aria-expanded', String(open));
-    }
-
-    private setupCollapse(): void {
-        const setOpen = (open: boolean) => {
-            this.bar.classList.toggle('open', open);
-            this.updateToggleLabel();
-        };
-        setOpen(rememberedOpen(OPEN_KEY, true));
-        this.toggleBtn.addEventListener('click', () => {
-            const open = !this.bar.classList.contains('open');
-            setOpen(open);
-            rememberOpen(OPEN_KEY, open);
+            if (first) {
+                const tools = card.querySelector<HTMLElement>('.ebar-tools')!;
+                const reset = document.createElement('button');
+                reset.type = 'button';
+                reset.className = 'btn';
+                reset.title = metric.resetTitle;
+                reset.textContent = metric.resetLabel;
+                reset.addEventListener('click', () => {
+                    species.forEach((s, k) => metric.reset(s, k));
+                    changed(metric.live);
+                });
+                const random = document.createElement('button');
+                random.type = 'button';
+                random.className = 'btn';
+                random.title = metric.randomTitle;
+                random.textContent = 'Aléatoire';
+                random.addEventListener('click', () => {
+                    metric.randomize(species, visible());
+                    changed(metric.live);
+                });
+                tools.append(reset, random);
+            }
+            const bands: HTMLElement[] = [];
+            if (metric.population) {
+                const band = document.createElement('div');
+                band.className = 'pop-band';
+                band.setAttribute('aria-hidden', 'true');
+                card.appendChild(band);
+                bands.push(band);
+            }
+            this.chartGrid.appendChild(card);
+            const chart = new ElementChart(card.querySelector<HTMLElement>('.element-chart')!, bands, schema, species,
+                metric, { onChange: m => liveChange(m.live), onSelect: k => this.select(k) });
+            return { chart, metric };
         });
     }
 }

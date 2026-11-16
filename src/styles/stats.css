@@ -2,8 +2,8 @@
 .stats-overlay {
     --stats-content-w: 200px;
     --stats-opacity: 0.55;
-    position: fixed; right: 12px; top: calc(var(--topbar-h) + 12px); z-index: 8;
-    max-height: calc(100vh - var(--topbar-h) - 24px);
+    position: fixed; right: 12px; top: 12px; z-index: 8;
+    max-height: calc(100vh - 24px);
     display: flex; align-items: flex-start; gap: 4px;
 }
 .stats-toggle { width: 22px; height: 22px; color: var(--text-2); opacity: var(--stats-opacity); transition: opacity 0.2s, background 0.15s, color 0.15s; }

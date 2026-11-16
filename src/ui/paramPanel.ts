@@ -13,6 +13,8 @@ const PENDING_HINT = 'Appliqué au redémarrage';
 const TAB_ICONS: Readonly<Record<PanelTabId, string>> = {
     // A starting flag.
     initial: '<path d="M5 21V4M5 4h13l-3 4 3 4H5"/>',
+    // Two overlapping circles: elements (particle species).
+    elements: '<circle cx="9" cy="10" r="5"/><circle cx="16" cy="15" r="4"/>',
     // An atom.
     physics: '<circle cx="12" cy="12" r="1.4"/><ellipse cx="12" cy="12" rx="10" ry="4"/>'
         + '<ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/>'

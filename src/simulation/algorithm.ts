@@ -20,6 +20,7 @@ export const PARTICLE_COUNT_PARAM = 'count';
  */
 export const PANEL_TABS = [
     { id: 'initial', label: 'Conditions initiales' },
+    { id: 'elements', label: 'Éléments' },
     { id: 'physics', label: 'Physique' },
     { id: 'fusion', label: 'Fusion' },
     { id: 'supernova', label: 'Supernova' },

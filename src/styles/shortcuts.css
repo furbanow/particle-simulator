@@ -1,6 +1,6 @@
 /* ---------- Keyboard shortcuts: discreet, see-through overlay in the top-left corner of the animation, under the element bar ---------- */
 .shortcuts {
-    position: fixed; left: calc(var(--panel-w) + 12px); top: calc(var(--topbar-h) + 12px); z-index: 8;
+    position: fixed; left: calc(var(--panel-w) + 12px); top: 12px; z-index: 8;
     display: flex; flex-direction: column; gap: 2px; max-width: calc(100vw - var(--panel-w) - 24px);
     padding: 7px 10px; border-radius: var(--radius);
     background: rgba(0, 0, 0, 0.16); border: 1px solid var(--border);

@@ -22,7 +22,9 @@
 @import './stats.css';
 @import './author.css';
 @import './shortcuts.css';
+@import './modal.css';
 @import './elementBar.css';
+@import './elementsQuick.css';
 @import './elementChart.css';
 @import './configPicker.css';
 @import './algorithmPicker.css';

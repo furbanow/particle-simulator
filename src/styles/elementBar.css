@@ -1,32 +1,23 @@
-/* ---------- Element bar (top of the page) ---------- */
-#element-bar {
-    position: fixed; top: 0; left: var(--panel-w); right: 0; z-index: 9;
-    /* Floats over the simulation: very slightly transparent, so the animation shows through. */
-    background: color-mix(in srgb, var(--panel) 92%, transparent); border-bottom: 1px solid var(--border);
-    color: var(--text); font-size: 13px; line-height: 1.4; color-scheme: dark;
-    -webkit-font-smoothing: antialiased;
-}
-body.panel-hidden #element-bar { left: 0; }
+/* ---------- Advanced element editor (inside the modal) ---------- */
+#element-bar { color: var(--text); font-size: 13px; line-height: 1.4; -webkit-font-smoothing: antialiased; }
 
-.ebar-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 52px; padding: 8px 18px 8px 12px; }
-.ebar-toggle .chevron { transition: transform 0.25s var(--ease); }
-#element-bar.open .ebar-toggle .chevron { transform: rotate(90deg); }
+.ebar-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 52px; padding: 12px 56px 8px 18px; }
 .ebar-title, .ebar-card-head h2 {
     margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-2);
 }
 
 #element-bar .config-select, #element-bar .config-name { width: 210px; }
 
-#miniBand { display: none; flex: 1 1 120px; }
-#element-bar:not(.open) #miniBand { display: flex; }
 .ebar-count { width: 220px; margin: 0 0 0 auto; }
 .ebar-count input[type=range] { margin-top: 2px; }
 
 /* ---------- Body: population chart + element editor ---------- */
-.ebar-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; padding: 0 18px 14px; }
-#element-bar:not(.open) .ebar-body { display: none; }
+.ebar-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; align-items: start; padding: 0 18px 18px; }
 .ebar-card { min-width: 0; padding: 10px 14px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .ebar-card-head { display: flex; align-items: center; gap: 12px; min-height: 30px; margin-bottom: 8px; }
+.chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+.chart-title { margin: 0; font-size: 12px; font-weight: 600; color: var(--text); }
+.chart-title .unit { margin-left: 5px; font: 400 10.5px var(--mono); color: var(--text-3); }
 .ebar-card-head .hint { margin-top: 0; }
 .ebar-tools { display: flex; gap: 6px; margin-left: auto; }
 
@@ -47,4 +38,5 @@ body.panel-hidden #element-bar { left: 0; }
 
 @media (max-width: 1100px) {
     .ebar-body { grid-template-columns: minmax(0, 1fr); }
+    .chart-grid { grid-template-columns: minmax(0, 1fr); }
 }

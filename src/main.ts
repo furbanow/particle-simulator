@@ -13,6 +13,8 @@ import { DarkMatterPanel } from './ui/darkMatterPanel';
 import { setupControls, sharedControlSpecs } from './ui/controls';
 import { byId, fail, flash } from './ui/dom';
 import { ElementBar } from './ui/elementBar';
+import { ElementsQuickPanel } from './ui/elementsQuickPanel';
+import { Modal } from './ui/modal';
 import { ParamPanel } from './ui/paramPanel';
 import { setupShortcuts } from './ui/shortcuts';
 import { setupSliders, syncAllRanges, titleResettableRanges } from './ui/sliders';
@@ -21,7 +23,6 @@ import { setupTooltips } from './ui/tooltip';
 
 const container = byId('sim-container');
 const uiPanel = byId('ui-panel');
-const elementBarEl = byId('element-bar');
 const startBtn = byId('startBtn');
 
 // ---- Renderer ----
@@ -76,22 +77,25 @@ setupSliders(uiPanel);
 setupTooltips(uiPanel, byId('tooltip'));
 
 const controls = setupControls({ simulation, particles, post, renderer, onAlgorithmChange: switchAlgorithm });
-// The static dark matter: its tab is built once and kept when the panel is rebuilt for another algorithm.
-const darkMatter = new DarkMatterPanel({ field: simulation.darkMatter, container, surface: renderer.domElement });
-const params = new ParamPanel(byId('panelTabs'), byId('panelTabContent'), simulation, controls.effects, {
-    extraContent: { darkMatter: darkMatter.element },
-    onTabChange: id => darkMatter.setTabOpen(id === 'darkMatter'),
-});
-const stats = new Stats(simulation);
-
-// ---- Element bar (saved element configs, population, element editor) ----
+// ---- Elements: the advanced editor (modal: saved configs, population, charts) and the panel's simple one ----
 const elementBar = new ElementBar({
     simulation,
     store: new ElementConfigStore(localStore),
     onSpeciesChange: () => { if (simulation.activeCount > 0) simulation.updateSpeciesUniforms(); },
     onLoad: () => restart(),
 });
-setupSliders(elementBarEl);
+setupSliders(byId('element-bar'));
+const elementsModal = new Modal(byId('elements-modal'));
+const elementsQuick = new ElementsQuickPanel(simulation, elementBar, () => elementsModal.open());
+
+// The static dark matter: its tab is built once and kept when the panel is rebuilt for another algorithm.
+const darkMatter = new DarkMatterPanel({ field: simulation.darkMatter, container, surface: renderer.domElement });
+const params = new ParamPanel(byId('panelTabs'), byId('panelTabContent'), simulation, controls.effects, {
+    extraContent: { elements: elementsQuick.element, darkMatter: darkMatter.element },
+    onTabChange: id => darkMatter.setTabOpen(id === 'darkMatter'),
+});
+const stats = new Stats(simulation);
+
 
 function restart(): void {
     simulation.reset(elementBar.selectedTypeCount());
@@ -110,6 +114,7 @@ function switchAlgorithm(id: AlgorithmId): void {
     }
     params.setAlgorithm();
     stats.setAlgorithm();
+    elementsQuick.setAlgorithm();
     elementBar.setAlgorithm();
     restart();
 }
@@ -139,6 +144,7 @@ function applySimulationSetup(setup: SimulationSetup): void {
     params.setAlgorithm();                 // shows the values just set
     if (algorithmChanged) {
         stats.setAlgorithm();
+        elementsQuick.setAlgorithm();
         elementBar.setAlgorithm();
     }
     elementBar.loadSetup(setup);
@@ -157,7 +163,10 @@ const simulationPicker = new ConfigPicker<SimulationConfig, SimulationSetup>({
 const refreshSimulationPicker = () => simulationPicker.refresh();
 uiPanel.addEventListener('input', refreshSimulationPicker);
 uiPanel.addEventListener('change', refreshSimulationPicker);
-elementBar.onEdit = refreshSimulationPicker;
+elementBar.onEdit = () => {
+    refreshSimulationPicker();
+    elementsQuick.refresh();
+};
 
 function togglePanel(): void {
     document.body.classList.toggle('panel-hidden');
@@ -169,16 +178,9 @@ byId('hidePanelBtn').addEventListener('click', togglePanel);
 byId('showPanelBtn').addEventListener('click', togglePanel);
 setupShortcuts({ restart: () => { restart(); flash(startBtn); }, togglePanel });
 window.addEventListener('resize', resize);
-// The canvas fills the whole area behind the element bar, which floats above it: folding or
-// unfolding the bar never resizes the simulation. Only the error overlay follows the bar's height.
-function syncTopbarHeight(): void {
-    document.documentElement.style.setProperty('--topbar-h', `${elementBarEl.offsetHeight}px`);
-}
-syncTopbarHeight();
-new ResizeObserver(syncTopbarHeight).observe(elementBarEl);
 syncAllRanges(uiPanel);
-syncAllRanges(elementBarEl);
-titleResettableRanges(elementBarEl);
+syncAllRanges(byId('element-bar'));
+titleResettableRanges(byId('element-bar'));
 
 // ---- Frame loop (60 FPS cap) ----
 let lastFrame = performance.now();
@@ -205,7 +207,7 @@ function loop(now: number): void {
 }
 
 resize();
-// A built-in config is not applied: the element bar stays on its own current config.
+// A built-in config is not applied: the element editor stays on its own current config.
 if (simulationConfigs.canEdit(simulationConfigs.current.id)) applySimulationSetup(simulationConfigs.current);
 else restart();
 simulationPicker.refreshList();
