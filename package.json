@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Simulateur de particules GPGPU multi-espèces (gravité, supernovae, bloom HDR, nébuleuse) en Three.js / WebGL2.",
+  "author": "furbanow@gmail.com (Software Development Engineer)",
   "type": "module",
   "scripts": {
     "dev": "vite --open",

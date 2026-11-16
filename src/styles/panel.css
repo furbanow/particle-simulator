@@ -11,9 +11,9 @@ body.panel-hidden #ui-panel { transform: translateX(-100%); }
 
 .panel-header { padding: 16px 20px 14px; border-bottom: 1px solid var(--border); }
 .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+/* A cluster captured from the simulation itself (public/logo.png). */
 .logo {
-    width: 30px; height: 30px; flex: none; border-radius: 50%;
-    background: radial-gradient(circle at 38% 38%, #fff 0, #ddd6fe 14%, #8b5cf6 40%, rgba(124, 58, 237, 0) 72%);
+    width: 30px; height: 30px; flex: none; border-radius: 50%; object-fit: cover;
     box-shadow: 0 0 22px rgba(139, 92, 246, 0.35);
 }
 .brand-text { flex: 1; min-width: 0; }

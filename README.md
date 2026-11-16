@@ -1,5 +1,7 @@
 # Particle Simulator — Gravity & Supernova
 
+<img src="public/logo.png" alt="" width="96" align="right">
+
 Multi-species GPGPU particle simulator running in the browser (TypeScript, Three.js, WebGL2).
 
 - **Physics**: from 1,000 to 500,000 particles; their positions and velocities are stored in floating-point textures. Gravity is computed on a mipmapped *cloud-in-cell* density field, with relative pressure and viscosity.
@@ -8,6 +10,10 @@ Multi-species GPGPU particle simulator running in the browser (TypeScript, Three
 - **Static dark matter**: a « Matière noire » tab places invisible mass that attracts the matter without ever moving: drawn with the mouse (visible while drawing, it fades a second later), imported from an image (fitted to the screen, bright parts dense) or written as a multi-line text (font, size, bold, italic, line height, alignment). Its strength and softening are adjustable; it applies to every algorithm.
 - **Supernovae**: when the densest zone exceeds the chosen threshold, it explodes (radial ejection), then a 1/r shock wave sweeps through the other clusters.
 - **Rendering**: half-float HDR pipeline, chaining a colored nebula, a gravitational lens with chromatic separation, bloom, vignette, grain and Khronos Neutral tone mapping.
+
+## Author
+
+furbanow@gmail.com — Software Development Engineer
 
 ## Prerequisites
 

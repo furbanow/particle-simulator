@@ -5,7 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Simulateur de particules GPGPU multi-espèces : gravité, supernovae, bloom HDR et nébuleuse.">
     <title>Gravité &amp; Supernova</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta name="author" content="furbanow@gmail.com, Software Development Engineer">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Gravité &amp; Supernova">
+    <meta property="og:description" content="Simulateur de particules GPGPU multi-espèces : gravité, supernovae, bloom HDR et nébuleuse.">
+    <meta property="og:image" content="/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" href="/favicon.png" type="image/png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <!-- Hide the page until the stylesheet is applied (base.css reveals it), to avoid a flash of unstyled UI. -->
     <style>html { background: #000; } body { opacity: 0; }</style>
 </head>
@@ -13,7 +22,7 @@
 <div id="ui-panel">
     <header class="panel-header">
         <div class="brand">
-            <div class="logo" aria-hidden="true"></div>
+            <img class="logo" src="/logo.png" alt="" width="30" height="30">
             <div class="brand-text">
                 <h1>Gravité &amp; Supernova</h1>
                 <p class="subtitle">GPGPU multi-espèces</p>
@@ -131,6 +140,11 @@
 <button id="showPanelBtn" class="icon-btn" title="Afficher le panneau (H)" aria-label="Afficher le panneau">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16M13.5 10l2 2-2 2"/></svg></button>
 <div id="sim-container"></div>
+<!-- Author: discreet, see-through overlay in the bottom-left corner of the animation. -->
+<address id="authorOverlay" class="author">
+    <span>Author: <a class="author-email" href="mailto:furbanow@gmail.com">furbanow@gmail.com</a></span>
+    <span class="author-title">Software Development Engineer</span>
+</address>
 <div id="statsOverlay" class="stats-overlay">
     <button id="toggleStatsBtn" class="icon-btn stats-toggle" type="button" aria-controls="statGrid">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/><path class="eye-slash" d="M4 4l16 16"/></svg></button>

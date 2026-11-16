@@ -1,9 +1,10 @@
-/* ---------- Statistics: discreet, see-through overlay in the bottom-right corner of the animation ---------- */
+/* ---------- Statistics: discreet, see-through overlay in the top-right corner of the animation, under the element bar ---------- */
 .stats-overlay {
     --stats-content-w: 200px;
     --stats-opacity: 0.55;
-    position: fixed; right: 12px; bottom: 12px; z-index: 8;
-    display: flex; align-items: flex-end; gap: 4px;
+    position: fixed; right: 12px; top: calc(var(--topbar-h) + 12px); z-index: 8;
+    max-height: calc(100vh - var(--topbar-h) - 24px);
+    display: flex; align-items: flex-start; gap: 4px;
 }
 .stats-toggle { width: 22px; height: 22px; color: var(--text-2); opacity: var(--stats-opacity); transition: opacity 0.2s, background 0.15s, color 0.15s; }
 .stats-toggle:hover, .stats-toggle:focus-visible { opacity: 1; }
@@ -11,7 +12,7 @@
 .stats-overlay:not(.open) .eye-slash { display: inline; }
 .stats-overlay:not(.open) .stat-grid { display: none; }
 .stat-grid {
-    display: grid; gap: 3px;
+    display: grid; gap: 3px; max-height: inherit; overflow-y: auto; scrollbar-width: none;
     width: calc(var(--stats-content-w) + 20px); padding: 8px 10px; border-radius: var(--radius);
     background: rgba(0, 0, 0, 0.16);
     color: var(--text); font-size: 10.5px; line-height: 1.35;

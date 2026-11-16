@@ -1,0 +1,16 @@
+/* ---------- Author: discreet, see-through overlay in the bottom-left corner of the animation ---------- */
+.author {
+    position: fixed; left: calc(var(--panel-w) + 12px); bottom: 12px; z-index: 8;
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 7px 10px; border-radius: var(--radius);
+    background: rgba(0, 0, 0, 0.16); border: 1px solid var(--border);
+    color: var(--text-2); font-size: 13px; font-style: normal; line-height: 1.35;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+    -webkit-font-smoothing: antialiased;
+    opacity: 0.55; transition: opacity 0.2s, left 0.35s var(--ease);
+}
+.author:hover { opacity: 1; }
+body.panel-hidden .author { left: 12px; }
+.author-email { color: var(--text); text-decoration: none; }
+.author-email:hover { color: var(--accent); text-decoration: underline; }
+.author-title { font-size: 11px; letter-spacing: 0.02em; color: var(--text-3); }
