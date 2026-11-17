@@ -55,6 +55,8 @@ export const en = {
     'ui.config.save.title': 'Save into the configuration',
     'ui.config.save.aria': 'Save the configuration',
     'ui.config.saveAsNew': 'The default configuration cannot be modified: clicking here saves your changes into a new configuration',
+    'ui.config.revert.title': 'Discard the unsaved changes and go back to the saved configuration',
+    'ui.config.revert.aria': 'Discard the changes',
     'ui.config.unsavedConfirm': 'The current configuration has unsaved changes. Discard them?',
     'name.configPrefix': 'Configuration',
     'name.simulationPrefix': 'Simulation',

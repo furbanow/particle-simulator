@@ -40,6 +40,8 @@ export const fr: Record<MessageKey, string> = {
     'ui.config.save.title': 'Enregistrer dans la configuration',
     'ui.config.save.aria': 'Enregistrer la configuration',
     'ui.config.saveAsNew': 'La configuration par défaut ne peut pas être modifiée : cliquer ici enregistre vos changements dans une nouvelle configuration',
+    'ui.config.revert.title': 'Annuler les changements non enregistrés et revenir à la configuration enregistrée',
+    'ui.config.revert.aria': 'Annuler les changements',
     'ui.config.unsavedConfirm': 'Les modifications de la configuration courante ne sont pas enregistrées. Les abandonner ?',
     'name.configPrefix': 'Configuration',
     'name.simulationPrefix': 'Simulation',

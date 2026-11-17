@@ -7,11 +7,11 @@ import { applyStaticTranslations, getLanguage } from './i18n';
 import { NebulaLayer } from './render/nebulaLayer';
 import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
-import { defaultTypeCount, PARTICLE_COUNT_PARAM } from './simulation/algorithm';
+import { defaultTypeCount, PARTICLE_COUNT_PARAM, type ParamValues } from './simulation/algorithm';
 import {
     ALGORITHMS, BENCHMARK_ALGORITHM, DEFAULT_ALGORITHM, isAlgorithmId, type AlgorithmId,
 } from './simulation/algorithms';
-import { findParam } from './simulation/params';
+import { findParam, validParamValue } from './simulation/params';
 import { Simulation } from './simulation/Simulation';
 import { ElementConfigStore } from './elementConfigs';
 import { SimulationConfigStore, type SimulationConfig, type SimulationSetup } from './simulationConfigs';
@@ -180,6 +180,16 @@ function applySimulationSetup(setup: SimulationSetup): void {
     controls.showAlgorithm();
     restart();
 }
+
+// A saved count above the particle cap is brought down to it when applied: the config is not modified for that.
+simulationConfigs.limitParams = (algorithm, saved) => {
+    if (algorithm !== simulation.algorithmKey) return saved;
+    const limited: ParamValues = { ...saved };
+    for (const def of simulation.paramDefs) {
+        if (def.key in limited) limited[def.key] = validParamValue(def, limited[def.key]);
+    }
+    return limited;
+};
 
 const simulationPicker = new ConfigPicker<SimulationConfig, SimulationSetup>({
     root: byId('simulationConfig'),

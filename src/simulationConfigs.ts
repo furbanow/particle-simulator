@@ -113,6 +113,8 @@ export class SimulationConfigStore {
     /** Stored configs of algorithms missing from the catalog, written back untouched. */
     private readonly foreign: unknown[] = [];
     private currentId = '';
+    /** What the running simulation makes of saved parameters (e.g. a particle count above its cap comes down to it). */
+    limitParams: (algorithm: string, params: ParamValues) => ParamValues = (_algorithm, params) => params;
 
     constructor(private readonly storage: KeyValueStorage | null, private readonly controls: readonly ControlSpec[],
                 private readonly newId: () => string = randomId, private readonly catalog: AlgorithmCatalog = ALGORITHMS) {
@@ -191,7 +193,8 @@ export class SimulationConfigStore {
 
     /** True when `setup` differs from the saved version of the current config. */
     isDirty(setup: SimulationSetup): boolean {
-        return !sameSimulationSetup(setup, this.current);
+        const { current } = this;
+        return !sameSimulationSetup(setup, { ...current, params: this.limitParams(current.algorithm, current.params) });
     }
 
     private names(): ReadonlySet<string> {

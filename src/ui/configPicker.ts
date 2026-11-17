@@ -50,6 +50,8 @@ export class ConfigPicker<C extends { readonly id: string; readonly name: string
     private readonly saveBtn: HTMLButtonElement;
     private readonly deleteBtn: HTMLButtonElement;
     private readonly renameBtn: HTMLButtonElement;
+    /** Optional: discards the unsaved edits. */
+    private readonly revertBtn: HTMLButtonElement | null;
     private deleteTimer = 0;
 
     constructor({ root, store, state, create, onLoad, groupOf }: ConfigPickerOptions<C, S>) {
@@ -68,6 +70,7 @@ export class ConfigPicker<C extends { readonly id: string; readonly name: string
         this.saveBtn = find('.config-save');
         this.deleteBtn = find('.config-delete');
         this.renameBtn = find('.config-rename');
+        this.revertBtn = root.querySelector<HTMLButtonElement>('.config-revert');
 
         const refreshAll = () => {
             this.refreshList();
@@ -77,6 +80,7 @@ export class ConfigPicker<C extends { readonly id: string; readonly name: string
             onLoad(config);
             refreshAll();
         };
+        this.revertBtn?.addEventListener('click', () => load(this.store.current));
         this.select.addEventListener('change', () => {
             const id = this.select.value;
             if (!this.confirmDiscard()) {
@@ -138,6 +142,7 @@ export class ConfigPicker<C extends { readonly id: string; readonly name: string
         const editable = this.store.canEdit(this.store.current.id);
         this.dirtyDot.hidden = !dirty;
         this.saveBtn.disabled = !dirty;
+        if (this.revertBtn) this.revertBtn.disabled = !dirty;
         this.saveBtn.title = editable ? SAVE_TITLE : SAVE_AS_NEW_TITLE;
     }
 
