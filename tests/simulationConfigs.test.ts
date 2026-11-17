@@ -24,9 +24,9 @@ describe('simulation config store', () => {
     it('starts on the first built-in config, one per algorithm', () => {
         const store = newStore();
         expect(store.list().map(c => c.algorithm)).toEqual(algorithmList().map(a => a.id));
-        expect(store.current.algorithm).toBe('stickyDust');
-        expect(store.current.controls).toEqual({ speed: 1.5, bloom: 0.35 });
-        expect(store.current.species).toEqual(ALGORITHMS.stickyDust.particleTypes.defaults);
+        expect(store.current.algorithm).toBe('protostar');
+        expect(store.current.controls).toEqual({ speed: 1.7, bloom: 0.35 });
+        expect(store.current.species).toEqual(ALGORITHMS.protostar.particleTypes.defaults);
     });
 
     it('works without storage', () => {
@@ -73,7 +73,7 @@ describe('simulation config store', () => {
     it('sees a change of any part of the setup as an edit', () => {
         const store = newStore();
         const edits: ((s: ReturnType<typeof cloneSimulationSetup>) => void)[] = [
-            s => { s.algorithm = 'protostar'; },
+            s => { s.algorithm = 'stickyDust'; },
             s => { s.params.count = 2000; },
             s => { s.controls.speed = 0; },
             s => { s.typeCount = 1; },
@@ -114,7 +114,7 @@ describe('simulation config store', () => {
         expect(store.save(edited)).toBe(false);
         expect(store.rename(builtin.id, 'Autre')).toBe(false);
         expect(store.remove(builtin.id)).toBe(builtin);
-        expect(store.current.controls.speed).toBe(1.5);
+        expect(store.current.controls.speed).toBe(1.7);
     });
 
     it('lets a saved config change algorithm, like any other part of the setup', () => {
@@ -156,7 +156,7 @@ describe('simulation config store', () => {
         const reloaded = newStore(storage);
         expect(reloaded.current.id).toBe(builtin.id);
         expect(reloaded.current.name).toBe('Default');
-        expect(reloaded.current.controls.speed).toBe(1.5);
+        expect(reloaded.current.controls.speed).toBe(1.7);
     });
 
     it('keeps configs of unknown algorithms untouched', () => {

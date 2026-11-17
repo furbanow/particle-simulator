@@ -5,13 +5,13 @@ import type { AlgorithmDeclaration } from './algorithm';
 import { PROTOSTAR } from './protostar/declaration';
 import { STICKY_DUST } from './stickyDust/declaration';
 
-export const ALGORITHM_IDS = ['stickyDust', 'protostar'] as const;
+export const ALGORITHM_IDS = ['protostar', 'stickyDust'] as const;
 export type AlgorithmId = typeof ALGORITHM_IDS[number];
 
 /** Declarations by id, in display order (ALGORITHM_IDS). */
 export const ALGORITHMS: Readonly<Record<AlgorithmId, AlgorithmDeclaration>> = {
-    stickyDust: STICKY_DUST,
     protostar: PROTOSTAR,
+    stickyDust: STICKY_DUST,
 };
 
 export const DEFAULT_ALGORITHM: AlgorithmId = 'protostar';

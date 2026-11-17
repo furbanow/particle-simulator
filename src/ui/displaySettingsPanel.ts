@@ -1,8 +1,8 @@
 import {
-    BENCHMARK_TARGET_FPS, FPS_LIMIT_OPTIONS, LANGUAGE_NAMES, PARTICLE_CAP_RANGE, PARTICLE_CAP_STEP,
+    BENCHMARK_TARGET_FPS, DELETE_CONFIRM_MS, FPS_LIMIT_OPTIONS, LANGUAGE_NAMES, PARTICLE_CAP_RANGE, PARTICLE_CAP_STEP,
     SUPPORTED_LANGUAGES,
 } from '../config';
-import { sanitizeParticleCap, type DisplaySettings, type DisplaySettingsStore } from '../displaySettings';
+import { resetSettings, sanitizeParticleCap, type DisplaySettings, type DisplaySettingsStore } from '../displaySettings';
 import { formatNumber, isLanguagePreference, t } from '../i18n';
 import { byId } from './dom';
 
@@ -34,6 +34,7 @@ export class DisplaySettingsPanel {
         this.particleCap.step = String(PARTICLE_CAP_STEP);
         byId('settingsBtn').addEventListener('click', open);
         byId('benchmarkBtn').addEventListener('click', benchmark);
+        this.bindReset();
         this.language.addEventListener('change', () => {
             if (!isLanguagePreference(this.language.value)) return;
             store.update({ language: this.language.value });
@@ -52,6 +53,31 @@ export class DisplaySettingsPanel {
         });
         store.onChange(values => this.apply(values));
         this.apply(store.values);
+    }
+
+    /** Reset: a first click arms the button, a second one within DELETE_CONFIRM_MS resets and reloads. */
+    private bindReset(): void {
+        const button = byId<HTMLButtonElement>('resetSettingsBtn');
+        const label = button.textContent;
+        let timer = 0;
+        const disarm = () => {
+            window.clearTimeout(timer);
+            button.classList.remove('confirm');
+            button.textContent = label;
+        };
+        button.addEventListener('click', () => {
+            if (!button.classList.contains('confirm')) {
+                button.classList.add('confirm');
+                button.textContent = t('ui.settings.reset.confirm');
+                timer = window.setTimeout(disarm, DELETE_CONFIRM_MS);
+                return;
+            }
+            disarm();
+            let storage: Storage | null = null;
+            try { storage = window.localStorage; } catch { /* blocked */ }
+            resetSettings(storage);
+            window.location.reload();
+        });
     }
 
     private apply(values: DisplaySettings): void {

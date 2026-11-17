@@ -1,4 +1,7 @@
-import { DEFAULT_FPS_LIMIT, DISPLAY_SETTINGS_KEY, FPS_LIMIT_OPTIONS, PARTICLE_CAP_RANGE, PARTICLE_CAP_STEP } from './config';
+import {
+    DEFAULT_FPS_LIMIT, DISPLAY_SETTINGS_KEY, FPS_LIMIT_OPTIONS, PANEL_STATE_KEY, PANEL_TAB_KEY, PARTICLE_CAP_RANGE,
+    PARTICLE_CAP_STEP,
+} from './config';
 import { isLanguagePreference, type LanguagePreference } from './i18n';
 import { snap } from './util/math';
 
@@ -69,5 +72,15 @@ export class DisplaySettingsStore {
         this.values = sanitizeDisplaySettings({ ...this.values, ...patch });
         try { this.storage?.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(this.values)); } catch { /* ignore */ }
         for (const listener of this.listeners) listener(this.values);
+    }
+}
+
+/** Storage keys cleared by a settings reset: never the saved configurations (elements, simulations). */
+export const SETTINGS_RESET_KEYS: readonly string[] = [DISPLAY_SETTINGS_KEY, PANEL_STATE_KEY, PANEL_TAB_KEY];
+
+/** Forgets the display settings, the panel state and the remembered tab (best effort). */
+export function resetSettings(storage: Pick<Storage, 'removeItem'> | null): void {
+    for (const key of SETTINGS_RESET_KEYS) {
+        try { storage?.removeItem(key); } catch { /* ignore */ }
     }
 }

@@ -188,7 +188,7 @@ export const BENCHMARK_TARGET_FPS = 60;
 // (or of the display's own interval, on a display slower than the target).
 export const BENCHMARK_FRAME_TOLERANCE = 1.1;
 export const BENCHMARK_DURATION_MS = 1600;         // no new count is tried past this (the final restart follows)
-export const BENCHMARK_FIRST_COUNT = 400000;
+export const BENCHMARK_FIRST_COUNT = 350000;    // what the protostar keeps at 60 FPS on the reference GPU (GTX 1060)
 export const BENCHMARK_GROWTH = 2;                 // count factor while every count keeps the target
 export const BENCHMARK_RESOLUTION = 1.25;          // the search stops when the first failing count is within this factor
 export const BENCHMARK_MAX_PROBES = 5;             // particle counts tried at most
@@ -204,6 +204,9 @@ export const BENCHMARK_PROBE_MAX_MS = 300;
 export const BENCHMARK_DROPPED_FRAMES = 2;
 export const PARTICLE_CAP_RANGE: Range = [10000, PARTICLE_COUNT_SLIDER.max];
 export const PARTICLE_CAP_STEP = 10000;
+// The particle cap is measured on the protostar. The sticky dust costs less per particle: its own
+// cap is the protostar's times this ratio.
+export const STICKY_DUST_CAP_RATIO = 1.25;
 
 // ---- UI ----
 export const PANEL_STATE_KEY = 'gpu-gravity-bloom.panel';

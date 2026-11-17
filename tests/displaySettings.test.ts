@@ -55,3 +55,13 @@ describe('display settings', () => {
         expect(reloaded.values).toMatchObject({ showAuthor: false, fpsLimit: 30 });
     });
 });
+
+describe('settings reset', () => {
+    it('clears the settings but keeps the saved configurations', async () => {
+        const { resetSettings } = await import('../src/displaySettings');
+        const { ELEMENT_CONFIGS_KEY, SIMULATION_CONFIGS_KEY, DISPLAY_SETTINGS_KEY } = await import('../src/config');
+        const store = new Map<string, string>([[DISPLAY_SETTINGS_KEY, '{}'], [ELEMENT_CONFIGS_KEY, '{}'], [SIMULATION_CONFIGS_KEY, '{}']]);
+        resetSettings({ removeItem: k => void store.delete(k) });
+        expect([...store.keys()].sort()).toEqual([ELEMENT_CONFIGS_KEY, SIMULATION_CONFIGS_KEY].sort());
+    });
+});

@@ -24,7 +24,10 @@
         <div class="brand">
             <img class="logo" src="/logo.png" alt="" width="30" height="30">
             <div class="brand-text">
-                <h1>Particle Simulator</h1>
+                <div class="title-row">
+                    <h1>Particle Simulator</h1>
+                    <span class="beta-badge" data-i18n="ui.beta">Beta</span>
+                </div>
                 <p class="subtitle" data-i18n="ui.subtitle">Multi-species GPGPU</p>
             </div>
             <div class="brand-actions">
@@ -137,39 +140,55 @@
 </address>
 <!-- Display settings: same modal as the advanced element editor, in a narrower card (DisplaySettingsPanel). -->
 <div id="settings-modal" class="modal" hidden>
-    <div class="modal-card modal-card-narrow" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal-card modal-card-settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <button class="icon-btn modal-close" type="button" title="Close (Esc)" aria-label="Close" data-i18n-title="ui.close.title" data-i18n-aria="ui.close">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
         <section class="settings">
             <h2 class="settings-title" id="settingsTitle" data-i18n="ui.settings">Settings</h2>
-            <label class="settings-row">
-                <span class="settings-label" data-i18n="ui.settings.language">Language</span>
-                <select id="languageSelect" class="config-select"></select>
-            </label>
-            <label class="settings-row">
-                <span class="settings-label" data-i18n="ui.settings.fps">FPS limiter</span>
-                <select id="fpsLimitSelect" class="config-select"></select>
-            </label>
-            <label class="settings-row">
-                <span class="settings-label" data-i18n="ui.settings.help">Show help (shortcuts)</span>
-                <input type="checkbox" id="showHelpBox">
-            </label>
-            <label class="settings-row">
-                <span class="settings-label" data-i18n="ui.settings.stats">Show statistics</span>
-                <input type="checkbox" id="showStatsBox">
-            </label>
-            <label class="settings-row">
-                <span class="settings-label" data-i18n="ui.settings.author">Show author</span>
-                <input type="checkbox" id="showAuthorBox">
-            </label>
-            <label class="settings-row" title="Upper bound of the particle count sliders, set by the GPU benchmark. Raise it to try more particles." data-i18n-title="ui.settings.particleCap.title">
-                <span class="settings-label" data-i18n="ui.settings.particleCap">Particle limit</span>
-                <input type="number" id="particleCapInput" class="settings-number">
-            </label>
-            <div class="settings-row">
-                <span id="benchmarkResult" class="settings-hint"></span>
-                <button id="benchmarkBtn" class="btn" type="button" data-i18n="ui.settings.benchmark">Benchmark the GPU</button>
-            </div>
+            <fieldset class="settings-section">
+                <legend data-i18n="ui.settings.section.general">General</legend>
+                <label class="settings-row">
+                    <span class="settings-label" data-i18n="ui.settings.language">Language</span>
+                    <select id="languageSelect" class="config-select"></select>
+                </label>
+            </fieldset>
+            <fieldset class="settings-section">
+                <legend data-i18n="ui.settings.section.display">Display</legend>
+                <label class="settings-row">
+                    <span class="settings-label" data-i18n="ui.settings.fps">FPS limiter</span>
+                    <select id="fpsLimitSelect" class="config-select"></select>
+                </label>
+                <label class="settings-row">
+                    <span class="settings-label" data-i18n="ui.settings.help">Show help (shortcuts)</span>
+                    <input type="checkbox" id="showHelpBox">
+                </label>
+                <label class="settings-row">
+                    <span class="settings-label" data-i18n="ui.settings.stats">Show statistics</span>
+                    <input type="checkbox" id="showStatsBox">
+                </label>
+                <label class="settings-row">
+                    <span class="settings-label" data-i18n="ui.settings.author">Show author</span>
+                    <input type="checkbox" id="showAuthorBox">
+                </label>
+            </fieldset>
+            <fieldset class="settings-section">
+                <legend data-i18n="ui.settings.section.performance">Performance</legend>
+                <label class="settings-row" title="Upper bound of the particle count sliders, set by the GPU benchmark. Raise it to try more particles." data-i18n-title="ui.settings.particleCap.title">
+                    <span class="settings-label" data-i18n="ui.settings.particleCap">Particle limit</span>
+                    <input type="number" id="particleCapInput" class="settings-number">
+                </label>
+                <div class="settings-row">
+                    <span id="benchmarkResult" class="settings-hint"></span>
+                    <button id="benchmarkBtn" class="btn" type="button" data-i18n="ui.settings.benchmark">Benchmark the GPU</button>
+                </div>
+            </fieldset>
+            <fieldset class="settings-section settings-danger">
+                <legend data-i18n="ui.settings.section.reset">Reset</legend>
+                <div class="settings-row">
+                    <span class="settings-hint" data-i18n="ui.settings.reset.hint">Restores the default settings and reloads the page. Your saved configurations are kept.</span>
+                    <button id="resetSettingsBtn" class="btn btn-danger" type="button" data-i18n="ui.settings.reset">Reset settings</button>
+                </div>
+            </fieldset>
         </section>
     </div>
 </div>

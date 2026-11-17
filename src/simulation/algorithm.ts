@@ -21,11 +21,11 @@ export const PARTICLE_COUNT_PARAM = 'count';
  */
 export const PANEL_TABS = [
     { id: 'initial', label: t('tab.initial') },
-    { id: 'elements', label: t('tab.elements') },
     { id: 'physics', label: t('tab.physics') },
     { id: 'fusion', label: t('tab.fusion') },
     { id: 'supernova', label: t('tab.supernova') },
     { id: 'darkMatter', label: t('tab.darkMatter') },
+    { id: 'elements', label: t('tab.elements') },
     { id: 'effects', label: t('tab.effects') },
 ] as const;
 
@@ -217,6 +217,8 @@ export interface AlgorithmDeclaration {
     readonly stats?: readonly StatDef[];
     /** Simulation speed of the built-in simulation config (the shared speed slider default when omitted). */
     readonly defaultSpeed?: number;
+    /** Particle cap of this algorithm relative to the benchmark's (1 when omitted): cheaper ones allow more. */
+    readonly particleCapRatio?: number;
 }
 
 // ---- Helpers ----

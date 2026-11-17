@@ -4,7 +4,7 @@
 import {
     CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MASS_RANGE, MASS_SLIDER_STEPS,
     PARTICLE_COUNT_SLIDER, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP, SIZE_RANGE, SIZE_STEP,
-    SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
+    STICKY_DUST_CAP_RATIO, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../../config';
 import { formatNumber, t } from '../../i18n';
 import { randomPopulationWeights } from '../../population';
@@ -69,6 +69,7 @@ export const STICKY_DUST: AlgorithmDeclaration = {
     id: 'stickyDust',
     label: t('algo.stickyDust.label'),
     defaultSpeed: 1.5,
+    particleCapRatio: STICKY_DUST_CAP_RATIO,
     description: t('algo.stickyDust.description'),
     params,
     particleTypes: {

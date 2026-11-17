@@ -190,3 +190,10 @@ describe('panel tabs', () => {
         });
     });
 });
+
+describe('particle cap ratio', () => {
+    it('lets the sticky dust go 1.25 times higher than the benchmark cap, up to its slider', () => {
+        expect(ALGORITHMS.protostar.particleCapRatio).toBeUndefined();
+        expect(ALGORITHMS.stickyDust.particleCapRatio).toBe(1.25);
+    });
+});

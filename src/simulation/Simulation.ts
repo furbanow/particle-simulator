@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BASE_DT, MAX_PARTICLES, MAX_SPECIES, TEX_SIZE } from '../config';
+import { BASE_DT, MAX_PARTICLES, MAX_SPECIES, PARTICLE_CAP_STEP, TEX_SIZE } from '../config';
 import type { Uniform } from '../gl/common';
 import { splitPopulation } from '../population';
 import {
@@ -84,8 +84,9 @@ export class Simulation {
 
     /** The selected algorithm's parameters, the particle count bounded by the particle cap. */
     get paramDefs(): readonly ParamDef[] {
+        const algorithmCap = this.capOf(this.algorithmId);
         return this.algorithm.params.map(p => p.kind === 'number' && p.key === PARTICLE_COUNT_PARAM
-            ? { ...p, max: Math.min(p.max, this.cap), default: Math.min(p.default, this.cap) }
+            ? { ...p, max: Math.min(p.max, algorithmCap), default: Math.min(p.default, algorithmCap) }
             : p);
     }
 
@@ -99,7 +100,13 @@ export class Simulation {
      */
     setParticleCap(cap: number): void {
         this.cap = Math.min(MAX_PARTICLES, cap);
-        for (const state of this.states.values()) this.capCount(state.params);
+        for (const [id, state] of this.states) this.capCount(state.params, id);
+    }
+
+    /** The cap of algorithm `id`: the benchmark's one scaled by the algorithm's own cost ratio. */
+    private capOf(id: AlgorithmId): number {
+        const scaled = Math.round(this.cap * (ALGORITHMS[id].particleCapRatio ?? 1) / PARTICLE_CAP_STEP) * PARTICLE_CAP_STEP;
+        return Math.min(MAX_PARTICLES, Math.max(this.cap, scaled));
     }
 
     /**
@@ -220,15 +227,16 @@ export class Simulation {
         if (!state) {
             const algorithm = this.algorithm;
             state = { species: algorithm.particleTypes.defaults.map(cloneType), params: defaultParams(algorithm) };
-            this.capCount(state.params);
+            this.capCount(state.params, this.algorithmId);
             this.states.set(this.algorithmId, state);
         }
         return state;
     }
 
-    private capCount(params: ParamValues): void {
+    private capCount(params: ParamValues, id: AlgorithmId): void {
         const count = params[PARTICLE_COUNT_PARAM];
-        if (typeof count === 'number' && count > this.cap) params[PARTICLE_COUNT_PARAM] = this.cap;
+        const cap = this.capOf(id);
+        if (typeof count === 'number' && count > cap) params[PARTICLE_COUNT_PARAM] = cap;
     }
 
     private createPipeline(): GpuPipeline {
