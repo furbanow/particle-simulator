@@ -1,6 +1,6 @@
 # particle-simulator
 
-Local TypeScript web application (Vite + Three.js 0.169, WebGL2): a multi-species GPGPU particle simulator with gravity, supernovae and HDR rendering. It originates from the POC `particule-system.0005.html`.
+Local TypeScript web application (Vite + Three.js 0.169, WebGL2): a multi-species GPGPU particle simulator with gravity, supernovae and HDR rendering.
 
 Currently deployed at https://particle-simulator-2d.netlify.app/
 
