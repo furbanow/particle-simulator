@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import './styles/main.css';
 import { browserClock, runBenchmark } from './benchmark/runner';
 import {
-    BASE_DT, MAX_PARTICLES, SPEED_SHORTCUT_STEPS, ZOOM_KEY_FACTOR, ZOOM_WHEEL_LINE_PX, ZOOM_WHEEL_SENSITIVITY,
+    BASE_DT, MAX_PARTICLES, SPEED_SHORTCUT_STEPS, PAN_KEY_PX, ZOOM_KEY_FACTOR, ZOOM_WHEEL_LINE_PX, ZOOM_WHEEL_SENSITIVITY,
 } from './config';
 import { clampCenter, screenToWorld, zoomAt, type ViewState } from './view';
 import type { ViewUniforms } from './gl/common';
@@ -336,7 +336,10 @@ function changeSpeed(direction: -1 | 1): void {
     else speedSlider.stepDown(SPEED_SHORTCUT_STEPS);
     speedSlider.dispatchEvent(new Event('input', { bubbles: true }));
 }
-setupShortcuts({ togglePause, changeSpeed, zoom: direction => zoomView(direction > 0 ? ZOOM_KEY_FACTOR : 1 / ZOOM_KEY_FACTOR, view.center), restart: () => { restart(); flash(startBtn); }, togglePanel }, renderer.domElement);
+setupShortcuts({ togglePause, changeSpeed,
+    move: (dx, dy) => setView({ zoom: view.zoom, center: {
+        x: view.center.x + dx * PAN_KEY_PX / view.zoom, y: view.center.y + dy * PAN_KEY_PX / view.zoom } }),
+    zoom: direction => zoomView(direction > 0 ? ZOOM_KEY_FACTOR : 1 / ZOOM_KEY_FACTOR, view.center), restart: () => { restart(); flash(startBtn); }, togglePanel }, renderer.domElement);
 window.addEventListener('resize', resize);
 syncAllRanges(uiPanel);
 syncAllRanges(byId('element-bar'));

@@ -105,6 +105,7 @@ export const de: Record<MessageKey, string> = {
     'ui.shortcut.restart': 'Neustart',
     'ui.shortcut.speed': 'Tempo',
     'ui.shortcut.zoom': 'Zoom',
+    'ui.shortcut.move': 'Bewegen',
     'ui.shortcut.panel': 'Panel',
     'ui.shortcut.default': 'Doppelklick: Standardwert',
     'ui.stats.aria': 'Statistiken',
