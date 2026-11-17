@@ -1,13 +1,13 @@
 # Particle Simulator — Gravity & Supernova
 
-<img src="public/logo.png" alt="" width="96" align="right">
+<img src="public/logo.png" alt="" width="160" align="right">
 
 Multi-species GPGPU particle simulator running in the browser (TypeScript, Three.js, WebGL2).
 
 - **Physics**: from 1,000 to 500,000 particles; their positions and velocities are stored in floating-point textures. Gravity is computed on a mipmapped *cloud-in-cell* density field, with relative pressure and viscosity.
 - **Elements**: the first 10 elements of the periodic table (hydrogen → neon), with their real atomic masses (in u), sizes proportional to atomic radii, and CPK colors. They stratify according to their density. A dedicated bar at the top of the page lets you activate 1 to 10 of them and edit their properties on a bar chart, one property at a time (population share, atomic mass, size, color as hue · saturation · lightness), with default values and random draws. The selected element also has all its sliders on the right, with its name and symbol. Element configurations are saved in the browser: new, duplicate, rename, delete, load.
-- **Simulation configurations**: above the « Redémarrer » (Restart) button, the entire simulation can be saved in the browser (algorithm, parameters, element definitions, visual effects, speed): new, duplicate, rename, delete, load. Loading a configuration restarts the simulation; the last one selected is restored when the page opens.
-- **Static dark matter**: a « Matière noire » tab places invisible mass that attracts the matter without ever moving: drawn with the mouse (visible while drawing, it fades a second later), imported from an image (fitted to the screen, bright parts dense) or written as a multi-line text (font, size, bold, italic, line height, alignment). Its strength and softening are adjustable; it applies to every algorithm.
+- **Simulation configurations**: above the **Restart** button, the entire simulation can be saved in the browser (algorithm, parameters, element definitions, visual effects, speed): new, duplicate, rename, delete, load. Loading a configuration restarts the simulation; the last one selected is restored when the page opens.
+- **Static dark matter**: a **Dark matter** tab places invisible mass that attracts the matter without ever moving: drawn with the mouse (visible while drawing, it fades a second later), imported from an image (fitted to the screen, bright parts dense) or written as a multi-line text (font, size, bold, italic, line height, alignment). Its strength and softening are adjustable; it applies to every algorithm.
 - **Supernovae**: when the densest zone exceeds the chosen threshold, it explodes (radial ejection), then a 1/r shock wave sweeps through the other clusters.
 - **Rendering**: half-float HDR pipeline, chaining a colored nebula, a gravitational lens with chromatic separation, bloom, vignette, grain and Khronos Neutral tone mapping.
 
