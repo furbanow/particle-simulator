@@ -6,6 +6,7 @@ import {
     PARTICLE_COUNT_SLIDER, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP, SIZE_RANGE, SIZE_STEP,
     SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../../config';
+import { formatNumber, t } from '../../i18n';
 import { randomPopulationWeights } from '../../population';
 import {
     ELEMENTS, formatMass, massToSlider, randomSpeciesMasses, randomSpeciesSizes, sliderToMass,
@@ -29,23 +30,23 @@ export const STICKY_DUST_PROPERTY = { weight: 'weight', mass: 'mass', size: 'siz
 
 export const STICKY_DUST_STAT = { supernovae: 'supernovae', concentration: 'concentration' } as const;
 
-const percent = (v: number): string => `${v} %`;
+const percent = (v: number): string => t('format.percent', { value: v });
 
 const params: readonly NumberParam[] = [
-    { ...sliderFields(PARTICLE_COUNT_SLIDER), key: STICKY_DUST_PARAM.count, tab: 'initial', label: 'Nombre de particules',
-        doc: 'Particules créées au redémarrage. Leur masse totale reste constante : en ajouter affine le rendu sans changer la dynamique, mais demande plus de calcul.',
+    { ...sliderFields(PARTICLE_COUNT_SLIDER), key: STICKY_DUST_PARAM.count, tab: 'initial', label: t('algo.stickyDust.param.count.label'),
+        doc: t('algo.stickyDust.param.count.doc'),
         format: formatInt },
-    { ...sliderFields(GRAVITY_SLIDER), key: STICKY_DUST_PARAM.gravity, tab: 'physics', label: 'Constante de gravité',
-        doc: 'Intensité de l\'attraction entre les particules. Plus elle est élevée, plus les amas se forment vite et se compriment.',
-        format: v => `G = ${v.toFixed(1)}` },
-    { ...sliderFields(SUPERNOVA_THRESHOLD_SLIDER), key: STICKY_DUST_PARAM.supernovaThreshold, tab: 'supernova', label: 'Seuil de déclenchement',
-        doc: 'Part de toutes les particules qui doit se trouver dans la zone de détection pour déclencher une supernova. Plus il est bas, plus les explosions sont fréquentes.',
+    { ...sliderFields(GRAVITY_SLIDER), key: STICKY_DUST_PARAM.gravity, tab: 'physics', label: t('algo.stickyDust.param.gravity.label'),
+        doc: t('algo.stickyDust.param.gravity.doc'),
+        format: v => `G = ${formatNumber(v, 1)}` },
+    { ...sliderFields(SUPERNOVA_THRESHOLD_SLIDER), key: STICKY_DUST_PARAM.supernovaThreshold, tab: 'supernova', label: t('algo.stickyDust.param.supernovaThreshold.label'),
+        doc: t('algo.stickyDust.param.supernovaThreshold.doc'),
         format: percent },
-    { ...sliderFields(CONCENTRATION_RADIUS_SLIDER), key: STICKY_DUST_PARAM.concentrationRadius, tab: 'supernova', label: 'Rayon de la zone de détection',
-        doc: 'Rayon du disque placé sur l\'endroit le plus dense, où l\'on compte les particules. Ce sont les particules de ce disque qui sont éjectées par la supernova.',
+    { ...sliderFields(CONCENTRATION_RADIUS_SLIDER), key: STICKY_DUST_PARAM.concentrationRadius, tab: 'supernova', label: t('algo.stickyDust.param.concentrationRadius.label'),
+        doc: t('algo.stickyDust.param.concentrationRadius.doc'),
         format: v => `${v} px` },
-    { ...sliderFields(SUPERNOVA_POWER_SLIDER), key: STICKY_DUST_PARAM.supernovaPower, tab: 'supernova', label: 'Puissance d\'éjection',
-        doc: 'Vitesse donnée aux particules éjectées et à l\'onde de choc qui suit, en pourcentage de la vitesse d\'éjection maximale.',
+    { ...sliderFields(SUPERNOVA_POWER_SLIDER), key: STICKY_DUST_PARAM.supernovaPower, tab: 'supernova', label: t('algo.stickyDust.param.supernovaPower.label'),
+        doc: t('algo.stickyDust.param.supernovaPower.doc'),
         format: percent },
 ];
 
@@ -66,22 +67,26 @@ const UNIT = [0, 1] as const;
 
 export const STICKY_DUST: AlgorithmDeclaration = {
     id: 'stickyDust',
-    label: 'Poussière collante',
+    label: t('algo.stickyDust.label'),
     defaultSpeed: 1.5,
-    description: 'Gravité sur grille multi-échelle ; les amas résistent à la compression et absorbent l\'agitation.',
+    description: t('algo.stickyDust.description'),
     params,
     particleTypes: {
-        labels: { title: 'Éléments', item: 'Élément', count: 'Nombre d\'éléments', active: 'Éléments actifs' },
+        labels: {
+            title: t('ui.elements.title'), item: t('ui.elements.item'), count: t('ui.elements.count'),
+            active: t('ui.elements.active'),
+        },
         properties: [
             {
-                kind: 'number', key: STICKY_DUST_PROPERTY.weight, label: 'Répartition', unit: '', role: 'population',
+                kind: 'number', key: STICKY_DUST_PROPERTY.weight, label: t('algo.stickyDust.prop.weight.label'), unit: '', role: 'population',
                 range: POPULATION_WEIGHT_RANGE, scale: linearScale(POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP),
-                live: false, resetLabel: 'Uniforme', resetTitle: 'Même population pour chaque élément',
-                randomTitle: 'Répartition aléatoire', format: v => String(v),
+                live: false, resetLabel: t('algo.stickyDust.prop.weight.resetLabel'),
+                resetTitle: t('algo.stickyDust.prop.weight.resetTitle'),
+                randomTitle: t('algo.stickyDust.prop.weight.randomTitle'), format: v => String(v),
                 randomize: (count, _visible, random) => randomPopulationWeights(count, random),
             },
             {
-                kind: 'number', key: STICKY_DUST_PROPERTY.mass, label: 'Masse atomique', unit: 'u',
+                kind: 'number', key: STICKY_DUST_PROPERTY.mass, label: t('prop.mass'), unit: 'u',
                 range: MASS_RANGE,
                 // Logarithmic, so the light end (0.05-1) is as easy to set as the heavy end (10-100).
                 scale: {
@@ -89,30 +94,36 @@ export const STICKY_DUST: AlgorithmDeclaration = {
                     toPosition: m => massToSlider(m) / MASS_SLIDER_STEPS,
                     fromPosition: t => sliderToMass(clamp(t, UNIT) * MASS_SLIDER_STEPS),
                 },
-                live: true, resetLabel: 'Par défaut', resetTitle: 'Masses atomiques des éléments chimiques',
-                randomTitle: 'Masses aléatoires (échelle 1/N … 1, légèrement décalée)', format: formatMass,
+                live: true, resetLabel: t('prop.default'), resetTitle: t('algo.stickyDust.prop.mass.resetTitle'),
+                randomTitle: t('algo.stickyDust.prop.mass.randomTitle'), format: formatMass,
                 randomize: randomSpeciesMasses,
             },
             {
-                kind: 'number', key: STICKY_DUST_PROPERTY.size, label: 'Taille', unit: 'px',
+                kind: 'number', key: STICKY_DUST_PROPERTY.size, label: t('prop.size'), unit: 'px',
                 range: SIZE_RANGE, scale: linearScale(SIZE_RANGE, SIZE_STEP),
-                live: true, resetLabel: 'Par défaut', resetTitle: 'Tailles proportionnelles aux rayons atomiques',
-                randomTitle: 'Tailles aléatoires', format: v => v.toFixed(1),
+                live: true, resetLabel: t('prop.default'), resetTitle: t('algo.stickyDust.prop.size.resetTitle'),
+                randomTitle: t('algo.stickyDust.prop.size.randomTitle'), format: v => formatNumber(v, 1),
                 randomize: (count, _visible, random) => randomSpeciesSizes(count, random),
             },
-            { kind: 'color', label: 'Couleur', resetTitle: 'Couleurs CPK des éléments chimiques', randomTitle: 'Couleurs aléatoires' },
+            {
+                kind: 'color', label: t('prop.color'), resetTitle: t('algo.stickyDust.prop.color.resetTitle'),
+                randomTitle: t('algo.stickyDust.prop.color.randomTitle'),
+            },
         ],
-        readouts: [{ label: 'Densité', format: t => `ρ ${stickyDustDensity(t).toFixed(2)}` }],
+        readouts: [{ label: t('algo.stickyDust.readout.density'), format: type => `ρ ${formatNumber(stickyDustDensity(type), 2)}` }],
         defaults: STICKY_DUST_TYPES,
         defaultCount: 3,
-    builtinConfig: { id: 'builtin:chemical-elements', name: 'Éléments chimiques' },
+    builtinConfig: { id: 'builtin:chemical-elements', name: t('algo.stickyDust.builtin') },
     },
     stats: [
-        { kind: 'value', key: STICKY_DUST_STAT.supernovae, label: 'Supernovae', flash: true, format: v => String(v) },
+        { kind: 'value', key: STICKY_DUST_STAT.supernovae, label: t('algo.stickyDust.stat.supernovae'), flash: true, format: v => String(v) },
         {
-            kind: 'meter', key: STICKY_DUST_STAT.concentration, label: 'Concentration max',
-            title: 'Le repère indique le seuil de supernova', format: f => `${(f * 100).toFixed(0)} %`,
-            marker: { param: STICKY_DUST_PARAM.supernovaThreshold, format: v => `seuil ${v} %` },
+            kind: 'meter', key: STICKY_DUST_STAT.concentration, label: t('algo.stickyDust.stat.concentration'),
+            title: t('algo.stickyDust.stat.concentration.title'), format: f => percent(Math.round(f * 100)),
+            marker: {
+                param: STICKY_DUST_PARAM.supernovaThreshold,
+                format: v => t('algo.stickyDust.stat.concentration.marker', { value: v }),
+            },
         },
     ],
 };

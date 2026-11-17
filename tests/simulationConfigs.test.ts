@@ -51,7 +51,7 @@ describe('simulation config store', () => {
         edited.species[0].color = '#123456';
         expect(store.isDirty(edited)).toBe(true);
         const copy = store.duplicate(edited);
-        expect(copy.name).toBe('Simulation 1 (copie)');
+        expect(copy.name).toBe('Simulation 1 (copy)');
         expect(store.isDirty(edited)).toBe(false);
 
         expect(store.rename(copy.id, '  Grand nuage  ')).toBe(true);
@@ -67,7 +67,7 @@ describe('simulation config store', () => {
         expect(reloaded.current.controls).toEqual({ speed: 2, bloom: 1 });
         expect(reloaded.current.typeCount).toBe(1);
         expect(reloaded.current.species[0]).toMatchObject({ name: 'Deutérium', color: '#123456' });
-        expect(reloaded.list().map(c => c.name)).toEqual(['Par défaut', 'Par défaut', 'Simulation 1', 'Grand nuage']);
+        expect(reloaded.list().map(c => c.name)).toEqual(['Default', 'Default', 'Simulation 1', 'Grand nuage']);
     });
 
     it('sees a change of any part of the setup as an edit', () => {
@@ -132,7 +132,7 @@ describe('simulation config store', () => {
         const c = store.create('protostar');
         expect(store.remove(c.id).id).toBe(a.id);      // the last one of its algorithm: the previous one
         expect(store.remove(a.id).algorithm).toBe('protostar');
-        expect(store.current.name).toBe('Par défaut');
+        expect(store.current.name).toBe('Default');
         store.select(b.id);
         expect(store.remove(a.id).id).toBe(b.id);      // gone already: nothing moves
     });
@@ -155,7 +155,7 @@ describe('simulation config store', () => {
         }));
         const reloaded = newStore(storage);
         expect(reloaded.current.id).toBe(builtin.id);
-        expect(reloaded.current.name).toBe('Par défaut');
+        expect(reloaded.current.name).toBe('Default');
         expect(reloaded.current.controls.speed).toBe(1.5);
     });
 

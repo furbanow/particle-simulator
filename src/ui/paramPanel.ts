@@ -1,13 +1,14 @@
 import {
     appliesOnRestart, PANEL_TABS, tabsOf, type PanelTab, type PanelTabId, type ParamDef, type ParamValue,
 } from '../simulation/algorithm';
+import { t } from '../i18n';
 import { paramToSlider, sliderRange, sliderToParam } from '../simulation/params';
 import type { Simulation } from '../simulation/Simulation';
 import { VISUAL_EFFECTS } from '../visualEffects';
 import { rememberedTab, rememberTab } from './panelState';
 import { syncAllRanges } from './sliders';
 
-const PENDING_HINT = 'Appliqué au redémarrage';
+const PENDING_HINT = t('ui.pending');
 
 /** Contents of each tab's 24 x 24 icon. */
 const TAB_ICONS: Readonly<Record<PanelTabId, string>> = {

@@ -1,5 +1,6 @@
 import type { ElementConfig, ElementConfigStore, ElementSetup } from '../elementConfigs';
 import { buildMetrics, type ElementMetric } from '../elementMetrics';
+import { t } from '../i18n';
 import { splitPopulation } from '../population';
 import { populationWeights } from '../simulation/algorithm';
 import type { AlgorithmId } from '../simulation/algorithms';
@@ -19,7 +20,7 @@ export interface ElementBarOptions {
     onLoad(): void;
 }
 
-const PENDING_HINT = 'Appliqué au redémarrage';
+const PENDING_HINT = t('ui.pending');
 
 interface ChartCard {
     chart: ElementChart;
@@ -114,7 +115,7 @@ export class ElementBar {
         this.title.textContent = labels.title;
         this.editorTitle.textContent = labels.item;
         this.typeCountLabel.textContent = labels.count;
-        this.picker.newBtn.title = `Nouvelle configuration (${schema.builtinConfig.name.toLowerCase()})`;
+        this.picker.newBtn.title = t('ui.config.new.elements', { name: schema.builtinConfig.name });
         this.typeCountSlider.max = String(schema.defaults.length);
 
         this.buildCharts(buildMetrics(schema), liveChange);
@@ -242,7 +243,7 @@ export class ElementBar {
                 random.type = 'button';
                 random.className = 'btn';
                 random.title = metric.randomTitle;
-                random.textContent = 'Aléatoire';
+                random.textContent = t('ui.random');
                 random.addEventListener('click', () => {
                     metric.randomize(species, visible());
                     changed(metric.live);

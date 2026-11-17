@@ -1,4 +1,5 @@
 import { DELETE_CONFIRM_MS } from '../config';
+import { t } from '../i18n';
 
 /** What the picker needs from a store of named configs; `S` is the state a config holds. */
 export interface ConfigStore<C, S> {
@@ -28,9 +29,9 @@ export interface ConfigPickerOptions<C, S> {
     groupOf?(config: C): string;
 }
 
-const UNSAVED_CONFIRM = 'Les modifications de la configuration courante ne sont pas enregistrées. Les abandonner ?';
-const SAVE_TITLE = 'Enregistrer dans la configuration';
-const SAVE_AS_NEW_TITLE = 'La configuration par défaut ne peut pas être modifiée : cliquer ici enregistre vos changements dans une nouvelle configuration';
+const UNSAVED_CONFIRM = t('ui.config.unsavedConfirm');
+const SAVE_TITLE = t('ui.config.save.title');
+const SAVE_AS_NEW_TITLE = t('ui.config.saveAsNew');
 
 /**
  * The tools of a list of saved configs: load, new, duplicate, rename, delete, save, and a dot
@@ -54,7 +55,7 @@ export class ConfigPicker<C extends { readonly id: string; readonly name: string
     constructor({ root, store, state, create, onLoad, groupOf }: ConfigPickerOptions<C, S>) {
         const find = <T extends HTMLElement>(selector: string): T => {
             const el = root.querySelector<T>(selector);
-            if (!el) throw new Error(`Élément introuvable : ${selector}`);
+            if (!el) throw new Error(`Element not found: ${selector}`);
             return el;
         };
         this.store = store;
@@ -124,11 +125,11 @@ export class ConfigPicker<C extends { readonly id: string; readonly name: string
             return [group];
         }));
         this.deleteBtn.disabled = !this.store.canRemove(current.id);
-        this.deleteBtn.title = this.deleteBtn.disabled ? 'La configuration par défaut ne peut pas être supprimée'
-            : 'Supprimer la configuration';
+        this.deleteBtn.title = this.deleteBtn.disabled ? t('ui.config.cannotDelete')
+            : t('ui.config.delete');
         this.renameBtn.disabled = !this.store.canEdit(current.id);
-        this.renameBtn.title = this.renameBtn.disabled ? 'La configuration par défaut ne peut pas être renommée'
-            : 'Renommer la configuration';
+        this.renameBtn.title = this.renameBtn.disabled ? t('ui.config.cannotRename')
+            : t('ui.config.rename');
     }
 
     /** Refreshes the tools that depend on the state being edited. */
@@ -155,7 +156,7 @@ export class ConfigPicker<C extends { readonly id: string; readonly name: string
         this.deleteBtn.addEventListener('click', () => {
             if (!this.deleteBtn.classList.contains('confirm')) {
                 this.deleteBtn.classList.add('confirm');
-                this.deleteBtn.title = 'Cliquer à nouveau pour supprimer';
+                this.deleteBtn.title = t('ui.config.deleteAgain');
                 this.deleteTimer = window.setTimeout(disarm, DELETE_CONFIRM_MS);
                 return;
             }

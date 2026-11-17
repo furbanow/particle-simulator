@@ -1,7 +1,7 @@
 /** Typed `getElementById` that fails loudly when the markup and the code disagree. */
 export function byId<T extends HTMLElement = HTMLElement>(id: string): T {
     const el = document.getElementById(id);
-    if (!el) throw new Error(`Élément #${id} introuvable`);
+    if (!el) throw new Error(`Element #${id} not found`);
     return el as T;
 }
 

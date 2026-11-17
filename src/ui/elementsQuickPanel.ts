@@ -1,5 +1,6 @@
 import { quickMetrics, quickRowCount, quickValueText } from '../elementsQuickModel';
 import { buildMetrics, type ElementMetric } from '../elementMetrics';
+import { t } from '../i18n';
 import type { Simulation } from '../simulation/Simulation';
 import { syncRange } from './sliders';
 
@@ -24,7 +25,7 @@ interface Row {
     sliders: SliderRow[];
 }
 
-const PENDING_HINT = 'Appliqué au redémarrage';
+const PENDING_HINT = t('ui.pending');
 
 /**
  * The Elements tab of the panel: the number of elements, then for each of them its color, atomic
@@ -59,8 +60,8 @@ export class ElementsQuickPanel {
         const advanced = document.createElement('button');
         advanced.type = 'button';
         advanced.className = 'btn eq-advanced';
-        advanced.textContent = 'Avancé…';
-        advanced.title = 'Répartition, teinte, saturation, luminosité, configurations';
+        advanced.textContent = t('ui.elements.advanced');
+        advanced.title = t('ui.elements.advanced.title');
         advanced.addEventListener('click', onAdvanced);
 
         this.list.className = 'eq-list';
@@ -109,8 +110,8 @@ export class ElementsQuickPanel {
         head.className = 'eq-head';
         const color = document.createElement('input');
         color.type = 'color';
-        color.title = 'Couleur';
-        color.setAttribute('aria-label', 'Couleur');
+        color.title = t('ui.color');
+        color.setAttribute('aria-label', t('ui.color'));
         color.addEventListener('input', () => {
             this.sim.species[k].color = color.value;
             this.host.speciesEdited(true);
@@ -135,7 +136,7 @@ export class ElementsQuickPanel {
             input.min = '0';
             input.max = '1';
             input.step = 'any';
-            input.title = 'Double-clic : valeur par défaut';
+            input.title = t('ui.doubleClickDefault');
             input.addEventListener('input', () => {
                 if (metric.set(this.sim.species[k], parseFloat(input.value))) this.host.speciesEdited(metric.live);
                 else this.refresh();

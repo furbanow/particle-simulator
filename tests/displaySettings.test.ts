@@ -9,13 +9,18 @@ class MemoryStorage {
 
 describe('display settings', () => {
     it('default to 60 FPS, help and author shown, stats hidden', () => {
-        expect(DEFAULT_DISPLAY_SETTINGS).toEqual({ fpsLimit: 60, showHelp: true, showStats: false, showAuthor: true });
+        expect(DEFAULT_DISPLAY_SETTINGS).toEqual({ fpsLimit: 60, showHelp: true, showStats: false, showAuthor: true, language: 'auto' });
     });
 
     it('sanitize unknown or ill-typed values', () => {
         expect(sanitizeDisplaySettings(null)).toEqual(DEFAULT_DISPLAY_SETTINGS);
         expect(sanitizeDisplaySettings({ fpsLimit: 77, showHelp: 'x', showStats: true }))
             .toEqual({ ...DEFAULT_DISPLAY_SETTINGS, showStats: true });
+    });
+
+    it('keeps a valid language preference and drops an unknown one', () => {
+        expect(sanitizeDisplaySettings({ language: 'de' }).language).toBe('de');
+        expect(sanitizeDisplaySettings({ language: 'xx' }).language).toBe('auto');
     });
 
     it('computes the frame duration, none when unlimited', () => {

@@ -1,4 +1,5 @@
 import { cleanName } from '../elementConfigs';
+import { t } from '../i18n';
 import type { ParticleType, ParticleTypeSchema } from '../simulation/algorithm';
 
 /** Sets an input's value only when it differs, so the caret doesn't jump while typing. */
@@ -24,8 +25,8 @@ export class ElementEditor {
                 private readonly species: readonly ParticleType[], onChange: (live: boolean) => void) {
         container.innerHTML = `
             <div class="editor-head">
-                <input type="color" title="Couleur" aria-label="Couleur">
-                <input type="text" class="editor-name" title="Nom" aria-label="Nom" spellcheck="false">
+                <input type="color" title="${t('ui.color')}" aria-label="${t('ui.color')}">
+                <input type="text" class="editor-name" title="${t('ui.name')}" aria-label="${t('ui.name')}" spellcheck="false">
             </div>`;
         this.readouts = (schema.readouts ?? []).map(r => {
             const line = document.createElement('div');

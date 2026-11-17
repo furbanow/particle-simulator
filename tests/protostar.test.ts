@@ -66,8 +66,8 @@ describe('protostar declaration', () => {
     it('shows the reactions as transitions', () => {
         expect(PROTOSTAR.particleTypes.transitions).toEqual(reactionTransitions(PROTOSTAR_REACTIONS));
         expect(PROTOSTAR.particleTypes.transitions).toEqual([
-            { from: HYDROGEN, to: HELIUM, label: 'Chaîne proton-proton (4 pour 1)' },
-            { from: HELIUM, to: CARBON, label: 'Triple-alpha (3 pour 1)' },
+            { from: HYDROGEN, to: HELIUM, label: 'Proton-proton chain (4 for 1)' },
+            { from: HELIUM, to: CARBON, label: 'Triple-alpha (3 for 1)' },
         ]);
     });
 
@@ -85,8 +85,8 @@ describe('protostar declaration', () => {
     });
 
     it('formats small values', () => {
-        expect(formatSmall(0.0001)).toBe('1,00e-4');
-        expect(formatSmall(2.5)).toBe('2,5');
+        expect(formatSmall(0.0001)).toBe('1.00e-4');
+        expect(formatSmall(2.5)).toBe('2.5');
         expect(formatSmall(0)).toBe('0');
     });
 });
@@ -132,7 +132,7 @@ describe('fusion reactions', () => {
         expect(PROTOSTAR_HE_IGNITION_KELVIN / PROTOSTAR_T0_KELVIN).toBeCloseTo(6.67, 2);
         expect(tripleAlpha.densityExponent).toBe(2);
         expect(tripleAlpha.label).toBe('Triple-alpha');
-        expect(hToHe.label).toBe('Chaîne proton-proton');
+        expect(hToHe.label).toBe('Proton-proton chain');
         expect(hToHe.referenceTemperature).toBe(PROTOSTAR_T0_KELVIN);
         expect(hToHe.densityExponent).toBe(1);
     });

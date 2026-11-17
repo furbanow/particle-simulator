@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import { formatNumber, t } from '../i18n';
 import type { PostProcessing } from '../render/postprocessing';
 import type { ParticleLayer } from '../render/particleLayer';
 import { algorithmList, isAlgorithmId, type AlgorithmId } from '../simulation/algorithms';
@@ -69,7 +70,7 @@ export function setupControls({ simulation: sim, particles, post, renderer, onAl
     // ---- Simulation speed ----
     const paintSpeed = () => {
         sim.timeScale = parseFloat(speedSlider.value);
-        speedVal.textContent = sim.timeScale > 0 ? `${sim.timeScale.toFixed(1)}×` : 'Pause';
+        speedVal.textContent = sim.timeScale > 0 ? `${formatNumber(sim.timeScale, 1)}×` : t('ui.speed.pause');
         // Position of the slider in 0..1, read by the gauge needle.
         const min = parseFloat(speedSlider.min);
         const max = parseFloat(speedSlider.max);

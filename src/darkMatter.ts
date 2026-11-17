@@ -7,6 +7,7 @@ import {
     DARK_MATTER_LINE_HEIGHT_SLIDER, DARK_MATTER_OPACITY_SLIDER, DARK_MATTER_SOFTENING_SLIDER,
     DARK_MATTER_STRENGTH_SLIDER, DARK_MATTER_TEXT_MAX,
 } from './config';
+import { formatNumber, t } from './i18n';
 import { sliderFields, type ParamDef, type ParamValue, type ParamValues } from './simulation/algorithm';
 import { panelParamValue } from './simulation/params';
 
@@ -19,7 +20,7 @@ export const DARK_MATTER_FONTS = [
     { value: 'mono', label: 'JetBrains Mono', css: '\'JetBrains Mono\', monospace' },
     { value: 'serif', label: 'Serif', css: 'Georgia, \'Times New Roman\', serif' },
     { value: 'impact', label: 'Impact', css: 'Impact, \'Arial Black\', sans-serif' },
-    { value: 'cursive', label: 'Manuscrite', css: '\'Brush Script MT\', \'Segoe Script\', cursive' },
+    { value: 'cursive', label: t('darkMatter.option.font.cursive'), css: '\'Brush Script MT\', \'Segoe Script\', cursive' },
 ] as const;
 
 /** Keys of the settings, also the names they are saved under. */
@@ -47,64 +48,64 @@ export type DarkMatterGroup = 'gravity' | 'source' | DarkMatterMode;
 
 export type DarkMatterParam = ParamDef & { readonly group: DarkMatterGroup };
 
-const percent = (v: number): string => `${v} %`;
+const percent = (v: number): string => t('format.percent', { value: v });
 const px = (v: number): string => `${v} px`;
 
 export const DARK_MATTER_PARAMS: readonly DarkMatterParam[] = [
     { ...sliderFields(DARK_MATTER_STRENGTH_SLIDER), key: P.strength, tab: 'darkMatter', group: 'gravity',
-        label: 'Intensité gravitationnelle',
-        doc: 'Force avec laquelle la matière noire attire la matière. À 0, elle n\'a plus aucun effet. Elle ne bouge jamais et ne ressent rien : seule la matière est attirée.',
-        format: v => v.toFixed(1) },
+        label: t('darkMatter.param.strength.label'),
+        doc: t('darkMatter.param.strength.doc'),
+        format: v => formatNumber(v, 1) },
     { ...sliderFields(DARK_MATTER_SOFTENING_SLIDER), key: P.softening, tab: 'darkMatter', group: 'gravity',
-        label: 'Adoucissement',
-        doc: 'Distance, en pourcentage du petit côté de l\'écran, en dessous de laquelle l\'attraction cesse de croître. Plus il est grand, plus l\'attraction est douce et diffuse près du masque.',
-        format: v => `${v.toFixed(1)} %` },
-    { kind: 'choice', key: P.mode, tab: 'darkMatter', group: 'source', label: 'Source du masque', default: 'draw',
+        label: t('darkMatter.param.softening.label'),
+        doc: t('darkMatter.param.softening.doc'),
+        format: v => t('format.percent', { value: formatNumber(v, 1) }) },
+    { kind: 'choice', key: P.mode, tab: 'darkMatter', group: 'source', label: t('darkMatter.param.mode.label'), default: 'draw',
         options: [
-            { value: 'draw', label: 'Dessin' },
-            { value: 'image', label: 'Image' },
-            { value: 'text', label: 'Texte' },
+            { value: 'draw', label: t('darkMatter.option.mode.draw') },
+            { value: 'image', label: t('darkMatter.option.mode.image') },
+            { value: 'text', label: t('darkMatter.option.mode.text') },
         ],
-        doc: 'D\'où vient le masque d\'opacité qui place la matière noire : plus il est opaque, plus elle est dense. Chaque source garde son contenu quand on passe à une autre.' },
+        doc: t('darkMatter.param.mode.doc') },
     { ...sliderFields(DARK_MATTER_BRUSH_SIZE_SLIDER), key: P.brushSize, tab: 'darkMatter', group: 'draw',
-        label: 'Taille du pinceau',
-        doc: 'Diamètre du pinceau, en pixels. Le bord du pinceau est adouci.',
+        label: t('darkMatter.param.brushSize.label'),
+        doc: t('darkMatter.param.brushSize.doc'),
         format: px },
     { ...sliderFields(DARK_MATTER_BRUSH_FLOW_SLIDER), key: P.brushFlow, tab: 'darkMatter', group: 'draw',
-        label: 'Densité du pinceau',
-        doc: 'Matière noire déposée à chaque passage du pinceau. Repasser au même endroit la rend plus dense, jusqu\'à l\'opacité complète.',
+        label: t('darkMatter.param.brushFlow.label'),
+        doc: t('darkMatter.param.brushFlow.doc'),
         format: percent },
     { ...sliderFields(DARK_MATTER_OPACITY_SLIDER), key: P.imageOpacity, tab: 'darkMatter', group: 'image',
-        label: 'Opacité du masque',
-        doc: 'Densité de la matière noire là où l\'image est la plus claire. Les zones sombres ou transparentes de l\'image n\'en contiennent pas.',
+        label: t('darkMatter.param.imageOpacity.label'),
+        doc: t('darkMatter.param.imageOpacity.doc'),
         format: percent },
-    { kind: 'boolean', key: P.imageInvert, tab: 'darkMatter', group: 'image', label: 'Inverser', default: false,
-        doc: 'Place la matière noire dans les zones sombres de l\'image au lieu des zones claires.' },
-    { kind: 'choice', key: P.fontFamily, tab: 'darkMatter', group: 'text', label: 'Police', default: 'inter',
+    { kind: 'boolean', key: P.imageInvert, tab: 'darkMatter', group: 'image', label: t('darkMatter.param.imageInvert.label'), default: false,
+        doc: t('darkMatter.param.imageInvert.doc') },
+    { kind: 'choice', key: P.fontFamily, tab: 'darkMatter', group: 'text', label: t('darkMatter.param.fontFamily.label'), default: 'inter',
         options: DARK_MATTER_FONTS.map(({ value, label }) => ({ value, label })),
-        doc: 'Police du texte. Les polices épaisses donnent des lettres plus massives.' },
+        doc: t('darkMatter.param.fontFamily.doc') },
     { ...sliderFields(DARK_MATTER_FONT_SIZE_SLIDER), key: P.fontSize, tab: 'darkMatter', group: 'text',
-        label: 'Taille du texte',
-        doc: 'Hauteur des caractères, en pixels. Les lignes trop longues pour l\'écran passent à la ligne.',
+        label: t('darkMatter.param.fontSize.label'),
+        doc: t('darkMatter.param.fontSize.doc'),
         format: px },
     { ...sliderFields(DARK_MATTER_LINE_HEIGHT_SLIDER), key: P.lineHeight, tab: 'darkMatter', group: 'text',
-        label: 'Interligne',
-        doc: 'Distance entre deux lignes, en multiple de la taille du texte.',
-        format: v => `${v.toFixed(2)}×` },
-    { kind: 'boolean', key: P.bold, tab: 'darkMatter', group: 'text', label: 'Gras', default: true,
-        doc: 'Lettres épaisses : plus de matière noire par lettre.' },
-    { kind: 'boolean', key: P.italic, tab: 'darkMatter', group: 'text', label: 'Italique', default: false,
-        doc: 'Lettres penchées.' },
-    { kind: 'choice', key: P.align, tab: 'darkMatter', group: 'text', label: 'Alignement', default: 'center',
+        label: t('darkMatter.param.lineHeight.label'),
+        doc: t('darkMatter.param.lineHeight.doc'),
+        format: v => `${formatNumber(v, 2)}×` },
+    { kind: 'boolean', key: P.bold, tab: 'darkMatter', group: 'text', label: t('darkMatter.param.bold.label'), default: true,
+        doc: t('darkMatter.param.bold.doc') },
+    { kind: 'boolean', key: P.italic, tab: 'darkMatter', group: 'text', label: t('darkMatter.param.italic.label'), default: false,
+        doc: t('darkMatter.param.italic.doc') },
+    { kind: 'choice', key: P.align, tab: 'darkMatter', group: 'text', label: t('darkMatter.param.align.label'), default: 'center',
         options: [
-            { value: 'left', label: 'Gauche' },
-            { value: 'center', label: 'Centré' },
-            { value: 'right', label: 'Droite' },
+            { value: 'left', label: t('darkMatter.option.align.left') },
+            { value: 'center', label: t('darkMatter.option.align.center') },
+            { value: 'right', label: t('darkMatter.option.align.right') },
         ],
-        doc: 'Alignement horizontal des lignes. Le bloc de texte est centré verticalement.' },
+        doc: t('darkMatter.param.align.doc') },
     { ...sliderFields(DARK_MATTER_OPACITY_SLIDER), key: P.textOpacity, tab: 'darkMatter', group: 'text',
-        label: 'Opacité du masque',
-        doc: 'Densité de la matière noire dans les lettres.',
+        label: t('darkMatter.param.textOpacity.label'),
+        doc: t('darkMatter.param.textOpacity.doc'),
         format: percent },
 ];
 
@@ -114,7 +115,7 @@ export interface DarkMatterSettings {
     text: string;
 }
 
-export const DEFAULT_DARK_MATTER_TEXT = 'Matière\nnoire';
+export const DEFAULT_DARK_MATTER_TEXT = t('darkMatter.defaultText');
 
 export const defaultDarkMatter = (): DarkMatterSettings => sanitizeDarkMatterSettings(null);
 
@@ -137,7 +138,7 @@ export function sanitizeDarkMatterSettings(raw: unknown): DarkMatterSettings {
 
 function param(key: string): DarkMatterParam {
     const found = DARK_MATTER_PARAMS.find(p => p.key === key);
-    if (!found) throw new Error(`Paramètre de matière noire inconnu : ${key}`);
+    if (!found) throw new Error(`Unknown dark matter parameter: ${key}`);
     return found;
 }
 

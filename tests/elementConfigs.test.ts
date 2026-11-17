@@ -45,7 +45,7 @@ describe('element config store', () => {
         edited.typeCount = 4;
         expect(store.isDirty(edited)).toBe(true);
         const copy = store.duplicate(edited);
-        expect(copy.name).toBe('Configuration 1 (copie)');
+        expect(copy.name).toBe('Configuration 1 (copy)');
         expect(copy.species[0].values.weight).toBe(0.9);
         expect(store.isDirty(edited)).toBe(false);
 
@@ -69,7 +69,7 @@ describe('element config store', () => {
         expect(store.create().name).toBe('Configuration 2');
         store.duplicate(store.current);
         store.select(store.list()[2].id);
-        expect(store.duplicate(store.current).name).toBe('Configuration 2 (copie) 2');
+        expect(store.duplicate(store.current).name).toBe('Configuration 2 (copy) 2');
     });
 
     it('selects a config identical to a setup, or stays where it is', () => {

@@ -1,4 +1,5 @@
 import { DEFAULT_FPS_LIMIT, DISPLAY_SETTINGS_KEY, FPS_LIMIT_OPTIONS } from './config';
+import { isLanguagePreference, type LanguagePreference } from './i18n';
 
 /** Technical display settings, kept per browser (not part of the simulation configurations). */
 export interface DisplaySettings {
@@ -7,6 +8,8 @@ export interface DisplaySettings {
     showHelp: boolean;
     showStats: boolean;
     showAuthor: boolean;
+    /** Interface language; 'auto' follows the browser. A change takes effect after a reload. */
+    language: LanguagePreference;
 }
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
@@ -14,6 +17,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
     showHelp: true,
     showStats: false,
     showAuthor: true,
+    language: 'auto',
 };
 
 /** Minimal duration of a frame for an FPS cap (0 when unlimited). */
@@ -29,6 +33,7 @@ export function sanitizeDisplaySettings(raw: unknown): DisplaySettings {
         showHelp: flag(src.showHelp, d.showHelp),
         showStats: flag(src.showStats, d.showStats),
         showAuthor: flag(src.showAuthor, d.showAuthor),
+        language: isLanguagePreference(src.language) ? src.language : d.language,
     };
 }
 

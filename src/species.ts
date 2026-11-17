@@ -1,4 +1,5 @@
 import { MASS_JITTER, MASS_RANGE, MASS_SLIDER_STEPS, SIZE_RANGE, SIZE_STEP } from './config';
+import { formatNumber, t } from './i18n';
 import type { Hsl } from './util/color';
 import { clamp, shuffle, snap } from './util/math';
 
@@ -13,16 +14,16 @@ export interface Element {
 
 /** The first ten elements of the periodic table, in order. */
 export const ELEMENTS: readonly Element[] = [
-    { name: 'Hydrogène', symbol: 'H',  atomicMass: 1.008,  radius: 53,  color: '#ffffff' },
-    { name: 'Hélium',    symbol: 'He', atomicMass: 4.0026, radius: 31,  color: '#d9ffff' },
-    { name: 'Lithium',   symbol: 'Li', atomicMass: 6.94,   radius: 167, color: '#cc80ff' },
-    { name: 'Béryllium', symbol: 'Be', atomicMass: 9.0122, radius: 112, color: '#c2ff00' },
-    { name: 'Bore',      symbol: 'B',  atomicMass: 10.81,  radius: 87,  color: '#ffb5b5' },
-    { name: 'Carbone',   symbol: 'C',  atomicMass: 12.011, radius: 67,  color: '#a8a8a8' },
-    { name: 'Azote',     symbol: 'N',  atomicMass: 14.007, radius: 56,  color: '#6b8bff' },
-    { name: 'Oxygène',   symbol: 'O',  atomicMass: 15.999, radius: 48,  color: '#ff5c5c' },
-    { name: 'Fluor',     symbol: 'F',  atomicMass: 18.998, radius: 42,  color: '#90e050' },
-    { name: 'Néon',      symbol: 'Ne', atomicMass: 20.180, radius: 38,  color: '#b3e3f5' },
+    { name: t('species.H'), symbol: 'H', atomicMass: 1.008,  radius: 53,  color: '#ffffff' },
+    { name: t('species.He'), symbol: 'He', atomicMass: 4.0026, radius: 31,  color: '#d9ffff' },
+    { name: t('species.Li'), symbol: 'Li', atomicMass: 6.94,   radius: 167, color: '#cc80ff' },
+    { name: t('species.Be'), symbol: 'Be', atomicMass: 9.0122, radius: 112, color: '#c2ff00' },
+    { name: t('species.B'), symbol: 'B', atomicMass: 10.81,  radius: 87,  color: '#ffb5b5' },
+    { name: t('species.C'), symbol: 'C', atomicMass: 12.011, radius: 67,  color: '#a8a8a8' },
+    { name: t('species.N'), symbol: 'N', atomicMass: 14.007, radius: 56,  color: '#6b8bff' },
+    { name: t('species.O'), symbol: 'O', atomicMass: 15.999, radius: 48,  color: '#ff5c5c' },
+    { name: t('species.F'), symbol: 'F', atomicMass: 18.998, radius: 42,  color: '#90e050' },
+    { name: t('species.Ne'), symbol: 'Ne', atomicMass: 20.180, radius: 38,  color: '#b3e3f5' },
 ];
 
 // ---- Logarithmic mass slider ----
@@ -39,7 +40,7 @@ export const massToSlider = (m: number): number =>
     Math.round(Math.log(m / MASS_RANGE[0]) / MASS_LOG_SPAN * MASS_SLIDER_STEPS);
 
 /** Four significant digits without trailing zeros, like standard atomic weights (4.003, 20.18). */
-export const formatMass = (m: number): string => String(Number(m.toPrecision(4)));
+export const formatMass = (m: number): string => formatNumber(Number(m.toPrecision(4)), 3, 0);
 
 // ---- Randomization ----
 

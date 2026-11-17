@@ -4,6 +4,7 @@ import {
     cleanName, cloneSetup, copyName, defaultSetup, finiteIn, isRecord, numberedName, randomId, sameSetup, sanitizeConfig,
     type AlgorithmCatalog, type ElementSetup, type KeyValueStorage,
 } from './elementConfigs';
+import { t } from './i18n';
 import type { AlgorithmDeclaration, ParamValues } from './simulation/algorithm';
 import { ALGORITHMS } from './simulation/algorithms';
 import { panelParamValue } from './simulation/params';
@@ -39,8 +40,8 @@ interface StoredState {
     configs: unknown[];
 }
 
-const BUILTIN_NAME = 'Par défaut';
-const NEW_CONFIG_PREFIX = 'Simulation';
+const BUILTIN_NAME = t('name.default');
+const NEW_CONFIG_PREFIX = t('name.simulationPrefix');
 
 const builtinId = (algorithm: string): string => `builtin:simulation:${algorithm}`;
 

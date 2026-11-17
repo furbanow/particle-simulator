@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 /** --p (0..1) drives the filled part of the WebKit track (Firefox uses ::-moz-range-progress). */
 export function syncRange(input: HTMLInputElement): void {
     const min = parseFloat(input.min) || 0;
@@ -25,5 +26,5 @@ export function syncAllRanges(root: HTMLElement): void {
 
 /** Says on hover that double-click resets the sliders of `root` (the panel's show their documentation instead). */
 export function titleResettableRanges(root: HTMLElement): void {
-    root.querySelectorAll<HTMLInputElement>('input[type=range]').forEach(r => { r.title = 'Double-clic : valeur par défaut'; });
+    root.querySelectorAll<HTMLInputElement>('input[type=range]').forEach(r => { r.title = t('ui.doubleClickDefault'); });
 }

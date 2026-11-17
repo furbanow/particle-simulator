@@ -3,6 +3,7 @@
 // side (shaders, uniforms, passes) is a GpuModel, registered separately in gpuModels.ts.
 
 import type { Range, SliderSpec } from '../config';
+import { t } from '../i18n';
 import { clamp, snap } from '../util/math';
 
 // ---- Global parameters ----
@@ -19,13 +20,13 @@ export const PARTICLE_COUNT_PARAM = 'count';
  * is declared in it, so an algorithm gets its Fusion or Supernova tab by declaring its parameters.
  */
 export const PANEL_TABS = [
-    { id: 'initial', label: 'Conditions initiales' },
-    { id: 'elements', label: 'Éléments' },
-    { id: 'physics', label: 'Physique' },
-    { id: 'fusion', label: 'Fusion' },
-    { id: 'supernova', label: 'Supernova' },
-    { id: 'darkMatter', label: 'Matière noire' },
-    { id: 'effects', label: 'Effets visuels' },
+    { id: 'initial', label: t('tab.initial') },
+    { id: 'elements', label: t('tab.elements') },
+    { id: 'physics', label: t('tab.physics') },
+    { id: 'fusion', label: t('tab.fusion') },
+    { id: 'supernova', label: t('tab.supernova') },
+    { id: 'darkMatter', label: t('tab.darkMatter') },
+    { id: 'effects', label: t('tab.effects') },
 ] as const;
 
 export type PanelTab = typeof PANEL_TABS[number];
@@ -157,7 +158,7 @@ export interface TypeTransition {
 }
 
 export interface ParticleTypeSchema {
-    /** Words of the element bar: title ('Éléments'), one type ('Élément'), count slider, active stat. */
+    /** Words of the element bar: title ('Elements'), one type ('Element'), count slider, active stat. */
     readonly labels: { readonly title: string; readonly item: string; readonly count: string; readonly active: string };
     /** Chart tabs, in display order. */
     readonly properties: readonly TypeProperty[];

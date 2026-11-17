@@ -3,6 +3,7 @@ import {
     cloneDarkMatter, DARK_MATTER_PARAM as P, DARK_MATTER_PARAMS, darkMatterMode, darkMatterNumber, defaultDarkMatter,
     sanitizeDarkMatterSettings, type DarkMatterGroup, type DarkMatterSettings,
 } from '../darkMatter';
+import { t } from '../i18n';
 import type { ParamValue } from '../simulation/algorithm';
 import type { DarkMatterField } from '../simulation/darkMatter/DarkMatterField';
 import { MaskCanvas, type MaskPoint } from './darkMatter/maskCanvas';
@@ -18,7 +19,10 @@ export interface DarkMatterPanelTargets {
 }
 
 const GROUP_ORDER: readonly DarkMatterGroup[] = ['gravity', 'source', 'draw', 'image', 'text'];
-const GROUP_TITLES: Partial<Record<DarkMatterGroup, string>> = { gravity: 'Gravité', source: 'Masque' };
+const GROUP_TITLES: Partial<Record<DarkMatterGroup, string>> = {
+    gravity: t('darkMatter.group.gravity'),
+    source: t('darkMatter.group.mask'),
+};
 const GRAVITY_KEYS: ReadonlySet<string> = new Set([P.strength, P.softening]);
 
 interface Stroke {
@@ -139,8 +143,8 @@ export class DarkMatterPanel {
     private drawTools(): HTMLElement {
         const hint = document.createElement('p');
         hint.className = 'hint dm-hint';
-        hint.textContent = 'Dessinez sur la simulation : clic gauche pour ajouter de la matière noire, clic droit ou Maj pour en retirer.';
-        const clear = button('Effacer le dessin', () => {
+        hint.textContent = t('darkMatter.draw.hint');
+        const clear = button(t('darkMatter.draw.clear'), () => {
             this.mask.clearDrawing();
             this.render();
             this.reveal();
@@ -161,12 +165,12 @@ export class DarkMatterPanel {
             input.value = '';                       // the same file can be picked again
             if (file) this.importImage(file);
         });
-        const pick = button('Importer une image…', () => input.click());
-        if (!this.fileName.textContent) this.fileName.textContent = 'Aucune image';
+        const pick = button(t('darkMatter.image.import'), () => input.click());
+        if (!this.fileName.textContent) this.fileName.textContent = t('darkMatter.image.none');
         this.fileName.className = 'dm-file-name';
         const row = document.createElement('div');
         row.className = 'dm-file-row';
-        row.dataset.tooltip = 'L\'image est ajustée à la zone de simulation sans être déformée. Ses zones claires deviennent de la matière noire dense.';
+        row.dataset.tooltip = t('darkMatter.image.tooltip');
         row.append(pick, this.fileName, input);
         return row;
     }
@@ -179,17 +183,17 @@ export class DarkMatterPanel {
             this.render();
             this.reveal();
         }, () => {
-            this.fileName.textContent = 'Image illisible';
+            this.fileName.textContent = t('darkMatter.image.error');
         });
     }
 
     private textField(): HTMLElement {
         const field = document.createElement('label');
         field.className = 'field';
-        field.dataset.tooltip = 'Texte écrit en matière noire, sur plusieurs lignes au besoin. Les lignes trop longues pour l\'écran passent à la ligne.';
+        field.dataset.tooltip = t('darkMatter.text.tooltip');
         const row = document.createElement('span');
         row.className = 'field-row';
-        row.textContent = 'Texte';
+        row.textContent = t('darkMatter.text.label');
         const area = document.createElement('textarea');
         area.className = 'dm-textarea';
         area.rows = 3;

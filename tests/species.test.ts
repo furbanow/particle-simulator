@@ -37,8 +37,8 @@ describe('mass slider (logarithmic)', () => {
 describe('default species: the first ten elements', () => {
     it('are hydrogen to neon, in order', () => {
         expect(DEFAULT_SPECIES.map(s => s.symbol)).toEqual(['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne']);
-        expect(DEFAULT_SPECIES[0].name).toBe('Hydrogène');
-        expect(DEFAULT_SPECIES[9].name).toBe('Néon');
+        expect(DEFAULT_SPECIES[0].name).toBe('Hydrogen');
+        expect(DEFAULT_SPECIES[9].name).toBe('Neon');
     });
 
     it('use the standard atomic masses in u', () => {

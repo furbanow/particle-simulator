@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import './styles/main.css';
 import { BASE_DT } from './config';
 import { DisplaySettingsStore, frameMs } from './displaySettings';
+import { applyStaticTranslations, getLanguage, t } from './i18n';
 import { NebulaLayer } from './render/nebulaLayer';
 import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
@@ -23,6 +24,10 @@ import { setupSliders, syncAllRanges, titleResettableRanges } from './ui/sliders
 import { Stats } from './ui/stats';
 import { setupTooltips } from './ui/tooltip';
 
+// The static texts of the page, in the language fixed at load (changing it reloads the page).
+document.documentElement.lang = getLanguage();
+applyStaticTranslations(document);
+
 const container = byId('sim-container');
 const uiPanel = byId('ui-panel');
 const startBtn = byId('startBtn');
@@ -30,7 +35,7 @@ const startBtn = byId('startBtn');
 // ---- Renderer ----
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 if (!renderer.extensions.has('EXT_color_buffer_float')) {
-    fail('WebGL2 EXT_color_buffer_float non supporté : impossible de rendre dans des textures flottantes.');
+    fail(t('error.floatTextures'));
 }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x000000, 1);

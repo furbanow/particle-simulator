@@ -1,4 +1,5 @@
 import { ELEMENT_CONFIGS_KEY } from './config';
+import { t } from './i18n';
 import {
     cloneType, defaultTypeCount, numberProperties, type AlgorithmDeclaration, type ParticleType,
     type ParticleTypeSchema,
@@ -38,8 +39,8 @@ interface StoredState {
 
 /** Configs saved before configs belonged to an algorithm (version 1) are sticky dust ones. */
 const LEGACY_ALGORITHM: AlgorithmId = 'stickyDust';
-const NEW_CONFIG_PREFIX = 'Configuration';
-const COPY_SUFFIX = ' (copie)';
+const NEW_CONFIG_PREFIX = t('name.configPrefix');
+const COPY_SUFFIX = ` (${t('name.copy')})`;
 const MAX_NAME_LENGTH = 40;
 const MAX_SYMBOL_LENGTH = 3;
 const COLOR_RE = /^#[0-9a-f]{6}$/i;

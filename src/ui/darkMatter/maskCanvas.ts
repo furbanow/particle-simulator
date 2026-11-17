@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import {
     DARK_MATTER_BRUSH_HARDNESS, DARK_MATTER_BRUSH_SPACING, DARK_MATTER_TEXT_MARGIN, DARK_MATTER_TINT,
 } from '../../config';
@@ -12,7 +13,7 @@ const tint = (alpha: number): string => `rgba(${TINT_R}, ${TINT_G}, ${TINT_B}, $
 
 function context2d(canvas: HTMLCanvasElement, willReadFrequently = false): CanvasRenderingContext2D {
     const ctx = canvas.getContext('2d', { willReadFrequently });
-    if (!ctx) throw new Error('Canvas 2D indisponible');
+    if (!ctx) throw new Error(t('error.canvas2d'));
     return ctx;
 }
 

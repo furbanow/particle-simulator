@@ -147,8 +147,8 @@ describe('sticky dust keeps its defaults', () => {
     it('displays', () => {
         const display = Object.fromEntries(STICKY_DUST.params.map(p => [p.key, p.kind === 'number' ? p.format(p.default) : '']));
         expect(display).toEqual({
-            count: (400000).toLocaleString('fr-FR'), gravity: 'G = 2.5', supernovaThreshold: '37 %',
-            concentrationRadius: '65 px', supernovaPower: '70 %',
+            count: (400000).toLocaleString('en'), gravity: 'G = 2.5', supernovaThreshold: '37%',
+            concentrationRadius: '65 px', supernovaPower: '70%',
         });
         expect(tabsOf(STICKY_DUST.params).map(t => t.id)).toEqual(['initial', 'physics', 'supernova']);
     });
@@ -165,13 +165,13 @@ describe('sticky dust keeps its defaults', () => {
         expect(defaultTypeCount(STICKY_DUST.particleTypes)).toBe(3);
         expect(populationProperty(STICKY_DUST.particleTypes)?.key).toBe('weight');
         expect(populationWeights(STICKY_DUST.particleTypes, STICKY_DUST_TYPES)).toEqual(new Array(10).fill(0.5));
-        expect(STICKY_DUST.particleTypes.builtinConfig).toEqual({ id: 'builtin:chemical-elements', name: 'Éléments chimiques' });
+        expect(STICKY_DUST.particleTypes.builtinConfig).toEqual({ id: 'builtin:chemical-elements', name: 'Chemical elements' });
     });
 
     it('stats: supernovae and the concentration meter with the threshold marker', () => {
-        expect(STICKY_DUST.stats?.map(s => [s.kind, s.label])).toEqual([['value', 'Supernovae'], ['meter', 'Concentration max']]);
+        expect(STICKY_DUST.stats?.map(s => [s.kind, s.label])).toEqual([['value', 'Supernovae'], ['meter', 'Max concentration']]);
         const meter = STICKY_DUST.stats?.[1];
-        expect(meter?.kind === 'meter' && meter.marker?.format(60)).toBe('seuil 60 %');
+        expect(meter?.kind === 'meter' && meter.marker?.format(60)).toBe('threshold 60%');
     });
 });
 

@@ -2,6 +2,7 @@ import {
     COLOR_GRADIENT_STOPS, COLOR_PERCENT_STEPS, HUE_STEPS, HUE_VISIBLE_LIGHTNESS, HUE_VISIBLE_MIN_SATURATION,
     VIVID_LIGHTNESS, VIVID_SATURATION, type Range,
 } from './config';
+import { t } from './i18n';
 import { formatShare } from './population';
 import type { ColorProperty, NumberProperty, ParticleType, ParticleTypeSchema } from './simulation/algorithm';
 import { randomSpeciesHsl } from './species';
@@ -42,7 +43,7 @@ export interface ElementMetric {
     track?(t: ParticleType, direction: string): string;
 }
 
-const DEFAULT_RESET_LABEL = 'Par défaut';
+const DEFAULT_RESET_LABEL = t('prop.default');
 const UNIT: Range = [0, 1];
 
 // ---- Colors ----
@@ -79,7 +80,7 @@ export function colorGradient(direction: string, colorAt: (t: number) => Hsl): s
     return `linear-gradient(${direction}, ${stops.join(', ')})`;
 }
 
-const percent = (v: number): string => `${Math.round(v * 100)} %`;
+const percent = (v: number): string => t('format.percent', { value: Math.round(v * 100) });
 
 /** The three channels of a color property; Default / Random / double-click act on the whole color. */
 function colorMetrics(property: ColorProperty, defaults: readonly ParticleType[]): ElementMetric[] {
@@ -92,21 +93,21 @@ function colorMetrics(property: ColorProperty, defaults: readonly ParticleType[]
     } as const;
     return [
         {
-            ...shared, id: 'hue', label: 'Teinte', step: 1 / HUE_STEPS,
+            ...shared, id: 'hue', label: t('prop.hue'), step: 1 / HUE_STEPS,
             position: t => speciesHsl(t).h,
             set: (t, p) => setHsl(t, withHue(speciesHsl(t), snap(p, 1 / HUE_STEPS, UNIT))),
             format: t => `${Math.round(speciesHsl(t).h * HUE_STEPS)}°`,
             track: (t, direction) => { const hsl = speciesHsl(t); return colorGradient(direction, p => withHue(hsl, p)); },
         },
         {
-            ...shared, id: 'saturation', label: 'Saturation', step: 1 / COLOR_PERCENT_STEPS,
+            ...shared, id: 'saturation', label: t('prop.saturation'), step: 1 / COLOR_PERCENT_STEPS,
             position: t => speciesHsl(t).s,
             set: (t, p) => setHsl(t, { ...speciesHsl(t), s: snap(p, 1 / COLOR_PERCENT_STEPS, UNIT) }),
             format: t => percent(speciesHsl(t).s),
             track: (t, direction) => { const hsl = speciesHsl(t); return colorGradient(direction, p => ({ ...hsl, s: p })); },
         },
         {
-            ...shared, id: 'lightness', label: 'Luminosité', step: 1 / COLOR_PERCENT_STEPS,
+            ...shared, id: 'lightness', label: t('prop.lightness'), step: 1 / COLOR_PERCENT_STEPS,
             position: t => speciesHsl(t).l,
             set: (t, p) => setHsl(t, { ...speciesHsl(t), l: snap(p, 1 / COLOR_PERCENT_STEPS, UNIT) }),
             format: t => percent(speciesHsl(t).l),

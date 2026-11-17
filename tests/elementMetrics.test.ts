@@ -28,12 +28,12 @@ describe('hex <-> HSL', () => {
 describe('element metrics', () => {
     it('are, in order, population, atomic mass, size and the three color channels', () => {
         expect(ELEMENT_METRICS.map(m => m.label))
-            .toEqual(['Répartition', 'Masse atomique', 'Taille', 'Teinte', 'Saturation', 'Luminosité']);
+            .toEqual(['Distribution', 'Atomic mass', 'Size', 'Hue', 'Saturation', 'Lightness']);
         expect(ELEMENT_METRICS.map(m => m.live)).toEqual([false, true, true, true, true, true]);
     });
 
     it('group the color channels in one tab', () => {
-        expect(METRIC_GROUPS.map(g => g.label)).toEqual(['Répartition', 'Masse atomique', 'Taille', 'Couleur']);
+        expect(METRIC_GROUPS.map(g => g.label)).toEqual(['Distribution', 'Atomic mass', 'Size', 'Color']);
         expect(METRIC_GROUPS[3].metrics.map(m => m.id)).toEqual(['hue', 'saturation', 'lightness']);
         expect(METRIC_GROUPS[1].unit).toBe('u');
     });
@@ -92,10 +92,10 @@ describe('element metrics', () => {
 
     it('format population as a share and the rest as values', () => {
         const [h] = DEFAULT_SPECIES;
-        expect(metric('weight').format(h, 0.1)).toBe('10 %');
+        expect(metric('weight').format(h, 0.1)).toBe('10%');
         expect(metric('weight').format(h, null)).toBe('–');
         expect(metric('mass').format(h, null)).toBe('1.008');
-        expect(metric('lightness').format(h, null)).toBe('100 %');
+        expect(metric('lightness').format(h, null)).toBe('100%');
         expect(metric('hue').format(DEFAULT_SPECIES[6], null)).toMatch(/^\d+°$/);
     });
 });

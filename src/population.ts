@@ -1,4 +1,5 @@
 import { RANDOM_WEIGHT_RANGE } from './config';
+import { formatNumber, t } from './i18n';
 
 /**
  * Population share of each of the first `typeCount` species (weights beyond are ignored).
@@ -28,7 +29,7 @@ export function splitPopulation(total: number, weights: readonly number[], typeC
 /** "12 %", one decimal below 10 % so small shares don't read as 0. */
 export function formatShare(share: number): string {
     const pct = share * 100;
-    return `${pct > 0 && pct < 10 ? pct.toFixed(1) : pct.toFixed(0)} %`;
+    return t('format.percent', { value: formatNumber(pct, pct > 0 && pct < 10 ? 1 : 0) });
 }
 
 /** Random weights in RANDOM_WEIGHT_RANGE (never zero, so every visible species stays populated). */

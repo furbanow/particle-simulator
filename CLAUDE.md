@@ -11,6 +11,7 @@ Local TypeScript web application (Vite + Three.js 0.169, WebGL2): a multi-specie
 ## Organization
 
 - `src/config.ts`: all constants. No magic numbers in the rest of the code.
+- `src/i18n/`: internationalization (en, fr, pl, de). `locales/en.ts` is the source catalog and defines `MessageKey`; the other catalogs are `Record<MessageKey, string>`, so a key missing from a language fails `make check`. Texts come from `t(key, params)` (`{name}` placeholders), numbers from `formatNumber()`. The language (saved preference, else browser language, else English) is fixed at load, so declarations call `t()` at import time; changing it in the settings dialog reloads the page. The static page uses `data-i18n*` attributes (`applyStaticTranslations()`), with English fallback text in `index.html`. Tests run in English (`tests/setup.ts`).
 - `src/simulation/`: physics (GPGPU, density field, cluster detection, shock wave). No DOM access.
 - `src/render/`: rendering layers and post-processing.
 - `src/ui/`: side panel, element editors (`elementsQuickPanel.ts`: simple editor in the panel's Elements tab, with number of elements, color, atomic mass and size of each; `elementBar.ts`: advanced editor with one chart per property, configs and element editor, shown in the large semi-transparent modal `#elements-modal` opened by the "Avancé" button; `modal.ts`: overlay closed by the cross, a click outside or Escape) and statistics overlaid on the animation at the top right (`stats.ts`); the author overlay sits at the bottom left (`index.html`, `author.css`). They communicate with the simulation through its public properties and through the `onSupernova` / `onConcentration` callbacks.
@@ -26,6 +27,6 @@ Local TypeScript web application (Vite + Three.js 0.169, WebGL2): a multi-specie
 
 ## Conventions
 
-- UI texts in French.
-- Code comments in English, as in the existing code.
+- No user-visible text in the code: add a key to all four catalogs in `src/i18n/locales/` (English first, then fr, de, pl) and use `t()`. Do not lowercase or concatenate translated words: use a message with placeholders.
+- Code, comments, identifiers and internal error messages in English, as in the existing code.
 - Strict TypeScript: no `any`.

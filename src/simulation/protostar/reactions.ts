@@ -4,6 +4,7 @@
 // more row and its parameters, without touching the shaders.
 
 import { PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_T0_KELVIN } from '../../config';
+import { t } from '../../i18n';
 import type { ParamValues, ParticleType, TypeTransition } from '../algorithm';
 
 export interface FusionReaction {
@@ -26,7 +27,7 @@ export interface FusionReaction {
 
 /** The transitions the declaration shows in the type editor. */
 export const reactionTransitions = (reactions: readonly FusionReaction[]): TypeTransition[] =>
-    reactions.map(r => ({ from: r.from, to: r.to, label: `${r.label} (${r.consumed} pour 1)` }));
+    reactions.map(r => ({ from: r.from, to: r.to, label: t('algo.protostar.reaction.format', { label: r.label, consumed: r.consumed }) }));
 
 /** Mass defect of one reaction, in the unit of the type masses (u): consumed * m_from - m_to. */
 export function massDefect(reaction: FusionReaction, mass: (rank: number) => number): number {

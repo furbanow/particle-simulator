@@ -1,4 +1,5 @@
 import { METER_LABEL_RANGE } from '../config';
+import { t } from '../i18n';
 import type { StatDef } from '../simulation/algorithm';
 import { findParam, paramFraction } from '../simulation/params';
 import type { Simulation } from '../simulation/Simulation';
@@ -9,7 +10,7 @@ import { rememberedOpen, rememberOpen } from './panelState';
 
 const UNKNOWN = '–';
 const OPEN_KEY = 'statsOverlay';
-const TOGGLE_LABEL = { open: 'Masquer les statistiques', closed: 'Afficher les statistiques' };
+const TOGGLE_LABEL = { open: t('ui.stats.hide'), closed: t('ui.stats.show') };
 
 /** A tile of an algorithm stat: paint() re-reads its value, only touching the DOM when it changed. */
 interface StatTile {

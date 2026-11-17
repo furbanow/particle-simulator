@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Simulateur de particules GPGPU multi-espèces : gravité, supernovae, bloom HDR et nébuleuse.">
-    <title>Gravité &amp; Supernova</title>
+    <meta name="description" content="Multi-species GPGPU particle simulator: gravity, supernovae, HDR bloom and nebula." data-i18n-content="meta.description">
+    <title data-i18n="meta.title">Particle Simulator</title>
     <meta name="author" content="furbanow@gmail.com, Software Engineering">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Gravité &amp; Supernova">
-    <meta property="og:description" content="Simulateur de particules GPGPU multi-espèces : gravité, supernovae, bloom HDR et nébuleuse.">
+    <meta property="og:title" content="Particle Simulator" data-i18n-content="meta.title">
+    <meta property="og:description" content="Multi-species GPGPU particle simulator: gravity, supernovae, HDR bloom and nebula." data-i18n-content="meta.description">
     <meta property="og:image" content="/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -25,52 +25,52 @@
             <img class="logo" src="/logo.png" alt="" width="30" height="30">
             <div class="brand-text">
                 <h1>Particle Simulator</h1>
-                <p class="subtitle">GPGPU multi-espèces</p>
+                <p class="subtitle" data-i18n="ui.subtitle">Multi-species GPGPU</p>
             </div>
             <div class="brand-actions">
-                <button id="hidePanelBtn" class="icon-btn" title="Masquer le panneau (H)" aria-label="Masquer le panneau">
+                <button id="hidePanelBtn" class="icon-btn" title="Hide the panel (H)" aria-label="Hide the panel" data-i18n-title="ui.panel.hide.title" data-i18n-aria="ui.panel.hide.aria">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16M15.5 10l-2 2 2 2"/></svg></button>
             </div>
         </div>
         <div id="simulationConfig" class="simulation-config">
-            <label for="simulationConfigSelect" class="config-title">Configuration de la simulation</label>
+            <label for="simulationConfigSelect" class="config-title" data-i18n="ui.simConfig.title">Simulation configuration</label>
             <div class="config-picker">
-                <select id="simulationConfigSelect" class="config-select" title="Charger une configuration"></select>
-                <input class="config-name" type="text" maxlength="40" aria-label="Nom de la configuration" spellcheck="false" hidden>
-                <span class="dirty-dot" title="Modifications non enregistrées" hidden></span>
+                <select id="simulationConfigSelect" class="config-select" title="Load a configuration" data-i18n-title="ui.config.load"></select>
+                <input class="config-name" type="text" maxlength="40" aria-label="Configuration name" data-i18n-aria="ui.config.name" spellcheck="false" hidden>
+                <span class="dirty-dot" title="Unsaved changes" data-i18n-title="ui.config.dirty" hidden></span>
             </div>
             <div class="config-tools">
-                <button class="btn icon-only config-new" type="button" title="Nouvelle configuration (valeurs par défaut de l'algorithme courant)" aria-label="Nouvelle configuration">
+                <button class="btn icon-only config-new" type="button" title="New configuration (default values of the current algorithm)" aria-label="New configuration" data-i18n-title="ui.config.new.simulation" data-i18n-aria="ui.config.new.aria">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-                <button class="btn icon-only config-duplicate" type="button" title="Dupliquer la configuration" aria-label="Dupliquer la configuration">
+                <button class="btn icon-only config-duplicate" type="button" title="Duplicate the configuration" aria-label="Duplicate the configuration" data-i18n-title="ui.config.duplicate" data-i18n-aria="ui.config.duplicate">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button>
-                <button class="btn icon-only config-rename" type="button" title="Renommer la configuration" aria-label="Renommer la configuration">
+                <button class="btn icon-only config-rename" type="button" title="Rename the configuration" aria-label="Rename the configuration" data-i18n-title="ui.config.rename" data-i18n-aria="ui.config.rename">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button>
-                <button class="btn icon-only config-delete" type="button" title="Supprimer la configuration" aria-label="Supprimer la configuration">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg><span class="confirm-label">Supprimer ?</span></button>
-                <button class="btn icon-only config-save" type="button" title="Enregistrer dans la configuration" aria-label="Enregistrer la configuration">
+                <button class="btn icon-only config-delete" type="button" title="Delete the configuration" aria-label="Delete the configuration" data-i18n-title="ui.config.delete" data-i18n-aria="ui.config.delete">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg><span class="confirm-label" data-i18n="ui.config.deleteConfirm">Delete?</span></button>
+                <button class="btn icon-only config-save" type="button" title="Save into the configuration" aria-label="Save the configuration" data-i18n-title="ui.config.save.title" data-i18n-aria="ui.config.save.aria">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg></button>
             </div>
         </div>
-        <button id="startBtn" class="btn-primary" title="Redémarrer la simulation (R)">
+        <button id="startBtn" class="btn-primary" title="Restart the simulation (R)" data-i18n-title="ui.restart.title">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>
-            Redémarrer<kbd>R</kbd></button>
+            <span data-i18n="ui.restart">Restart</span><kbd>R</kbd></button>
         <div id="algorithmPicker" class="algo-picker">
-            <label for="algorithmSelect" class="algo-label">Algorithme</label>
+            <label for="algorithmSelect" class="algo-label" data-i18n="ui.algorithm">Algorithm</label>
             <select id="algorithmSelect"></select>
         </div>
-        <div id="speedDock" class="speed-dock" data-tooltip="Fait défiler le temps simulé plus ou moins vite. N'agit que sur le rythme de l'animation : à 1×, une seconde simulée dure une seconde ; à 0, la simulation est en pause.">
+        <div id="speedDock" class="speed-dock" data-tooltip="Makes the simulated time run faster or slower. It only changes the pace of the animation: at 1×, one simulated second lasts one second; at 0, the simulation is paused." data-i18n-tooltip="ui.speed.tooltip">
             <div class="speed-head">
                 <svg class="speed-gauge" viewBox="0 0 24 24" aria-hidden="true">
                     <path class="speed-arc" d="M4.5 16a7.5 7.5 0 1 1 15 0"/>
                     <path class="speed-needle" d="M12 16V9.5"/>
                     <circle cx="12" cy="16" r="1.6"/></svg>
-                <label for="speedSlider" class="speed-label">Vitesse de simulation</label>
+                <label for="speedSlider" class="speed-label" data-i18n="ui.speed.label">Simulation speed</label>
                 <span id="speedVal" class="speed-value">1.0×</span>
             </div>
-            <input type="range" id="speedSlider" min="0" max="3" step="0.1" value="1.5" aria-label="Vitesse de simulation">
+            <input type="range" id="speedSlider" min="0" max="3" step="0.1" value="1.5" aria-label="Simulation speed" data-i18n-aria="ui.speed.label">
             <div class="speed-ticks" aria-hidden="true">
-                <span style="--at: 0">Pause</span>
+                <span style="--at: 0" data-i18n="ui.speed.pause">Pause</span>
                 <span style="--at: 1">1×</span>
                 <span style="--at: 2">2×</span>
                 <span style="--at: 3">3×</span>
@@ -79,83 +79,87 @@
     </header>
 
     <!-- The tabs and the parameters they hold are built from the declarations (ParamPanel). -->
-    <div id="panelTabs" class="panel-tabs" role="tablist" aria-label="Paramètres" aria-orientation="horizontal"></div>
+    <div id="panelTabs" class="panel-tabs" role="tablist" aria-label="Parameters" data-i18n-aria="ui.tabs.aria" aria-orientation="horizontal"></div>
     <div id="panelTabContent" class="panel-scroll"></div>
     <footer class="panel-footer">
-        <button id="settingsBtn" class="icon-btn" type="button" title="Paramètres" aria-label="Paramètres" aria-haspopup="dialog">
+        <button id="settingsBtn" class="icon-btn" type="button" title="Settings" aria-label="Settings" data-i18n-title="ui.settings" data-i18n-aria="ui.settings" aria-haspopup="dialog">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
     </footer>
 </div>
 <!-- Advanced element editor: a large, semi-transparent modal opened from the panel's Elements tab (ElementBar). -->
 <div id="elements-modal" class="modal" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="elementBarTitle">
-        <button class="icon-btn modal-close" type="button" title="Fermer (Échap)" aria-label="Fermer">
+        <button class="icon-btn modal-close" type="button" title="Close (Esc)" aria-label="Close" data-i18n-title="ui.close.title" data-i18n-aria="ui.close">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
         <section id="element-bar">
             <div class="ebar-head">
-                <span class="ebar-title" id="elementBarTitle">Éléments</span>
+                <span class="ebar-title" id="elementBarTitle" data-i18n="ui.elements.title">Elements</span>
                 <div class="config-picker">
-                    <select class="config-select" title="Charger une configuration" aria-label="Configuration d'éléments"></select>
-                    <input class="config-name" type="text" maxlength="40" aria-label="Nom de la configuration" spellcheck="false" hidden>
-                    <span class="dirty-dot" title="Modifications non enregistrées" hidden></span>
+                    <select class="config-select" title="Load a configuration" aria-label="Elements configuration" data-i18n-title="ui.config.load" data-i18n-aria="ui.elements.configAria"></select>
+                    <input class="config-name" type="text" maxlength="40" aria-label="Configuration name" data-i18n-aria="ui.config.name" spellcheck="false" hidden>
+                    <span class="dirty-dot" title="Unsaved changes" data-i18n-title="ui.config.dirty" hidden></span>
                 </div>
                 <div class="config-tools">
-                    <button class="btn icon-only config-new" type="button" title="Nouvelle configuration (éléments chimiques)" aria-label="Nouvelle configuration">
+                    <button class="btn icon-only config-new" type="button" title="New configuration" aria-label="New configuration" data-i18n-title="ui.config.new.aria" data-i18n-aria="ui.config.new.aria">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-                    <button class="btn icon-only config-duplicate" type="button" title="Dupliquer la configuration" aria-label="Dupliquer la configuration">
+                    <button class="btn icon-only config-duplicate" type="button" title="Duplicate the configuration" aria-label="Duplicate the configuration" data-i18n-title="ui.config.duplicate" data-i18n-aria="ui.config.duplicate">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button>
-                    <button class="btn icon-only config-rename" type="button" title="Renommer la configuration" aria-label="Renommer la configuration">
+                    <button class="btn icon-only config-rename" type="button" title="Rename the configuration" aria-label="Rename the configuration" data-i18n-title="ui.config.rename" data-i18n-aria="ui.config.rename">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button>
-                    <button class="btn icon-only config-delete" type="button" title="Supprimer la configuration" aria-label="Supprimer la configuration">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg><span class="confirm-label">Supprimer ?</span></button>
-                    <button class="btn config-save" type="button" title="Enregistrer dans la configuration">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg>Enregistrer</button>
+                    <button class="btn icon-only config-delete" type="button" title="Delete the configuration" aria-label="Delete the configuration" data-i18n-title="ui.config.delete" data-i18n-aria="ui.config.delete">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg><span class="confirm-label" data-i18n="ui.config.deleteConfirm">Delete?</span></button>
+                    <button class="btn config-save" type="button" title="Save into the configuration" data-i18n-title="ui.config.save.title">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span data-i18n="ui.config.save">Save</span></button>
                 </div>
                 <div id="elementsHint" class="hint pending"></div>
                 <label class="field ebar-count">
-                    <span class="field-row"><span id="typeCountLabel">Nombre d'éléments</span> <span id="typeCountVal" class="value-display"></span></span>
+                    <span class="field-row"><span id="typeCountLabel" data-i18n="ui.elements.count">Number of elements</span> <span id="typeCountVal" class="value-display"></span></span>
                     <input type="range" id="typeCountSlider" min="1" max="10" step="1" value="10">
                 </label>
             </div>
             <div class="ebar-body">
                 <div id="chartGrid" class="chart-grid"></div>
                 <section class="ebar-card ebar-editor">
-                    <div class="ebar-card-head"><h2 id="elementEditorTitle">Élément</h2></div>
+                    <div class="ebar-card-head"><h2 id="elementEditorTitle" data-i18n="ui.elements.item">Element</h2></div>
                     <div id="elementEditor" class="element-editor"></div>
                 </section>
             </div>
         </section>
     </div>
 </div>
-<button id="showPanelBtn" class="icon-btn" title="Afficher le panneau (H)" aria-label="Afficher le panneau">
+<button id="showPanelBtn" class="icon-btn" title="Show the panel (H)" aria-label="Show the panel" data-i18n-title="ui.panel.show.title" data-i18n-aria="ui.panel.show.aria">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16M13.5 10l2 2-2 2"/></svg></button>
 <div id="sim-container"></div>
 <!-- Author: discreet, see-through overlay in the bottom-left corner of the animation. -->
 <address id="authorOverlay" class="author">
-    <span>Author: <a class="author-email" href="mailto:furbanow@gmail.com">furbanow@gmail.com</a></span>
-    <span class="author-title">Software Engineering</span>
+    <span><span data-i18n="ui.author">Author:</span> <a class="author-email" href="mailto:furbanow@gmail.com">furbanow@gmail.com</a></span>
+    <span class="author-title" data-i18n="ui.author.title">Software Engineering</span>
 </address>
 <!-- Display settings: same modal as the advanced element editor, in a narrower card (DisplaySettingsPanel). -->
 <div id="settings-modal" class="modal" hidden>
     <div class="modal-card modal-card-narrow" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-        <button class="icon-btn modal-close" type="button" title="Fermer (Échap)" aria-label="Fermer">
+        <button class="icon-btn modal-close" type="button" title="Close (Esc)" aria-label="Close" data-i18n-title="ui.close.title" data-i18n-aria="ui.close">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
         <section class="settings">
-            <h2 class="settings-title" id="settingsTitle">Paramètres</h2>
+            <h2 class="settings-title" id="settingsTitle" data-i18n="ui.settings">Settings</h2>
             <label class="settings-row">
-                <span class="settings-label">Limiteur de FPS</span>
+                <span class="settings-label" data-i18n="ui.settings.language">Language</span>
+                <select id="languageSelect" class="config-select"></select>
+            </label>
+            <label class="settings-row">
+                <span class="settings-label" data-i18n="ui.settings.fps">FPS limiter</span>
                 <select id="fpsLimitSelect" class="config-select"></select>
             </label>
             <label class="settings-row">
-                <span class="settings-label">Afficher l'aide (raccourcis)</span>
+                <span class="settings-label" data-i18n="ui.settings.help">Show help (shortcuts)</span>
                 <input type="checkbox" id="showHelpBox">
             </label>
             <label class="settings-row">
-                <span class="settings-label">Afficher les statistiques</span>
+                <span class="settings-label" data-i18n="ui.settings.stats">Show statistics</span>
                 <input type="checkbox" id="showStatsBox">
             </label>
             <label class="settings-row">
-                <span class="settings-label">Afficher l'auteur</span>
+                <span class="settings-label" data-i18n="ui.settings.author">Show author</span>
                 <input type="checkbox" id="showAuthorBox">
             </label>
         </section>
@@ -163,18 +167,18 @@
 </div>
 <!-- Keyboard shortcuts: discreet overlay in the top-left corner of the animation, under the element bar. -->
 <footer class="shortcuts">
-    <span><kbd>R</kbd>redémarrer</span>
-    <span><kbd>H</kbd>panneau</span>
-    <span>double-clic : valeur par défaut</span>
+    <span><kbd>R</kbd><span data-i18n="ui.shortcut.restart">restart</span></span>
+    <span><kbd>H</kbd><span data-i18n="ui.shortcut.panel">panel</span></span>
+    <span data-i18n="ui.shortcut.default">double-click: default value</span>
 </footer>
 <div id="statsOverlay" class="stats-overlay">
     <button id="toggleStatsBtn" class="icon-btn stats-toggle" type="button" aria-controls="statGrid">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/><path class="eye-slash" d="M4 4l16 16"/></svg></button>
     <!-- Live stats over the animation; the selected algorithm's stats are appended here (Stats). -->
-    <aside id="statGrid" class="stat-grid" aria-label="Statistiques">
-        <div class="stat"><div class="stat-label">FPS</div><div class="stat-value" id="fpsVal" title="Images par seconde">–</div></div>
-        <div class="stat"><div class="stat-label">Particules actives</div><div class="stat-value" id="activeVal">–</div></div>
-        <div class="stat"><div class="stat-label" id="typesActiveLabel">Éléments actifs</div><div class="stat-value" id="typesActiveVal">–</div></div>
+    <aside id="statGrid" class="stat-grid" aria-label="Statistics" data-i18n-aria="ui.stats.aria">
+        <div class="stat"><div class="stat-label">FPS</div><div class="stat-value" id="fpsVal" title="Frames per second" data-i18n-title="ui.stats.fps.title">–</div></div>
+        <div class="stat"><div class="stat-label" data-i18n="ui.stats.particles">Active particles</div><div class="stat-value" id="activeVal">–</div></div>
+        <div class="stat"><div class="stat-label" id="typesActiveLabel" data-i18n="ui.elements.active">Active elements</div><div class="stat-value" id="typesActiveVal">–</div></div>
     </aside>
 </div>
 <div id="error"></div>

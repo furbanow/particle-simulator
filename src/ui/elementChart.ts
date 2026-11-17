@@ -1,5 +1,6 @@
 import { CHART_KEY_STEP } from '../config';
 import type { ElementMetric } from '../elementMetrics';
+import { t } from '../i18n';
 import { formatShare, populationShares } from '../population';
 import { populationWeights, type ParticleType, type ParticleTypeSchema } from '../simulation/algorithm';
 
@@ -67,8 +68,8 @@ export class ElementChart {
             c.value.textContent = text;
             c.fill.style.height = `${m.position(s) * 100}%`;
             c.track.style.background = m.track ? m.track(s, 'to top') : '';
-            c.track.title = `Glisser : ${m.label.toLowerCase()} · double-clic : valeur par défaut`;
-            c.track.setAttribute('aria-label', `${m.label} : ${s.name}`);
+            c.track.title = t('ui.chart.drag');
+            c.track.setAttribute('aria-label', t('ui.chart.aria', { property: m.label, element: s.name }));
             c.track.setAttribute('aria-valuenow', String(Math.round(m.position(s) * 100)));
             c.track.setAttribute('aria-valuetext', text + unit);
             c.label.textContent = s.symbol;
@@ -84,7 +85,7 @@ export class ElementChart {
             const seg = band.children[k] as HTMLElement;
             seg.style.flexGrow = String(share);
             seg.style.background = this.species[k].color;
-            seg.title = `${this.species[k].name} : ${formatShare(share)}`;
+            seg.title = t('ui.chart.share', { element: this.species[k].name, share: formatShare(share) });
         });
     }
 
