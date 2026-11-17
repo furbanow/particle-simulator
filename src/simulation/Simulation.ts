@@ -45,6 +45,8 @@ export class Simulation {
 
     // ---- Live parameters ----
     timeScale = 1;
+    /** Frozen by the pause button / Space, independently of the speed slider. */
+    paused = false;
 
     // ---- State ----
     activeCount = 0;
@@ -211,7 +213,7 @@ export class Simulation {
 
     /** Advances one rendered frame (substeps keep large time scales stable). Frozen at time scale 0. */
     step(): void {
-        if (this.timeScale <= 0) return;
+        if (this.paused || this.timeScale <= 0) return;
         this.darkMatter.prepare();
         const steps = Math.max(1, Math.ceil(this.timeScale - 1e-6));
         this.pipeline.step(BASE_DT * this.timeScale / steps, steps);

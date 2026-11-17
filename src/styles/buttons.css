@@ -14,6 +14,15 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn-primary svg { width: 13px; height: 13px; fill: currentColor; }
 .btn-primary.flash { animation: btn-flash 0.45s ease-out; }
 @keyframes btn-flash { from { filter: brightness(1.5); } to { filter: none; } }
+.action-row { display: flex; gap: 8px; }
+.action-row .btn-primary { width: auto; flex: 1 1 0; min-width: 0; }
+.btn-secondary {
+    background: var(--surface); color: var(--text-2); border: 1px solid var(--border);
+    box-shadow: none;
+}
+.btn-secondary kbd { background: rgba(128, 128, 128, 0.2); color: inherit; }
+.btn-secondary .icon-resume, .btn-secondary.is-paused .icon-pause { display: none; }
+.btn-secondary.is-paused .icon-resume { display: block; }
 kbd {
     font: 500 10px var(--mono); padding: 2px 5px; border-radius: 4px; line-height: 1;
     background: rgba(255, 255, 255, 0.16); color: rgba(255, 255, 255, 0.85);

@@ -70,7 +70,7 @@ export function setupControls({ simulation: sim, particles, post, renderer, onAl
     // ---- Simulation speed ----
     const paintSpeed = () => {
         sim.timeScale = parseFloat(speedSlider.value);
-        speedVal.textContent = sim.timeScale > 0 ? `${formatNumber(sim.timeScale, 1)}×` : t('ui.speed.pause');
+        speedVal.textContent = sim.timeScale > 0 ? `${formatNumber(sim.timeScale, 2, 1)}×` : t('ui.speed.pause');
         // Position of the slider in 0..1, read by the gauge needle.
         const min = parseFloat(speedSlider.min);
         const max = parseFloat(speedSlider.max);

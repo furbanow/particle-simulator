@@ -8,6 +8,8 @@ export const BASE_DT = 1 / 60;
 // ---- Initial donut ----
 export const DONUT_INNER = 0.12;                   // fraction of min(width, height)
 export const DONUT_OUTER = 0.40;
+/** Slider steps of the speed slider per press of the left/right arrow (render area focused). */
+export const SPEED_SHORTCUT_STEPS = 10;
 export const INITIAL_SPEED = 20;                   // px/s
 
 // ---- Gravity field ----

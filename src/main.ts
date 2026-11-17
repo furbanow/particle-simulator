@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import './styles/main.css';
 import { browserClock, runBenchmark } from './benchmark/runner';
-import { BASE_DT, MAX_PARTICLES } from './config';
+import { BASE_DT, MAX_PARTICLES, SPEED_SHORTCUT_STEPS } from './config';
 import { DisplaySettingsStore, frameMs } from './displaySettings';
-import { applyStaticTranslations, getLanguage } from './i18n';
+import { applyStaticTranslations, getLanguage, t } from './i18n';
 import { NebulaLayer } from './render/nebulaLayer';
 import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
@@ -38,6 +38,7 @@ applyStaticTranslations(document);
 const container = byId('sim-container');
 const uiPanel = byId('ui-panel');
 const startBtn = byId('startBtn');
+const pauseBtn = byId('pauseBtn');
 
 // ---- Renderer ----
 function createRenderer(): THREE.WebGLRenderer {
@@ -127,6 +128,7 @@ new DisplaySettingsPanel(displaySettings, () => settingsModal.open(), () => void
 
 function restart(): void {
     if (benchmarking) return;               // the benchmark restarts the simulation when it ends
+    setPaused(false);
     simulation.reset(elementBar.selectedTypeCount());
     particles.setParticleCount(simulation.activeCount);
     stats.reset();
@@ -264,10 +266,32 @@ function togglePanel(): void {
     resize();
 }
 
+function setPaused(paused: boolean): void {
+    simulation.paused = paused;
+    pauseBtn.classList.toggle('is-paused', paused);
+    const label = byId('pauseBtn').querySelector('span');
+    if (label) label.textContent = t(paused ? 'ui.resume' : 'ui.pause');
+    pauseBtn.title = t(paused ? 'ui.resume.title' : 'ui.pause.title');
+}
+function togglePause(): void {
+    setPaused(!simulation.paused);
+    flash(pauseBtn);
+}
+
 startBtn.addEventListener('click', restart);
+pauseBtn.addEventListener('click', togglePause);
 byId('hidePanelBtn').addEventListener('click', togglePanel);
 byId('showPanelBtn').addEventListener('click', togglePanel);
-setupShortcuts({ restart: () => { restart(); flash(startBtn); }, togglePanel });
+// The render area takes the focus when clicked, so that the arrow shortcuts apply to it.
+renderer.domElement.tabIndex = 0;
+renderer.domElement.addEventListener('pointerdown', () => renderer.domElement.focus({ preventScroll: true }));
+const speedSlider = byId<HTMLInputElement>('speedSlider');
+function changeSpeed(direction: -1 | 1): void {
+    if (direction > 0) speedSlider.stepUp(SPEED_SHORTCUT_STEPS);
+    else speedSlider.stepDown(SPEED_SHORTCUT_STEPS);
+    speedSlider.dispatchEvent(new Event('input', { bubbles: true }));
+}
+setupShortcuts({ togglePause, changeSpeed, restart: () => { restart(); flash(startBtn); }, togglePanel }, renderer.domElement);
 window.addEventListener('resize', resize);
 syncAllRanges(uiPanel);
 syncAllRanges(byId('element-bar'));
@@ -282,7 +306,7 @@ let lastVisualNow = lastFrame;
 /** One frame: simulation step, then rendering. */
 function renderFrame(): void {
     simulation.step();
-    particles.update(simulation.positionTexture, simulation.velocityTexture, BASE_DT * simulation.timeScale);
+    particles.update(simulation.positionTexture, simulation.velocityTexture, simulation.paused ? 0 : BASE_DT * simulation.timeScale);
     nebula.render();
     post.render(visualTime);
     simulation.endFrame();
@@ -299,7 +323,7 @@ function loop(now: number): void {
     lastFrame += frame;
     if (now - lastFrame > frame) lastFrame = now;
 
-    if (simulation.timeScale > 0) visualTime += (now - lastVisualNow) / 1000;
+    if (simulation.timeScale > 0 && !simulation.paused) visualTime += (now - lastVisualNow) / 1000;
     lastVisualNow = now;
     renderFrame();
 
