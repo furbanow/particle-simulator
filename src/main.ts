@@ -3,7 +3,7 @@ import './styles/main.css';
 import { browserClock, runBenchmark } from './benchmark/runner';
 import { BASE_DT, MAX_PARTICLES } from './config';
 import { DisplaySettingsStore, frameMs } from './displaySettings';
-import { applyStaticTranslations, getLanguage, t } from './i18n';
+import { applyStaticTranslations, getLanguage } from './i18n';
 import { NebulaLayer } from './render/nebulaLayer';
 import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
@@ -20,6 +20,7 @@ import { ConfigPicker } from './ui/configPicker';
 import { DarkMatterPanel } from './ui/darkMatterPanel';
 import { setupControls, sharedControlSpecs } from './ui/controls';
 import { byId, fail, flash } from './ui/dom';
+import { showUnsupported } from './ui/unsupported';
 import { ElementBar } from './ui/elementBar';
 import { DisplaySettingsPanel } from './ui/displaySettingsPanel';
 import { ElementsQuickPanel } from './ui/elementsQuickPanel';
@@ -39,10 +40,15 @@ const uiPanel = byId('ui-panel');
 const startBtn = byId('startBtn');
 
 // ---- Renderer ----
-const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-if (!renderer.extensions.has('EXT_color_buffer_float')) {
-    fail(t('error.floatTextures'));
+function createRenderer(): THREE.WebGLRenderer {
+    try {
+        const created = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+        if (created.extensions.has('EXT_color_buffer_float')) return created;
+        created.dispose();
+    } catch { /* no WebGL 2 context: falls through to the apology */ }
+    return showUnsupported();
 }
+const renderer = createRenderer();
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x000000, 1);
 renderer.toneMapping = THREE.NeutralToneMapping; // applied by the OutputPass; keeps hues in bright cores

@@ -87,6 +87,9 @@ export const de: Record<MessageKey, string> = {
     'ui.settings.benchmark.none': 'Die GPU wurde noch nicht getestet',
     'ui.benchmark.title': 'Schneller Test Ihrer GPU',
     'ui.benchmark.detail': 'Einige Bilder werden gemessen, um zu ermitteln, wie viele Teilchen flüssig laufen…',
+    'ui.unsupported.title': 'Leider kann diese Anwendung auf Ihrem Gerät nicht laufen',
+    'ui.unsupported.detail': 'Diese Anwendung benötigt WebGL 2 und eine Grafikkarte (GPU), die Ihr Browser jedoch nicht bereitstellt. Prüfen Sie, ob die Hardwarebeschleunigung in den Browsereinstellungen aktiviert ist und Ihre Grafiktreiber aktuell sind, oder versuchen Sie es mit einem anderen Browser oder Gerät. Wir entschuldigen uns für die Unannehmlichkeiten.',
+    'ui.unsupported.contact': 'Autor kontaktieren:',
 
     // ---- Overlays ----
     'ui.author': 'Autor:',
@@ -273,6 +276,5 @@ export const de: Record<MessageKey, string> = {
     'darkMatter.param.textOpacity.doc': 'Dichte der dunklen Materie in den Buchstaben.',
 
     // ---- Errors ----
-    'error.floatTextures': 'WebGL2 EXT_color_buffer_float wird nicht unterstützt: Rendern in Gleitkommatexturen ist nicht möglich.',
     'error.canvas2d': '2D-Canvas nicht verfügbar',
 };

@@ -1,0 +1,7 @@
+/* ---------- Unsupported device (no WebGL 2 / GPU): a message over a plain backdrop, nothing to click ---------- */
+.modal.unsupported { z-index: 30; background: rgba(0, 0, 0, 0.85); }
+.unsupported-card { padding: 20px 22px 22px; display: flex; flex-direction: column; gap: 12px; background: var(--panel); }
+.unsupported-card .settings-title { margin-right: 0; }
+.unsupported-detail { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+.unsupported-contact { margin: 0; font-size: 13px; color: var(--text-2); }
+.unsupported-contact a { color: var(--accent); }

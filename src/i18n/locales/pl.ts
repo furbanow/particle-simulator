@@ -87,6 +87,9 @@ export const pl: Record<MessageKey, string> = {
     'ui.settings.benchmark.none': 'GPU nie zostało jeszcze przetestowane',
     'ui.benchmark.title': 'Szybki test Twojego GPU',
     'ui.benchmark.detail': 'Mierzenie kilku klatek, aby ustalić, ile cząstek działa płynnie…',
+    'ui.unsupported.title': 'Przepraszamy, ta aplikacja nie może działać na Twoim urządzeniu',
+    'ui.unsupported.detail': 'Ta aplikacja wymaga WebGL 2 oraz karty graficznej (GPU), a Twoja przeglądarka ich nie udostępnia. Sprawdź, czy w ustawieniach przeglądarki włączone jest przyspieszanie sprzętowe i czy sterowniki karty graficznej są aktualne, albo spróbuj użyć innej przeglądarki lub urządzenia. Przepraszamy za niedogodności.',
+    'ui.unsupported.contact': 'Skontaktuj się z autorem:',
 
     // ---- Overlays ----
     'ui.author': 'Autor:',
@@ -273,6 +276,5 @@ export const pl: Record<MessageKey, string> = {
     'darkMatter.param.textOpacity.doc': 'Gęstość ciemnej materii wewnątrz liter.',
 
     // ---- Errors ----
-    'error.floatTextures': 'WebGL2 EXT_color_buffer_float nie jest obsługiwane: nie można renderować do tekstur zmiennoprzecinkowych.',
     'error.canvas2d': 'Canvas 2D jest niedostępny',
 };

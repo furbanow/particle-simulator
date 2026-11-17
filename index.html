@@ -217,6 +217,14 @@
         <div class="stat"><div class="stat-label" id="typesActiveLabel" data-i18n="ui.elements.active">Active elements</div><div class="stat-value" id="typesActiveVal">–</div></div>
     </aside>
 </div>
+<!-- Shown when WebGL 2 or the GPU is missing (showUnsupported): a message only, nothing to click. -->
+<div id="unsupported-overlay" class="modal unsupported" hidden>
+    <div class="modal-card modal-card-narrow unsupported-card" role="alertdialog" aria-modal="true" aria-labelledby="unsupportedTitle" aria-describedby="unsupportedDetail">
+        <h2 class="settings-title" id="unsupportedTitle" data-i18n="ui.unsupported.title">Sorry, this application can't run on your device</h2>
+        <p class="unsupported-detail" id="unsupportedDetail" data-i18n="ui.unsupported.detail">This application needs WebGL 2 and a graphics card (GPU) to run, and your browser doesn't offer them. Check that hardware acceleration is enabled in your browser settings and that your graphics drivers are up to date, or try another browser or device. We apologize for the inconvenience.</p>
+        <p class="unsupported-contact"><span data-i18n="ui.unsupported.contact">Contact the author:</span> <a href="mailto:furbanow@gmail.com">furbanow@gmail.com</a></p>
+    </div>
+</div>
 <div id="error"></div>
 <div id="tooltip" class="tooltip" role="tooltip"></div>
     <script type="module" src="/src/main.ts"></script>

@@ -87,6 +87,9 @@ export const fr: Record<MessageKey, string> = {
     'ui.settings.benchmark.none': 'Le GPU n\'a pas encore été évalué',
     'ui.benchmark.title': 'Évaluation rapide de votre GPU',
     'ui.benchmark.detail': 'Chronométrage de quelques images pour trouver combien de particules il anime avec fluidité…',
+    'ui.unsupported.title': 'Désolé, cette application ne peut pas fonctionner sur votre appareil',
+    'ui.unsupported.detail': 'Cette application a besoin de WebGL 2 et d\'une carte graphique (GPU) pour fonctionner, et votre navigateur n\'en propose pas. Vérifiez que l\'accélération matérielle est activée dans les réglages de votre navigateur et que vos pilotes graphiques sont à jour, ou essayez un autre navigateur ou un autre appareil. Nous vous prions de nous excuser pour la gêne occasionnée.',
+    'ui.unsupported.contact': 'Contacter l\'auteur :',
 
     // ---- Overlays ----
     'ui.author': 'Auteur :',
@@ -273,6 +276,5 @@ export const fr: Record<MessageKey, string> = {
     'darkMatter.param.textOpacity.doc': 'Densité de la matière noire dans les lettres.',
 
     // ---- Errors ----
-    'error.floatTextures': 'WebGL2 EXT_color_buffer_float non supporté : impossible de rendre dans des textures flottantes.',
     'error.canvas2d': 'Canvas 2D indisponible',
 };

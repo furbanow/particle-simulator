@@ -102,6 +102,9 @@ export const en = {
     'ui.settings.benchmark.none': 'The GPU has not been benchmarked yet',
     'ui.benchmark.title': 'Quick benchmarking your GPU',
     'ui.benchmark.detail': 'Timing a few frames to find how many particles it runs smoothly…',
+    'ui.unsupported.title': 'Sorry, this application can\'t run on your device',
+    'ui.unsupported.detail': 'This application needs WebGL 2 and a graphics card (GPU) to run, and your browser doesn\'t offer them. Check that hardware acceleration is enabled in your browser settings and that your graphics drivers are up to date, or try another browser or device. We apologize for the inconvenience.',
+    'ui.unsupported.contact': 'Contact the author:',
 
     // ---- Overlays ----
     'ui.author': 'Author:',
@@ -288,7 +291,6 @@ export const en = {
     'darkMatter.param.textOpacity.doc': 'Density of the dark matter inside the letters.',
 
     // ---- Errors ----
-    'error.floatTextures': 'WebGL2 EXT_color_buffer_float is not supported: cannot render into floating-point textures.',
     'error.canvas2d': '2D canvas unavailable',
 } as const satisfies Record<string, string>;
 
