@@ -6,6 +6,7 @@ import {
 import { t } from '../i18n';
 import type { ParamValue } from '../simulation/algorithm';
 import type { DarkMatterField } from '../simulation/darkMatter/DarkMatterField';
+import { canvasTransform, screenToCanvas, type ViewState } from '../view';
 import { MaskCanvas, type MaskPoint } from './darkMatter/maskCanvas';
 import { paramField, type ParamField, type ParamStore } from './paramPanel';
 import { syncAllRanges } from './sliders';
@@ -16,6 +17,9 @@ export interface DarkMatterPanelTargets {
     container: HTMLElement;
     /** Where the mouse draws (the simulation canvas). */
     surface: HTMLElement;
+    /** The visual zoom now, and a subscription to its changes. */
+    getView: () => ViewState;
+    onViewChange: (listener: (view: ViewState) => void) => void;
 }
 
 const GROUP_ORDER: readonly DarkMatterGroup[] = ['gravity', 'source', 'draw', 'image', 'text'];
@@ -49,6 +53,7 @@ export class DarkMatterPanel {
     private groups = new Map<DarkMatterGroup, HTMLElement>();
     private fileName = document.createElement('span');
     private tabOpen = false;
+    private size = { width: 1, height: 1 };
     private stroke: Stroke | null = null;
     private renderQueued = false;
     private lastCommit = 0;
@@ -59,6 +64,8 @@ export class DarkMatterPanel {
         this.element.className = 'dark-matter';
         this.mask = new MaskCanvas(() => this.renderSoon());
         targets.container.appendChild(this.mask.canvas);
+        this.mask.canvas.style.transformOrigin = '0 0';
+        targets.onViewChange(() => this.applyView());
         this.listenToPointer(targets.surface);
         this.build();
     }
@@ -77,7 +84,15 @@ export class DarkMatterPanel {
     /** Follows the simulation area (CSS px). */
     resize(width: number, height: number): void {
         this.mask.resize(width, height);
+        this.size = { width, height };
+        this.applyView();
         this.render();
+    }
+
+    /** Lays the preview over the zoomed view. */
+    private applyView(): void {
+        const { width, height } = this.size;
+        this.mask.canvas.style.transform = canvasTransform(this.targets.getView(), width, height);
     }
 
     /** Whether the dark matter tab is shown: the mouse draws only then (in draw mode). */
@@ -267,7 +282,7 @@ export class DarkMatterPanel {
             if (!this.drawing || this.stroke || (e.button !== 0 && e.button !== 2)) return;
             e.preventDefault();
             surface.setPointerCapture(e.pointerId);
-            this.stroke = { pointerId: e.pointerId, last: pointOf(e, surface), erase: e.button === 2 || e.shiftKey };
+            this.stroke = { pointerId: e.pointerId, last: this.pointOf(e, surface), erase: e.button === 2 || e.shiftKey };
             this.paint(null, this.stroke.last);
         });
         surface.addEventListener('pointermove', e => {
@@ -275,7 +290,7 @@ export class DarkMatterPanel {
             if (!stroke || e.pointerId !== stroke.pointerId) return;
             // Coalesced events keep fast strokes smooth.
             for (const event of e.getCoalescedEvents?.() ?? [e]) {
-                const point = pointOf(event, surface);
+                const point = this.pointOf(event, surface);
                 this.paint(stroke.last, point);
                 stroke.last = point;
             }
@@ -289,20 +304,21 @@ export class DarkMatterPanel {
         surface.addEventListener('pointercancel', end);
     }
 
+    /** The event's position in the canvas coordinates of the world (the zoom undone). */
+    private pointOf(e: PointerEvent, surface: HTMLElement): MaskPoint {
+        const box = surface.getBoundingClientRect();
+        const { width, height } = this.size;
+        return screenToCanvas(this.targets.getView(), { x: e.clientX - box.left, y: e.clientY - box.top }, width, height);
+    }
+
     private paint(from: MaskPoint | null, to: MaskPoint): void {
         if (!this.stroke) return;
         const s = this.settings;
-        this.mask.stroke(from, to, darkMatterNumber(s, P.brushSize), darkMatterNumber(s, P.brushFlow) / 100, this.stroke.erase);
+        this.mask.stroke(from, to, darkMatterNumber(s, P.brushSize) / this.targets.getView().zoom, darkMatterNumber(s, P.brushFlow) / 100, this.stroke.erase);
         this.mask.render(s);
         this.commitSoon();
         this.reveal();
     }
-}
-
-/** The event's position on `surface`, in CSS px from its top left corner. */
-function pointOf(e: PointerEvent, surface: HTMLElement): MaskPoint {
-    const box = surface.getBoundingClientRect();
-    return { x: e.clientX - box.left, y: e.clientY - box.top };
 }
 
 function button(label: string, onClick: () => void): HTMLButtonElement {

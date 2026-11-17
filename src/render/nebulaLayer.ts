@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { MAX_SPECIES, NEBULA_DOWNSCALE } from '../config';
-import { additiveBlending, clipSpaceCamera, createMipmappedHalfFloatTarget, type Uniform } from '../gl/common';
+import { additiveBlending, clipSpaceCamera, createMipmappedHalfFloatTarget, type Uniform, type ViewUniforms } from '../gl/common';
 import { withDefines } from '../gl/withDefines';
 import type { SpeciesUniforms } from '../simulation/Simulation';
 import nebulaVert from '../shaders/nebula.vert?raw';
@@ -16,11 +16,13 @@ export class NebulaLayer {
 
     constructor(private readonly renderer: THREE.WebGLRenderer, geometry: THREE.BufferGeometry,
                 species: SpeciesUniforms, screenSize: Uniform<THREE.Vector2>,
-                texturePosition: Uniform<THREE.Texture | null>) {
+                texturePosition: Uniform<THREE.Texture | null>, view: ViewUniforms) {
         const material = new THREE.ShaderMaterial({
             uniforms: {
                 texturePosition,
                 screenSize,
+                viewZoom: view.zoom,
+                viewCenter: view.center,
                 speciesSplatMass: species.splatMass,
                 speciesColor: species.color,
             },

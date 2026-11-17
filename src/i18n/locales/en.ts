@@ -119,6 +119,7 @@ export const en = {
     'ui.shortcut.pause': 'pause',
     'ui.shortcut.restart': 'restart',
     'ui.shortcut.speed': 'speed',
+    'ui.shortcut.zoom': 'zoom',
     'ui.shortcut.panel': 'panel',
     'ui.shortcut.default': 'double-click: default value',
     'ui.stats.aria': 'Statistics',

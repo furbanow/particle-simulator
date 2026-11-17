@@ -3,6 +3,12 @@ import * as THREE from 'three';
 /** Every shader writes clip-space positions directly: the camera is never used for projection. */
 export const clipSpaceCamera = new THREE.Camera();
 
+/** The visual zoom, shared by reference by every material that projects world positions. */
+export interface ViewUniforms {
+    zoom: Uniform<number>;
+    center: Uniform<THREE.Vector2>;
+}
+
 /** Pure additive blending (ONE, ONE), no depth: used by every particle splat. */
 export const additiveBlending = {
     blending: THREE.CustomBlending,

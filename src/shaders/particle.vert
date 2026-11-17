@@ -6,6 +6,8 @@
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
 uniform vec2 screenSize;
+uniform float viewZoom;                 // visual zoom around viewCenter (world px)
+uniform vec2 viewCenter;
 uniform float pixelRatio;
 uniform float speciesSize[MAX_SPECIES];
 uniform vec3 speciesColor[MAX_SPECIES];
@@ -40,6 +42,6 @@ void main() {
     vStretch = clamp(1.0 + stretchAmount * speed * frameDt / size, 1.0, MAX_STRETCH);
     vDir = speed > 1e-3 ? vel / speed : vec2(1.0, 0.0);
 
-    gl_Position = vec4(posData.xy / screenSize * 2.0 - 1.0, 0.0, 1.0);
-    gl_PointSize = size * vStretch * pixelRatio;
+    gl_Position = vec4((posData.xy - viewCenter) * viewZoom / screenSize * 2.0, 0.0, 1.0);
+    gl_PointSize = size * vStretch * pixelRatio * viewZoom;
 }

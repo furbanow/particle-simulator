@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BASE_DT, HEAT_SPEED_RANGE, MAX_SPECIES, MAX_STRETCH, PARTICLE_GAIN } from '../config';
-import { additiveBlending, type Uniform } from '../gl/common';
+import { additiveBlending, type Uniform, type ViewUniforms } from '../gl/common';
 import { glslFloat, withDefines } from '../gl/withDefines';
 import type { SpeciesUniforms } from '../simulation/Simulation';
 import particleVert from '../shaders/particle.vert?raw';
@@ -13,12 +13,14 @@ export class ParticleLayer {
 
     /** `glowFromState`: 1 when the glow comes from the model's state (velocity w), see GpuModel.glow. */
     constructor(geometry: THREE.BufferGeometry, species: SpeciesUniforms,
-                screenSize: Uniform<THREE.Vector2>, glowFromState: Uniform<number>, pixelRatio: number) {
+                screenSize: Uniform<THREE.Vector2>, glowFromState: Uniform<number>, pixelRatio: number, view: ViewUniforms) {
         this.material = new THREE.ShaderMaterial({
             uniforms: {
                 texturePosition: { value: null },
                 textureVelocity: { value: null },
                 screenSize,
+                viewZoom: view.zoom,
+                viewCenter: view.center,
                 pixelRatio: { value: pixelRatio },
                 speciesSize: species.size,
                 speciesColor: species.color,

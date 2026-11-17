@@ -10,6 +10,12 @@ export const DONUT_INNER = 0.12;                   // fraction of min(width, hei
 export const DONUT_OUTER = 0.40;
 /** Slider steps of the speed slider per press of the left/right arrow (render area focused). */
 export const SPEED_SHORTCUT_STEPS = 10;
+/** View zoom (rendering only: the simulation world does not change). */
+export const ZOOM_MIN = 1;
+export const ZOOM_MAX = 16;
+export const ZOOM_KEY_FACTOR = 1.1;                // per press (or repeat) of the up/down arrow
+export const ZOOM_WHEEL_SENSITIVITY = 0.0015;      // zoom exponent per wheel pixel
+export const ZOOM_WHEEL_LINE_PX = 16;              // pixels of a wheel "line" (deltaMode 1)
 export const INITIAL_SPEED = 20;                   // px/s
 
 // ---- Gravity field ----

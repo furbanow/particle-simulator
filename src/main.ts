@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import './styles/main.css';
 import { browserClock, runBenchmark } from './benchmark/runner';
-import { BASE_DT, MAX_PARTICLES, SPEED_SHORTCUT_STEPS } from './config';
+import {
+    BASE_DT, MAX_PARTICLES, SPEED_SHORTCUT_STEPS, ZOOM_KEY_FACTOR, ZOOM_WHEEL_LINE_PX, ZOOM_WHEEL_SENSITIVITY,
+} from './config';
+import { clampCenter, screenToWorld, zoomAt, type ViewState } from './view';
+import type { ViewUniforms } from './gl/common';
 import { DisplaySettingsStore, frameMs } from './displaySettings';
 import { applyStaticTranslations, getLanguage, t } from './i18n';
 import { NebulaLayer } from './render/nebulaLayer';
@@ -75,10 +79,21 @@ try {
 } catch (err) {
     failWith(err);
 }
+// The visual zoom: shared by reference by the materials, and by the dark matter drawing.
+const viewUniforms: ViewUniforms = { zoom: { value: 1 }, center: { value: new THREE.Vector2() } };
+let view: ViewState = { zoom: 1, center: { x: width / 2, y: height / 2 } };
+const viewListeners: Array<(view: ViewState) => void> = [];
+function setView(next: ViewState): void {
+    view = { zoom: next.zoom, center: clampCenter(next.zoom, next.center, width, height) };
+    viewUniforms.zoom.value = view.zoom;
+    viewUniforms.center.value.set(view.center.x, view.center.y);
+    for (const listener of viewListeners) listener(view);
+}
+setView(view);
 const particles = new ParticleLayer(simulation.geometry, simulation.speciesUniforms, simulation.screenSize,
-    simulation.glowFromState, renderer.getPixelRatio());
+    simulation.glowFromState, renderer.getPixelRatio(), viewUniforms);
 const nebula = new NebulaLayer(renderer, simulation.geometry, simulation.speciesUniforms, simulation.screenSize,
-    particles.texturePosition);
+    particles.texturePosition, viewUniforms);
 const post = new PostProcessing(renderer, particles.scene, nebula.target.texture, width, height);
 
 function resize(): void {
@@ -87,6 +102,7 @@ function resize(): void {
     renderer.setSize(width, height);
     simulation.resize(width, height);
     darkMatter.resize(width, height);
+    setView(view);                          // the visible part stays inside the resized world
     post.resize(width, height, nebula.resize(width, height));
 }
 
@@ -116,7 +132,7 @@ const elementsModal = new Modal(byId('elements-modal'));
 const elementsQuick = new ElementsQuickPanel(simulation, elementBar, () => elementsModal.open());
 
 // The static dark matter: its tab is built once and kept when the panel is rebuilt for another algorithm.
-const darkMatter = new DarkMatterPanel({ field: simulation.darkMatter, container, surface: renderer.domElement });
+const darkMatter = new DarkMatterPanel({ field: simulation.darkMatter, container, surface: renderer.domElement, getView: () => view, onViewChange: listener => viewListeners.push(listener) });
 const params = new ParamPanel(byId('panelTabs'), byId('panelTabContent'), simulation, controls.effects, {
     extraContent: { elements: elementsQuick.element, darkMatter: darkMatter.element },
     onTabChange: id => darkMatter.setTabOpen(id === 'darkMatter'),
@@ -273,6 +289,16 @@ function setPaused(paused: boolean): void {
     if (label) label.textContent = t(paused ? 'ui.resume' : 'ui.pause');
     pauseBtn.title = t(paused ? 'ui.resume.title' : 'ui.pause.title');
 }
+function zoomView(factor: number, anchor: { x: number; y: number }): void {
+    setView(zoomAt(view, factor, anchor, width, height));
+}
+renderer.domElement.addEventListener('wheel', e => {
+    e.preventDefault();
+    const pixels = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? e.deltaY * ZOOM_WHEEL_LINE_PX : e.deltaY;
+    const box = renderer.domElement.getBoundingClientRect();
+    const anchor = screenToWorld(view, { x: e.clientX - box.left, y: e.clientY - box.top }, width, height);
+    zoomView(Math.exp(-pixels * ZOOM_WHEEL_SENSITIVITY), anchor);
+}, { passive: false });
 function togglePause(): void {
     setPaused(!simulation.paused);
     flash(pauseBtn);
@@ -291,7 +317,7 @@ function changeSpeed(direction: -1 | 1): void {
     else speedSlider.stepDown(SPEED_SHORTCUT_STEPS);
     speedSlider.dispatchEvent(new Event('input', { bubbles: true }));
 }
-setupShortcuts({ togglePause, changeSpeed, restart: () => { restart(); flash(startBtn); }, togglePanel }, renderer.domElement);
+setupShortcuts({ togglePause, changeSpeed, zoom: direction => zoomView(direction > 0 ? ZOOM_KEY_FACTOR : 1 / ZOOM_KEY_FACTOR, view.center), restart: () => { restart(); flash(startBtn); }, togglePanel }, renderer.domElement);
 window.addEventListener('resize', resize);
 syncAllRanges(uiPanel);
 syncAllRanges(byId('element-bar'));
