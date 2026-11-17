@@ -96,6 +96,7 @@ export const de: Record<MessageKey, string> = {
     // ---- Overlays ----
     'ui.author': 'Autor:',
     'ui.author.title': 'Software Engineering',
+    'ui.sourceCode': 'Quellcode (AGPL v3)',
     'ui.shortcut.restart': 'Neustart',
     'ui.shortcut.panel': 'Panel',
     'ui.shortcut.default': 'Doppelklick: Standardwert',

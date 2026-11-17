@@ -111,6 +111,7 @@ export const en = {
     // ---- Overlays ----
     'ui.author': 'Author:',
     'ui.author.title': 'Software Engineering',
+    'ui.sourceCode': 'Source code (AGPL v3)',
     'ui.shortcut.restart': 'restart',
     'ui.shortcut.panel': 'panel',
     'ui.shortcut.default': 'double-click: default value',

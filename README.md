@@ -13,7 +13,21 @@ Multi-species GPGPU particle simulator running in the browser (TypeScript, Three
 
 ## Author
 
-furbanow@gmail.com — Software Development Engineer
+Filip Urbanowicz — furbanow@gmail.com
+
+## License
+
+Copyright © 2026 Filip Urbanowicz.
+
+Particle Simulator is free software, distributed under the **[GNU Affero General Public License v3.0 or later](LICENSE)** (`AGPL-3.0-or-later`). You may use, study, modify and redistribute it, including commercially, as long as every distributed or network-served modified version also provides its complete source code under the same license.
+
+**Commercial license.** If the AGPL does not suit your use (for example, integration into a closed-source product), a commercial license is available. Contact furbanow@gmail.com.
+
+Third-party components and their licenses: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+
+## Contributing
+
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Contributors sign a [CLA](CLA.md) once (they keep their copyright), which allows the project to be offered under both the AGPL and a commercial license.
 
 ## Prerequisites
 
