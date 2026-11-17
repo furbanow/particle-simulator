@@ -1,5 +1,5 @@
 import {
-    DEFAULT_FPS_LIMIT, DISPLAY_SETTINGS_KEY, FPS_LIMIT_OPTIONS, PANEL_STATE_KEY, PANEL_TAB_KEY, PARTICLE_CAP_RANGE,
+    DEFAULT_FPS_LIMIT, DISPLAY_SETTINGS_KEY, ELEMENT_CONFIGS_KEY, SIMULATION_CONFIGS_KEY, FPS_LIMIT_OPTIONS, PANEL_STATE_KEY, PANEL_TAB_KEY, PARTICLE_CAP_RANGE,
     PARTICLE_CAP_STEP,
 } from './config';
 import { isLanguagePreference, type LanguagePreference } from './i18n';
@@ -11,7 +11,6 @@ export interface DisplaySettings {
     fpsLimit: number;
     showHelp: boolean;
     showStats: boolean;
-    showAuthor: boolean;
     /** Interface language; 'auto' follows the browser. A change takes effect after a reload. */
     language: LanguagePreference;
     /** Upper bound of the particle count sliders; null until the GPU benchmark has run. */
@@ -23,8 +22,7 @@ export interface DisplaySettings {
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
     fpsLimit: DEFAULT_FPS_LIMIT,
     showHelp: true,
-    showStats: false,
-    showAuthor: true,
+    showStats: true,
     language: 'auto',
     particleCap: null,
     benchmarkCap: null,
@@ -46,7 +44,6 @@ export function sanitizeDisplaySettings(raw: unknown): DisplaySettings {
         fpsLimit: typeof src.fpsLimit === 'number' && FPS_LIMIT_OPTIONS.includes(src.fpsLimit) ? src.fpsLimit : d.fpsLimit,
         showHelp: flag(src.showHelp, d.showHelp),
         showStats: flag(src.showStats, d.showStats),
-        showAuthor: flag(src.showAuthor, d.showAuthor),
         language: isLanguagePreference(src.language) ? src.language : d.language,
         particleCap: sanitizeParticleCap(src.particleCap),
         benchmarkCap: sanitizeParticleCap(src.benchmarkCap),
@@ -75,12 +72,28 @@ export class DisplaySettingsStore {
     }
 }
 
-/** Storage keys cleared by a settings reset: never the saved configurations (elements, simulations). */
+/** Storage keys cleared by a settings reset. */
 export const SETTINGS_RESET_KEYS: readonly string[] = [DISPLAY_SETTINGS_KEY, PANEL_STATE_KEY, PANEL_TAB_KEY];
 
-/** Forgets the display settings, the panel state and the remembered tab (best effort). */
-export function resetSettings(storage: Pick<Storage, 'removeItem'> | null): void {
+/** Keys of saved configurations: kept by a reset, except for the remembered selection they hold. */
+const CONFIG_STATE_KEYS: readonly string[] = [ELEMENT_CONFIGS_KEY, SIMULATION_CONFIGS_KEY];
+
+/**
+ * Forgets the display settings, the panel state, the remembered tab and the last selected presets,
+ * so the next load starts from the defaults. The saved configurations themselves are kept (best effort).
+ */
+export function resetSettings(storage: Pick<Storage, 'removeItem' | 'getItem' | 'setItem'> | null): void {
     for (const key of SETTINGS_RESET_KEYS) {
         try { storage?.removeItem(key); } catch { /* ignore */ }
+    }
+    for (const key of CONFIG_STATE_KEYS) {
+        try {
+            const text = storage?.getItem(key);
+            if (!text) continue;
+            const state: unknown = JSON.parse(text);
+            if (typeof state !== 'object' || state === null || Array.isArray(state)) continue;
+            const { currentId: _id, currentIds: _ids, ...rest } = state as Record<string, unknown>;
+            storage?.setItem(key, JSON.stringify(rest));
+        } catch { /* ignore */ }
     }
 }

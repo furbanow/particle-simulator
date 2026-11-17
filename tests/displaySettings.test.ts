@@ -11,9 +11,9 @@ class MemoryStorage {
 }
 
 describe('display settings', () => {
-    it('default to 60 FPS, help and author shown, stats hidden, no particle cap before the benchmark', () => {
+    it('default to 60 FPS, help and stats shown, no particle cap before the benchmark', () => {
         expect(DEFAULT_DISPLAY_SETTINGS).toEqual({
-            fpsLimit: 60, showHelp: true, showStats: false, showAuthor: true, language: 'auto',
+            fpsLimit: 60, showHelp: true, showStats: true, language: 'auto',
             particleCap: null, benchmarkCap: null,
         });
     });
@@ -34,6 +34,10 @@ describe('display settings', () => {
             .toEqual({ ...DEFAULT_DISPLAY_SETTINGS, showStats: true });
     });
 
+    it('ignores any stored showAuthor: the author overlay cannot be hidden', () => {
+        expect(sanitizeDisplaySettings({ showAuthor: false })).toEqual(DEFAULT_DISPLAY_SETTINGS);
+    });
+
     it('keeps a valid language preference and drops an unknown one', () => {
         expect(sanitizeDisplaySettings({ language: 'de' }).language).toBe('de');
         expect(sanitizeDisplaySettings({ language: 'xx' }).language).toBe('auto');
@@ -49,19 +53,29 @@ describe('display settings', () => {
         const store = new DisplaySettingsStore(storage as unknown as Storage);
         let seen = 0;
         store.onChange(() => seen++);
-        store.update({ showAuthor: false, fpsLimit: 30 });
+        store.update({ fpsLimit: 30, showStats: true });
         expect(seen).toBe(1);
         const reloaded = new DisplaySettingsStore(storage as unknown as Storage);
-        expect(reloaded.values).toMatchObject({ showAuthor: false, fpsLimit: 30 });
+        expect(reloaded.values).toMatchObject({ showStats: true, fpsLimit: 30 });
     });
 });
 
 describe('settings reset', () => {
-    it('clears the settings but keeps the saved configurations', async () => {
+    it('clears the settings and the selected presets but keeps the saved configurations', async () => {
         const { resetSettings } = await import('../src/displaySettings');
         const { ELEMENT_CONFIGS_KEY, SIMULATION_CONFIGS_KEY, DISPLAY_SETTINGS_KEY } = await import('../src/config');
-        const store = new Map<string, string>([[DISPLAY_SETTINGS_KEY, '{}'], [ELEMENT_CONFIGS_KEY, '{}'], [SIMULATION_CONFIGS_KEY, '{}']]);
-        resetSettings({ removeItem: k => void store.delete(k) });
+        const store = new Map<string, string>([
+            [DISPLAY_SETTINGS_KEY, '{}'],
+            [ELEMENT_CONFIGS_KEY, JSON.stringify({ version: 2, currentIds: { a: 'x' }, configs: [{ id: 'x' }] })],
+            [SIMULATION_CONFIGS_KEY, JSON.stringify({ version: 1, currentId: 'y', configs: [{ id: 'y' }] })],
+        ]);
+        resetSettings({
+            removeItem: k => void store.delete(k),
+            getItem: k => store.get(k) ?? null,
+            setItem: (k, v) => void store.set(k, v),
+        });
         expect([...store.keys()].sort()).toEqual([ELEMENT_CONFIGS_KEY, SIMULATION_CONFIGS_KEY].sort());
+        expect(JSON.parse(store.get(ELEMENT_CONFIGS_KEY)!)).toEqual({ version: 2, configs: [{ id: 'x' }] });
+        expect(JSON.parse(store.get(SIMULATION_CONFIGS_KEY)!)).toEqual({ version: 1, configs: [{ id: 'y' }] });
     });
 });
