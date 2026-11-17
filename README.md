@@ -57,6 +57,8 @@ src/
   simulationConfigs.ts  saved whole-simulation configurations (localStorage)
   visualEffects.ts    visual effects common to all algorithms (sliders of the Visual effects tab)
   darkMatter.ts       settings of the static dark matter (Dark matter tab); darkMatterMask.ts: image fitting, text wrapping
+  displaySettings.ts  per-browser settings (language, FPS cap, particle limit, overlays)
+  benchmark/          GPU benchmark: frame timing (runner.ts) and particle limit search (estimate.ts)
   simulation/         GPGPU (Simulation), density field, cluster detection, shock wave, dark matter field
   render/             particle layer, nebula layer, post-processing
   shaders/            GLSL sources (constants injected via #define)

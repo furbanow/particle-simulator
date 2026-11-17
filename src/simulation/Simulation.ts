@@ -3,14 +3,14 @@ import { BASE_DT, MAX_PARTICLES, MAX_SPECIES, TEX_SIZE } from '../config';
 import type { Uniform } from '../gl/common';
 import { splitPopulation } from '../population';
 import {
-    appliesOnRestart, cloneType, PARTICLE_COUNT_PARAM, populationWeights, type AlgorithmDeclaration, type ParamValue,
-    type ParamValues, type ParticleType,
+    appliesOnRestart, cloneType, PARTICLE_COUNT_PARAM, populationWeights, type AlgorithmDeclaration, type ParamDef,
+    type ParamValue, type ParamValues, type ParticleType,
 } from './algorithm';
 import { ALGORITHMS, DEFAULT_ALGORITHM, type AlgorithmId } from './algorithms';
 import { DarkMatterField } from './darkMatter/DarkMatterField';
 import { GpuPipeline } from './GpuPipeline';
 import { GPU_MODELS } from './gpuModels';
-import { defaultParams, findParam, validParamValue } from './params';
+import { defaultParams, validParamValue } from './params';
 import type { SpeciesUniforms } from './gpuModel';
 
 export type { SpeciesUniforms } from './gpuModel';
@@ -54,6 +54,8 @@ export class Simulation {
     /** Parameter values at the last restart. */
     private appliedParams: ParamValues = {};
     private pipeline: GpuPipeline;
+    /** Upper bound of the particle count parameter (the GPU benchmark's, or the user's). */
+    private cap = MAX_PARTICLES;
     private width = 1;
     private height = 1;
 
@@ -78,6 +80,47 @@ export class Simulation {
 
     get params(): Readonly<ParamValues> {
         return this.state.params;
+    }
+
+    /** The selected algorithm's parameters, the particle count bounded by the particle cap. */
+    get paramDefs(): readonly ParamDef[] {
+        return this.algorithm.params.map(p => p.kind === 'number' && p.key === PARTICLE_COUNT_PARAM
+            ? { ...p, max: Math.min(p.max, this.cap), default: Math.min(p.default, this.cap) }
+            : p);
+    }
+
+    get particleCap(): number {
+        return this.cap;
+    }
+
+    /**
+     * Bounds the particle count parameter of every algorithm (counts above it come down to it);
+     * the running simulation keeps its count until the next restart.
+     */
+    setParticleCap(cap: number): void {
+        this.cap = Math.min(MAX_PARTICLES, cap);
+        for (const state of this.states.values()) this.capCount(state.params);
+    }
+
+    /**
+     * Switches to algorithm `id` at its default parameters, at `timeScale` and with no particle
+     * cap: a reproducible load for the GPU benchmark. Nothing runs until reset(). The returned
+     * function brings back the previous algorithm, parameters, time scale and cap (a restart is
+     * then needed).
+     */
+    borrowAlgorithm(id: AlgorithmId, timeScale: number): () => void {
+        const previous = { id: this.algorithmId, timeScale: this.timeScale, cap: this.cap };
+        this.useAlgorithm(id);
+        const saved = { ...this.state.params };
+        this.cap = MAX_PARTICLES;
+        this.timeScale = timeScale;
+        for (const [key, value] of Object.entries(defaultParams(this.algorithm))) this.setParam(key, value);
+        return () => {
+            this.cap = previous.cap;
+            for (const [key, value] of Object.entries(saved)) this.setParam(key, value);
+            this.timeScale = previous.timeScale;
+            this.useAlgorithm(previous.id);
+        };
     }
 
     get positionTexture(): THREE.Texture {
@@ -107,7 +150,7 @@ export class Simulation {
 
     /** Sets a parameter of the selected algorithm; live ones reach the GPU model at once. */
     setParam(key: string, value: ParamValue): void {
-        const param = findParam(this.algorithm, key);
+        const param = this.paramDefs.find(p => p.key === key);
         if (!param) return;
         const valid = validParamValue(param, value);
         this.state.params[key] = valid;
@@ -177,9 +220,15 @@ export class Simulation {
         if (!state) {
             const algorithm = this.algorithm;
             state = { species: algorithm.particleTypes.defaults.map(cloneType), params: defaultParams(algorithm) };
+            this.capCount(state.params);
             this.states.set(this.algorithmId, state);
         }
         return state;
+    }
+
+    private capCount(params: ParamValues): void {
+        const count = params[PARTICLE_COUNT_PARAM];
+        if (typeof count === 'number' && count > this.cap) params[PARTICLE_COUNT_PARAM] = this.cap;
     }
 
     private createPipeline(): GpuPipeline {

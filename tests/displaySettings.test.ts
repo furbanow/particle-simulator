@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_DISPLAY_SETTINGS, DisplaySettingsStore, frameMs, sanitizeDisplaySettings } from '../src/displaySettings';
+import { PARTICLE_CAP_RANGE } from '../src/config';
+import {
+    DEFAULT_DISPLAY_SETTINGS, DisplaySettingsStore, frameMs, sanitizeDisplaySettings, sanitizeParticleCap,
+} from '../src/displaySettings';
 
 class MemoryStorage {
     data = new Map<string, string>();
@@ -8,8 +11,21 @@ class MemoryStorage {
 }
 
 describe('display settings', () => {
-    it('default to 60 FPS, help and author shown, stats hidden', () => {
-        expect(DEFAULT_DISPLAY_SETTINGS).toEqual({ fpsLimit: 60, showHelp: true, showStats: false, showAuthor: true, language: 'auto' });
+    it('default to 60 FPS, help and author shown, stats hidden, no particle cap before the benchmark', () => {
+        expect(DEFAULT_DISPLAY_SETTINGS).toEqual({
+            fpsLimit: 60, showHelp: true, showStats: false, showAuthor: true, language: 'auto',
+            particleCap: null, benchmarkCap: null,
+        });
+    });
+
+    it('round the particle cap to its step, within its range', () => {
+        expect(sanitizeParticleCap(412345)).toBe(410000);
+        expect(sanitizeParticleCap(10)).toBe(PARTICLE_CAP_RANGE[0]);
+        expect(sanitizeParticleCap(1e9)).toBe(PARTICLE_CAP_RANGE[1]);
+        expect(sanitizeParticleCap('400000')).toBeNull();
+        expect(sanitizeParticleCap(NaN)).toBeNull();
+        expect(sanitizeDisplaySettings({ particleCap: 250000, benchmarkCap: 400000 }))
+            .toMatchObject({ particleCap: 250000, benchmarkCap: 400000 });
     });
 
     it('sanitize unknown or ill-typed values', () => {

@@ -87,6 +87,13 @@ export const en = {
     'ui.settings.help': 'Show help (shortcuts)',
     'ui.settings.stats': 'Show statistics',
     'ui.settings.author': 'Show author',
+    'ui.settings.particleCap': 'Particle limit',
+    'ui.settings.particleCap.title': 'Upper bound of the particle count sliders, set by the GPU benchmark. Raise it to try more particles.',
+    'ui.settings.benchmark': 'Benchmark the GPU',
+    'ui.settings.benchmark.result': 'Last benchmark: {count} particles at {fps} FPS',
+    'ui.settings.benchmark.none': 'The GPU has not been benchmarked yet',
+    'ui.benchmark.title': 'Quick benchmarking your GPU',
+    'ui.benchmark.detail': 'Timing a few frames to find how many particles it runs smoothly…',
 
     // ---- Overlays ----
     'ui.author': 'Author:',

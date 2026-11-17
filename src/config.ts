@@ -177,6 +177,34 @@ export const LENS_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 0.
 export const HEAT_SLIDER: SliderSpec = { min: 0, max: 2, step: 0.05, default: 0.1 };
 export const STRETCH_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.1, default: 1.5 };
 
+// ---- GPU benchmark (first visit, or on demand from the settings) ----
+// The protostar runs as in the application, one frame per animation frame, at a few particle
+// counts; the mean interval between frames tells whether a count keeps the target frame rate. The
+// counts are searched on a geometric scale and the largest one keeping it caps the particle count
+// sliders. Above the running count, frames are repeated instead of restarting (cheaper, and on the
+// safe side). The user may move the cap within PARTICLE_CAP_RANGE.
+export const BENCHMARK_TARGET_FPS = 60;
+// A count keeps the target when its mean frame interval is within this factor of the target's
+// (or of the display's own interval, on a display slower than the target).
+export const BENCHMARK_FRAME_TOLERANCE = 1.1;
+export const BENCHMARK_DURATION_MS = 1600;         // no new count is tried past this (the final restart follows)
+export const BENCHMARK_FIRST_COUNT = 400000;
+export const BENCHMARK_GROWTH = 2;                 // count factor while every count keeps the target
+export const BENCHMARK_RESOLUTION = 1.25;          // the search stops when the first failing count is within this factor
+export const BENCHMARK_MAX_PROBES = 5;             // particle counts tried at most
+export const BENCHMARK_REFRESH_FRAMES = 4;         // idle frames timing the display's own interval
+export const BENCHMARK_WARMUP_FRAMES = 3;          // untimed frames after each restart (uploads, shader compilation)
+export const BENCHMARK_LOAD_WARMUP_FRAMES = 1;     // untimed frames after the load changes without a restart
+// Timed frames per count (fewer once BENCHMARK_PROBE_MAX_MS is over): with the warm-up, they
+// include the first read-back of the positions to the CPU (CLUSTER_CHECK_INTERVAL frames after a restart).
+export const BENCHMARK_PROBE_FRAMES = 10;
+export const BENCHMARK_PROBE_MAX_MS = 300;
+// The slowest intervals left out of a count's mean: a read-back or a garbage collection is a
+// one-off hitch, not the frame rate the GPU keeps.
+export const BENCHMARK_DROPPED_FRAMES = 2;
+export const PARTICLE_CAP_RANGE: Range = [10000, PARTICLE_COUNT_SLIDER.max];
+export const PARTICLE_CAP_STEP = 10000;
+
 // ---- UI ----
 export const PANEL_STATE_KEY = 'gpu-gravity-bloom.panel';
 export const DISPLAY_SETTINGS_KEY = 'gpu-gravity-bloom.display';

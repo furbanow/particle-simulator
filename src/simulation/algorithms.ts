@@ -16,6 +16,9 @@ export const ALGORITHMS: Readonly<Record<AlgorithmId, AlgorithmDeclaration>> = {
 
 export const DEFAULT_ALGORITHM: AlgorithmId = 'protostar';
 
+/** The algorithm whose frames the GPU benchmark times (its particle cap applies to every algorithm). */
+export const BENCHMARK_ALGORITHM: AlgorithmId = 'protostar';
+
 export const isAlgorithmId = (value: string): value is AlgorithmId =>
     (ALGORITHM_IDS as readonly string[]).includes(value);
 

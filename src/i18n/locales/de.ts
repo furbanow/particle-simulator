@@ -72,6 +72,13 @@ export const de: Record<MessageKey, string> = {
     'ui.settings.help': 'Hilfe anzeigen (Tastenkürzel)',
     'ui.settings.stats': 'Statistiken anzeigen',
     'ui.settings.author': 'Autor anzeigen',
+    'ui.settings.particleCap': 'Teilchenlimit',
+    'ui.settings.particleCap.title': 'Obergrenze der Regler für die Teilchenzahl, vom GPU-Benchmark festgelegt. Erhöhen Sie sie, um mehr Teilchen zu versuchen.',
+    'ui.settings.benchmark': 'GPU-Benchmark starten',
+    'ui.settings.benchmark.result': 'Letzter Benchmark: {count} Teilchen bei {fps} FPS',
+    'ui.settings.benchmark.none': 'Die GPU wurde noch nicht getestet',
+    'ui.benchmark.title': 'Schneller Test Ihrer GPU',
+    'ui.benchmark.detail': 'Einige Bilder werden gemessen, um zu ermitteln, wie viele Teilchen flüssig laufen…',
 
     // ---- Overlays ----
     'ui.author': 'Autor:',

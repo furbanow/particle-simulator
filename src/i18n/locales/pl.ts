@@ -72,6 +72,13 @@ export const pl: Record<MessageKey, string> = {
     'ui.settings.help': 'Pokaż pomoc (skróty)',
     'ui.settings.stats': 'Pokaż statystyki',
     'ui.settings.author': 'Pokaż autora',
+    'ui.settings.particleCap': 'Limit cząstek',
+    'ui.settings.particleCap.title': 'Górna granica suwaków liczby cząstek, ustalona przez test GPU. Zwiększ ją, aby spróbować więcej cząstek.',
+    'ui.settings.benchmark': 'Przetestuj GPU',
+    'ui.settings.benchmark.result': 'Ostatni test: {count} cząstek przy {fps} FPS',
+    'ui.settings.benchmark.none': 'GPU nie zostało jeszcze przetestowane',
+    'ui.benchmark.title': 'Szybki test Twojego GPU',
+    'ui.benchmark.detail': 'Mierzenie kilku klatek, aby ustalić, ile cząstek działa płynnie…',
 
     // ---- Overlays ----
     'ui.author': 'Autor:',

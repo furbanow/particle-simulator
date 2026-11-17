@@ -162,7 +162,23 @@
                 <span class="settings-label" data-i18n="ui.settings.author">Show author</span>
                 <input type="checkbox" id="showAuthorBox">
             </label>
+            <label class="settings-row" title="Upper bound of the particle count sliders, set by the GPU benchmark. Raise it to try more particles." data-i18n-title="ui.settings.particleCap.title">
+                <span class="settings-label" data-i18n="ui.settings.particleCap">Particle limit</span>
+                <input type="number" id="particleCapInput" class="settings-number">
+            </label>
+            <div class="settings-row">
+                <span id="benchmarkResult" class="settings-hint"></span>
+                <button id="benchmarkBtn" class="btn" type="button" data-i18n="ui.settings.benchmark">Benchmark the GPU</button>
+            </div>
         </section>
+    </div>
+</div>
+<!-- GPU benchmark, shown on the first visit or on demand from the settings (BenchmarkDialog): nothing to click. -->
+<div id="benchmark-overlay" class="modal benchmark" hidden>
+    <div class="modal-card modal-card-narrow benchmark-card" role="alertdialog" aria-modal="true" aria-busy="true" aria-labelledby="benchmarkTitle" aria-describedby="benchmarkDetail">
+        <h2 class="settings-title" id="benchmarkTitle" data-i18n="ui.benchmark.title">Quick benchmarking your GPU</h2>
+        <p class="benchmark-detail" id="benchmarkDetail" data-i18n="ui.benchmark.detail">Timing a few frames to find how many particles it runs smoothly…</p>
+        <div class="benchmark-track"><div id="benchmarkBar" class="benchmark-bar"></div></div>
     </div>
 </div>
 <!-- Keyboard shortcuts: discreet overlay in the top-left corner of the animation, under the element bar. -->

@@ -1,5 +1,6 @@
-import { DEFAULT_FPS_LIMIT, DISPLAY_SETTINGS_KEY, FPS_LIMIT_OPTIONS } from './config';
+import { DEFAULT_FPS_LIMIT, DISPLAY_SETTINGS_KEY, FPS_LIMIT_OPTIONS, PARTICLE_CAP_RANGE, PARTICLE_CAP_STEP } from './config';
 import { isLanguagePreference, type LanguagePreference } from './i18n';
+import { snap } from './util/math';
 
 /** Technical display settings, kept per browser (not part of the simulation configurations). */
 export interface DisplaySettings {
@@ -10,6 +11,10 @@ export interface DisplaySettings {
     showAuthor: boolean;
     /** Interface language; 'auto' follows the browser. A change takes effect after a reload. */
     language: LanguagePreference;
+    /** Upper bound of the particle count sliders; null until the GPU benchmark has run. */
+    particleCap: number | null;
+    /** Cap found by the last GPU benchmark (null: never run). */
+    benchmarkCap: number | null;
 }
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
@@ -18,7 +23,13 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
     showStats: false,
     showAuthor: true,
     language: 'auto',
+    particleCap: null,
+    benchmarkCap: null,
 };
+
+/** A valid particle cap (rounded to PARTICLE_CAP_STEP, within PARTICLE_CAP_RANGE), or null. */
+export const sanitizeParticleCap = (value: unknown): number | null =>
+    typeof value === 'number' && Number.isFinite(value) ? snap(value, PARTICLE_CAP_STEP, PARTICLE_CAP_RANGE) : null;
 
 /** Minimal duration of a frame for an FPS cap (0 when unlimited). */
 export const frameMs = (fpsLimit: number): number => fpsLimit > 0 ? 1000 / fpsLimit : 0;
@@ -34,6 +45,8 @@ export function sanitizeDisplaySettings(raw: unknown): DisplaySettings {
         showStats: flag(src.showStats, d.showStats),
         showAuthor: flag(src.showAuthor, d.showAuthor),
         language: isLanguagePreference(src.language) ? src.language : d.language,
+        particleCap: sanitizeParticleCap(src.particleCap),
+        benchmarkCap: sanitizeParticleCap(src.benchmarkCap),
     };
 }
 

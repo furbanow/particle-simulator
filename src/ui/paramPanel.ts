@@ -85,7 +85,7 @@ export class ParamPanel {
             set: (key, value) => this.sim.setParam(key, value),
         };
         const entries = [
-            ...this.sim.algorithm.params.map(param => ({ param, store: simulationStore })),
+            ...this.sim.paramDefs.map(param => ({ param, store: simulationStore })),
             ...VISUAL_EFFECTS.map(param => ({ param, store: this.effects })),
         ];
         const extra = this.options.extraContent ?? {};

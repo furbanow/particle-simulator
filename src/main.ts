@@ -1,15 +1,21 @@
 import * as THREE from 'three';
 import './styles/main.css';
-import { BASE_DT } from './config';
+import { browserClock, runBenchmark } from './benchmark/runner';
+import { BASE_DT, MAX_PARTICLES } from './config';
 import { DisplaySettingsStore, frameMs } from './displaySettings';
 import { applyStaticTranslations, getLanguage, t } from './i18n';
 import { NebulaLayer } from './render/nebulaLayer';
 import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
-import { ALGORITHMS, DEFAULT_ALGORITHM, isAlgorithmId, type AlgorithmId } from './simulation/algorithms';
+import { defaultTypeCount, PARTICLE_COUNT_PARAM } from './simulation/algorithm';
+import {
+    ALGORITHMS, BENCHMARK_ALGORITHM, DEFAULT_ALGORITHM, isAlgorithmId, type AlgorithmId,
+} from './simulation/algorithms';
+import { findParam } from './simulation/params';
 import { Simulation } from './simulation/Simulation';
 import { ElementConfigStore } from './elementConfigs';
 import { SimulationConfigStore, type SimulationConfig, type SimulationSetup } from './simulationConfigs';
+import { BenchmarkDialog } from './ui/benchmarkDialog';
 import { ConfigPicker } from './ui/configPicker';
 import { DarkMatterPanel } from './ui/darkMatterPanel';
 import { setupControls, sharedControlSpecs } from './ui/controls';
@@ -77,6 +83,13 @@ function resize(): void {
     post.resize(width, height, nebula.resize(width, height));
 }
 
+// ---- Display settings (FPS cap, particle cap, visibility of the help, the stats and the author) ----
+const displaySettings = new DisplaySettingsStore(localStore);
+// The particle cap bounds the count sliders: set before the panel is built. Null until the GPU benchmark has run.
+simulation.setParticleCap(displaySettings.values.particleCap ?? MAX_PARTICLES);
+/** While the GPU benchmark runs, the frame loop and the restarts wait. */
+let benchmarking = false;
+
 // ---- Panel ----
 // The tabs and their parameters (the algorithm's and the visual effects) are built from their
 // declarations, and rebuilt when another algorithm is picked; so are the stats.
@@ -103,13 +116,11 @@ const params = new ParamPanel(byId('panelTabs'), byId('panelTabContent'), simula
 });
 const stats = new Stats(simulation);
 
-// ---- Display settings (FPS cap, visibility of the help, the stats and the author) ----
-const displaySettings = new DisplaySettingsStore(localStore);
 const settingsModal = new Modal(byId('settings-modal'));
-new DisplaySettingsPanel(displaySettings, () => settingsModal.open());
-
+new DisplaySettingsPanel(displaySettings, () => settingsModal.open(), () => void benchmarkGpu());
 
 function restart(): void {
+    if (benchmarking) return;               // the benchmark restarts the simulation when it ends
     simulation.reset(elementBar.selectedTypeCount());
     particles.setParticleCount(simulation.activeCount);
     stats.reset();
@@ -180,6 +191,58 @@ elementBar.onEdit = () => {
     elementsQuick.refresh();
 };
 
+/** Bounds the particle count sliders (the counts above it come down to it, applied on restart). */
+function applyParticleCap(cap: number | null): void {
+    const value = cap ?? MAX_PARTICLES;
+    if (value === simulation.particleCap) return;
+    simulation.setParticleCap(value);
+    params.setAlgorithm();
+    refreshSimulationPicker();
+}
+displaySettings.onChange(values => applyParticleCap(values.particleCap));
+
+// ---- GPU benchmark (first visit, or from the settings) ----
+// Times full frames of the benchmark algorithm at its default parameters and speed; the frame loop waits
+// meanwhile. The found cap replaces the user's, then the user's simulation restarts.
+const benchmarkDialog = new BenchmarkDialog();
+
+async function benchmarkGpu(): Promise<void> {
+    if (benchmarking) return;
+    benchmarking = true;
+    // The settings dialog, if the benchmark was run from it, would be timed too (its blurred backdrop).
+    const fromSettings = settingsModal.isOpen;
+    settingsModal.close();
+    benchmarkDialog.show();
+    // Two animation frames: the dialog is painted before the GPU gets busy.
+    await browserClock.nextFrame();
+    await browserClock.nextFrame();
+    const algorithm = ALGORITHMS[BENCHMARK_ALGORITHM];
+    const countParam = findParam(algorithm, PARTICLE_COUNT_PARAM);
+    if (countParam?.kind !== 'number') throw new Error(`${BENCHMARK_ALGORITHM} has no particle count parameter`);
+    // At the default speed: its substeps are part of the load.
+    const speed = parseFloat(byId<HTMLInputElement>('speedSlider').defaultValue);
+    const restore = simulation.borrowAlgorithm(BENCHMARK_ALGORITHM, speed);
+    let cap: number | null = null;
+    try {
+        cap = await runBenchmark({
+            range: [countParam.min, countParam.max],
+            prepare: count => {
+                simulation.setParam(PARTICLE_COUNT_PARAM, count);
+                simulation.reset(defaultTypeCount(algorithm.particleTypes));
+                particles.setParticleCount(count);
+            },
+            frame: renderFrame,
+        }, browserClock, fraction => benchmarkDialog.progress(fraction));
+    } finally {
+        restore();
+        if (cap !== null) displaySettings.update({ particleCap: cap, benchmarkCap: cap });
+        benchmarking = false;
+        benchmarkDialog.hide();
+        restart();
+        if (fromSettings) settingsModal.open();
+    }
+}
+
 function togglePanel(): void {
     document.body.classList.toggle('panel-hidden');
     resize();
@@ -200,29 +263,42 @@ let lastFrame = performance.now();
 let visualTime = 0;
 let lastVisualNow = lastFrame;
 
+/** One frame: simulation step, then rendering. */
+function renderFrame(): void {
+    simulation.step();
+    particles.update(simulation.positionTexture, simulation.velocityTexture, BASE_DT * simulation.timeScale);
+    nebula.render();
+    post.render(visualTime);
+    simulation.endFrame();
+}
+
 function loop(now: number): void {
     requestAnimationFrame(loop);
+    if (benchmarking) {
+        lastVisualNow = now;                // the background clock does not jump over the benchmark
+        return;
+    }
     const frame = frameMs(displaySettings.values.fpsLimit);
     if (now - lastFrame < frame - 1) return; // 1 ms tolerance for rAF jitter
     lastFrame += frame;
     if (now - lastFrame > frame) lastFrame = now;
 
-    simulation.step();
-    particles.update(simulation.positionTexture, simulation.velocityTexture, BASE_DT * simulation.timeScale);
-    nebula.render();
     if (simulation.timeScale > 0) visualTime += (now - lastVisualNow) / 1000;
     lastVisualNow = now;
-    post.render(visualTime);
-    simulation.endFrame();
+    renderFrame();
 
     stats.update();
     stats.tick(now);
 }
 
 resize();
+// The first GPU benchmark starts right away (its first animation frames are ahead): the restart of
+// the setup below then waits for its end, so the simulation is not set up twice.
+const firstBenchmark = displaySettings.values.particleCap === null ? benchmarkGpu() : null;
 // A built-in config is not applied: the element editor stays on its own current config.
 if (simulationConfigs.canEdit(simulationConfigs.current.id)) applySimulationSetup(simulationConfigs.current);
 else restart();
 simulationPicker.refreshList();
 simulationPicker.refresh();
 requestAnimationFrame(loop);
+firstBenchmark?.catch(err => console.error(err));

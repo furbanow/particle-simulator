@@ -5,6 +5,14 @@
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 13px; color: var(--text); }
 .settings-row input[type=checkbox] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
 .settings-row .config-select { width: 140px; }
+.settings-number {
+    width: 140px; height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text); font: 500 12.5px var(--mono); color-scheme: dark;
+    transition: border-color 0.15s;
+}
+.settings-number:hover { border-color: var(--border-strong); }
+.settings-number:focus { outline: none; border-color: var(--accent); }
+.settings-hint { font-size: 12px; color: var(--text-3); }
 
 /* Visibility toggles (body classes set from the display settings). */
 body.hide-help .shortcuts, body.hide-stats .stats-overlay, body.hide-author .author { display: none; }

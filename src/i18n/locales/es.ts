@@ -72,6 +72,13 @@ export const es: Record<MessageKey, string> = {
     'ui.settings.help': 'Mostrar la ayuda (atajos)',
     'ui.settings.stats': 'Mostrar las estadísticas',
     'ui.settings.author': 'Mostrar el autor',
+    'ui.settings.particleCap': 'Límite de partículas',
+    'ui.settings.particleCap.title': 'Límite superior de los controles del número de partículas, fijado por la prueba de la GPU. Auméntelo para probar con más partículas.',
+    'ui.settings.benchmark': 'Probar la GPU',
+    'ui.settings.benchmark.result': 'Última prueba: {count} partículas a {fps} FPS',
+    'ui.settings.benchmark.none': 'La GPU aún no se ha probado',
+    'ui.benchmark.title': 'Prueba rápida de su GPU',
+    'ui.benchmark.detail': 'Midiendo algunos fotogramas para saber cuántas partículas mueve con fluidez…',
 
     // ---- Overlays ----
     'ui.author': 'Autor:',
