@@ -299,6 +299,25 @@ renderer.domElement.addEventListener('wheel', e => {
     const anchor = screenToWorld(view, { x: e.clientX - box.left, y: e.clientY - box.top }, width, height);
     zoomView(Math.exp(-pixels * ZOOM_WHEEL_SENSITIVITY), anchor);
 }, { passive: false });
+// Dragging with the middle button pans the zoomed view (the world follows the pointer).
+let pan: { pointerId: number; x: number; y: number } | null = null;
+renderer.domElement.addEventListener('pointerdown', e => {
+    if (e.button !== 1 || pan) return;
+    e.preventDefault();                     // no browser autoscroll
+    renderer.domElement.setPointerCapture(e.pointerId);
+    pan = { pointerId: e.pointerId, x: e.clientX, y: e.clientY };
+});
+renderer.domElement.addEventListener('pointermove', e => {
+    if (!pan || e.pointerId !== pan.pointerId) return;
+    const dx = e.clientX - pan.x;
+    const dy = e.clientY - pan.y;
+    pan.x = e.clientX;
+    pan.y = e.clientY;
+    setView({ zoom: view.zoom, center: { x: view.center.x - dx / view.zoom, y: view.center.y + dy / view.zoom } });
+});
+const endPan = (e: PointerEvent): void => { if (pan?.pointerId === e.pointerId) pan = null; };
+renderer.domElement.addEventListener('pointerup', endPan);
+renderer.domElement.addEventListener('pointercancel', endPan);
 function togglePause(): void {
     setPaused(!simulation.paused);
     flash(pauseBtn);
