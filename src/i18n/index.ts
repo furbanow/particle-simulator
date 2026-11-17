@@ -1,6 +1,7 @@
 import { DEFAULT_LANGUAGE, DISPLAY_SETTINGS_KEY, SUPPORTED_LANGUAGES, type Language } from '../config';
 import { de } from './locales/de';
 import { en, type MessageKey } from './locales/en';
+import { es } from './locales/es';
 import { fr } from './locales/fr';
 import { pl } from './locales/pl';
 
@@ -12,7 +13,7 @@ export type LanguagePreference = Language | 'auto';
 
 export type MessageParams = Record<string, string | number>;
 
-const CATALOGS: Record<Language, Record<MessageKey, string>> = { en, fr, pl, de };
+const CATALOGS: Record<Language, Record<MessageKey, string>> = { en, fr, pl, de, es };
 
 export const isLanguage = (value: unknown): value is Language =>
     typeof value === 'string' && (SUPPORTED_LANGUAGES as readonly string[]).includes(value);

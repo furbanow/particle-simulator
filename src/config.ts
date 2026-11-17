@@ -181,10 +181,10 @@ export const STRETCH_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.1, default: 
 export const PANEL_STATE_KEY = 'gpu-gravity-bloom.panel';
 export const DISPLAY_SETTINGS_KEY = 'gpu-gravity-bloom.display';
 /** Languages of the interface, each shown under its own name in the language selector. */
-export const SUPPORTED_LANGUAGES = ['en', 'fr', 'pl', 'de'] as const;
+export const SUPPORTED_LANGUAGES = ['en', 'fr', 'pl', 'de', 'es'] as const;
 export type Language = typeof SUPPORTED_LANGUAGES[number];
 export const DEFAULT_LANGUAGE: Language = 'en'; // fallback when the browser language is not supported
-export const LANGUAGE_NAMES: Record<Language, string> = { en: 'English', fr: 'Français', pl: 'Polski', de: 'Deutsch' };
+export const LANGUAGE_NAMES: Record<Language, string> = { en: 'English', fr: 'Français', pl: 'Polski', de: 'Deutsch', es: 'Español' };
 export const FPS_LIMIT_OPTIONS = [30, 60, 120, 144, 0]; // frames per second; 0 = unlimited (display refresh rate)
 export const DEFAULT_FPS_LIMIT = 60;
 export const PANEL_TAB_KEY = 'gpu-gravity-bloom.panelTab';
