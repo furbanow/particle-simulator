@@ -32,6 +32,22 @@ export function createMipmappedHalfFloatTarget(width: number, height: number): T
     });
 }
 
+/**
+ * Writes level 0 of a freshly (re)allocated target. three.js calls generateMipmap while setting
+ * the target up, before anything is drawn: on a texture never written, WebGL warns about lazy
+ * initialization. Mipmaps are therefore disabled for this first bind and restored afterwards.
+ */
+export function clearTarget(renderer: THREE.WebGLRenderer, target: THREE.WebGLRenderTarget): void {
+    const texture = target.texture;
+    const generateMipmaps = texture.generateMipmaps;
+    texture.generateMipmaps = false;
+    const previous = renderer.getRenderTarget();
+    renderer.setRenderTarget(target);
+    renderer.clear();
+    renderer.setRenderTarget(previous);
+    texture.generateMipmaps = generateMipmaps;
+}
+
 export function hexToVector(hex: string): THREE.Vector3 {
     const c = new THREE.Color(hex);
     return new THREE.Vector3(c.r, c.g, c.b);

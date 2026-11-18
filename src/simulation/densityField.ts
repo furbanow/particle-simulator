@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { DENSITY_DOMAIN_SCALE, DENSITY_RES, MAX_SPECIES, MOMENTUM_SCALE } from '../config';
-import { additiveBlending, clipSpaceCamera, createMipmappedHalfFloatTarget, type Uniform } from '../gl/common';
+import { additiveBlending, clearTarget, clipSpaceCamera, createMipmappedHalfFloatTarget, type Uniform } from '../gl/common';
 import { withDefines } from '../gl/withDefines';
 import splatVert from '../shaders/splat.vert?raw';
 import splatFrag from '../shaders/splat.frag?raw';
@@ -40,6 +40,7 @@ export class DensityField {
         const points = new THREE.Points(geometry, this.material);
         points.frustumCulled = false;
         this.scene.add(points);
+        clearTarget(renderer, this.target);
     }
 
     resize(width: number, height: number): void {

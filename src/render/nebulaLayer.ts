@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { MAX_SPECIES, NEBULA_DOWNSCALE } from '../config';
-import { additiveBlending, clipSpaceCamera, createMipmappedHalfFloatTarget, type Uniform, type ViewUniforms } from '../gl/common';
+import { additiveBlending, clearTarget, clipSpaceCamera, createMipmappedHalfFloatTarget, type Uniform, type ViewUniforms } from '../gl/common';
 import { withDefines } from '../gl/withDefines';
 import type { SpeciesUniforms } from '../simulation/Simulation';
 import nebulaVert from '../shaders/nebula.vert?raw';
@@ -40,6 +40,7 @@ export class NebulaLayer {
         const nw = Math.max(1, Math.ceil(width / NEBULA_DOWNSCALE));
         const nh = Math.max(1, Math.ceil(height / NEBULA_DOWNSCALE));
         this.target.setSize(nw, nh);
+        clearTarget(this.renderer, this.target);
         return new THREE.Vector2(nw, nh);
     }
 
