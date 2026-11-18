@@ -1,7 +1,7 @@
 @import '@fontsource/inter/400.css';
 @import '@fontsource/inter/500.css';
 @import '@fontsource/inter/600.css';
-/* Bold and italic: used by the dark matter text mask only (loaded on use). */
+/* Bold and italic: used by the drawings' text mask only (loaded on use). */
 @import '@fontsource/inter/700.css';
 @import '@fontsource/inter/400-italic.css';
 @import '@fontsource/inter/700-italic.css';
@@ -32,5 +32,5 @@
 @import './configPicker.css';
 @import './algorithmPicker.css';
 @import './speedDock.css';
-@import './darkMatter.css';
+@import './drawing.css';
 @import './layout.css';

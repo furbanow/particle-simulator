@@ -21,7 +21,7 @@ import { ElementConfigStore } from './elementConfigs';
 import { SimulationConfigStore, type SimulationConfig, type SimulationSetup } from './simulationConfigs';
 import { BenchmarkDialog } from './ui/benchmarkDialog';
 import { ConfigPicker } from './ui/configPicker';
-import { DarkMatterPanel } from './ui/darkMatterPanel';
+import { DrawingPanel } from './ui/drawingPanel';
 import { setupControls, sharedControlSpecs } from './ui/controls';
 import { byId, fail, flash } from './ui/dom';
 import { showUnsupported } from './ui/unsupported';
@@ -79,7 +79,7 @@ try {
 } catch (err) {
     failWith(err);
 }
-// The visual zoom: shared by reference by the materials, and by the dark matter drawing.
+// The visual zoom: shared by reference by the materials, and by the drawing masks.
 const viewUniforms: ViewUniforms = { zoom: { value: 1 }, center: { value: new THREE.Vector2() } };
 let view: ViewState = { zoom: 1, center: { x: width / 2, y: height / 2 } };
 const viewListeners: Array<(view: ViewState) => void> = [];
@@ -101,7 +101,7 @@ function resize(): void {
     height = container.clientHeight;
     renderer.setSize(width, height);
     simulation.resize(width, height);
-    darkMatter.resize(width, height);
+    drawing.resize(width, height);
     setView(view);                          // the visible part stays inside the resized world
     post.resize(width, height, nebula.resize(width, height));
 }
@@ -131,11 +131,11 @@ setupSliders(byId('element-bar'));
 const elementsModal = new Modal(byId('elements-modal'));
 const elementsQuick = new ElementsQuickPanel(simulation, elementBar, () => elementsModal.open());
 
-// The static dark matter: its tab is built once and kept when the panel is rebuilt for another algorithm.
-const darkMatter = new DarkMatterPanel({ field: simulation.darkMatter, container, surface: renderer.domElement, getView: () => view, onViewChange: listener => viewListeners.push(listener) });
+// The static drawings (attractors, repellers): their tab is built once and kept when the panel is rebuilt for another algorithm.
+const drawing = new DrawingPanel({ field: simulation.drawing, container, surface: renderer.domElement, getView: () => view, onViewChange: listener => viewListeners.push(listener) });
 const params = new ParamPanel(byId('panelTabs'), byId('panelTabContent'), simulation, controls.effects, {
-    extraContent: { elements: elementsQuick.element, darkMatter: darkMatter.element },
-    onTabChange: id => darkMatter.setTabOpen(id === 'darkMatter'),
+    extraContent: { elements: elementsQuick.element, drawing: drawing.element },
+    onTabChange: id => drawing.setTabOpen(id === 'drawing'),
 });
 const stats = new Stats(simulation);
 
@@ -166,14 +166,14 @@ function switchAlgorithm(id: AlgorithmId): void {
     restart();
 }
 
-// ---- Simulation configs (the whole setup: algorithm, parameters, elements, shared sliders, dark matter) ----
+// ---- Simulation configs (the whole setup: algorithm, parameters, elements, shared sliders, drawings) ----
 const simulationSetup = (): SimulationSetup => ({
     algorithm: simulation.algorithmKey,
     params: { ...simulation.params },
     typeCount: elementBar.selectedTypeCount(),
     species: simulation.species,
     controls: controls.values(),
-    darkMatter: darkMatter.values(),
+    drawing: drawing.values(),
 });
 
 /** Brings the whole simulation and its UI to `setup`, with a single restart. */
@@ -187,7 +187,7 @@ function applySimulationSetup(setup: SimulationSetup): void {
     }
     for (const [key, value] of Object.entries(setup.params)) simulation.setParam(key, value);
     controls.apply(setup.controls);
-    darkMatter.apply(setup.darkMatter);
+    drawing.apply(setup.drawing);
     params.setAlgorithm();                 // shows the values just set
     if (algorithmChanged) {
         stats.setAlgorithm();

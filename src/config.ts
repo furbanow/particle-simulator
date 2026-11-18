@@ -121,33 +121,34 @@ export const HYDROGEN_1_MASS = 1.00783;
 // mix with carbon 13): three helium atoms weigh 12.0078 u, the reaction would release no energy.
 export const CARBON_12_MASS = 12;
 
-// ---- Static dark matter (common to every algorithm) ----
-// Drawn as an opacity mask the size of the simulation area: a pixel of opacity 1 holds a unit of
-// mass per px^2. Its mass is summed on a DARK_MATTER_GRID_RES^2 grid of square cells over
+// ---- Drawings: static attractors and repellers (common to every algorithm) ----
+// Two kinds, each drawn as an opacity mask the size of the simulation area: a pixel of opacity 1 holds a unit of
+// mass per px^2. Its mass is summed on a DRAWING_GRID_RES^2 grid of square cells over
 // max(width, height), from the origin, and its softened gravity computed once per change of the
 // mask, on two levels (as the protostar's): coarse cells group COARSE_FACTOR^2 fine cells, the
 // ones within NEAR_RADIUS (Chebyshev) of a cell's own coarse cell are summed fine cell by fine cell.
-export const DARK_MATTER_GRID_RES = 128;
-export const DARK_MATTER_COARSE_FACTOR = 8;
-export const DARK_MATTER_NEAR_RADIUS = 1;
+export const DRAWING_GRID_RES = 128;
+export const DRAWING_COARSE_FACTOR = 8;
+export const DRAWING_NEAR_RADIUS = 1;
 // Acceleration: a = strength * GRAVITY_UNIT * L * sum m (r_j - r) / (|r_j - r|^2 + eps^2)^(3/2), with
 // L = min(width, height): the sum has no dimension, so the pull does not depend on the screen size.
-export const DARK_MATTER_GRAVITY_UNIT = 1;
-export const DARK_MATTER_PREVIEW_MS = 1000;        // the mask shows while it changes, then fades after this delay
-export const DARK_MATTER_UPDATE_MS = 100;          // gravity recomputed at most this often while drawing
-export const DARK_MATTER_TINT: readonly [number, number, number] = [139, 92, 246];   // preview color (RGB)
-export const DARK_MATTER_BRUSH_SPACING = 0.25;     // distance between brush dabs / brush diameter
-export const DARK_MATTER_BRUSH_HARDNESS = 0.4;     // fraction of the dab radius at full density
-export const DARK_MATTER_TEXT_MARGIN = 0.05;       // text margins / min(width, height)
-export const DARK_MATTER_TEXT_MAX = 2000;          // characters kept in a saved config
+export const DRAWING_GRAVITY_UNIT = 1;
+export const DRAWING_PREVIEW_MS = 1000;        // the mask shows while it changes, then fades after this delay
+export const DRAWING_UPDATE_MS = 100;          // gravity recomputed at most this often while drawing
+export const DRAWING_ATTRACTOR_TINT: readonly [number, number, number] = [139, 92, 246];   // preview color (RGB)
+export const DRAWING_REPELLER_TINT: readonly [number, number, number] = [249, 115, 22];
+export const DRAWING_BRUSH_SPACING = 0.25;     // distance between brush dabs / brush diameter
+export const DRAWING_BRUSH_HARDNESS = 0.4;     // fraction of the dab radius at full density
+export const DRAWING_TEXT_MARGIN = 0.05;       // text margins / min(width, height)
+export const DRAWING_TEXT_MAX = 2000;          // characters kept in a saved config
 // Panel parameters (slider min, max, step, default).
-export const DARK_MATTER_STRENGTH_SLIDER: SliderSpec = { min: 0, max: 10, step: 0.1, default: 2 };
-export const DARK_MATTER_SOFTENING_SLIDER: SliderSpec = { min: 0.5, max: 10, step: 0.1, default: 2 };   // % of L
-export const DARK_MATTER_BRUSH_SIZE_SLIDER: SliderSpec = { min: 4, max: 300, step: 1, default: 60 };     // px
-export const DARK_MATTER_BRUSH_FLOW_SLIDER: SliderSpec = { min: 1, max: 100, step: 1, default: 25 };     // %
-export const DARK_MATTER_OPACITY_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 100 };       // %
-export const DARK_MATTER_FONT_SIZE_SLIDER: SliderSpec = { min: 12, max: 600, step: 1, default: 160 };    // px
-export const DARK_MATTER_LINE_HEIGHT_SLIDER: SliderSpec = { min: 0.6, max: 2.5, step: 0.05, default: 1.1 };
+export const DRAWING_STRENGTH_SLIDER: SliderSpec = { min: 0, max: 10, step: 0.1, default: 2 };
+export const DRAWING_SOFTENING_SLIDER: SliderSpec = { min: 0.5, max: 10, step: 0.1, default: 2 };   // % of L
+export const DRAWING_BRUSH_SIZE_SLIDER: SliderSpec = { min: 4, max: 300, step: 1, default: 60 };     // px
+export const DRAWING_BRUSH_FLOW_SLIDER: SliderSpec = { min: 1, max: 100, step: 1, default: 25 };     // %
+export const DRAWING_OPACITY_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 100 };       // %
+export const DRAWING_FONT_SIZE_SLIDER: SliderSpec = { min: 12, max: 600, step: 1, default: 160 };    // px
+export const DRAWING_LINE_HEIGHT_SLIDER: SliderSpec = { min: 0.6, max: 2.5, step: 0.05, default: 1.1 };
 
 // ---- Species ----
 export const MAX_SPECIES = 10;

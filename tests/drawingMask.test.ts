@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { containRect, densityFromPixel, wrapText } from '../src/darkMatterMask';
+import { containRect, densityFromPixel, wrapText } from '../src/drawingMask';
 
 const measure = (s: string): number => s.length;   // one unit per character
 
-describe('dark matter mask', () => {
+describe('drawing mask', () => {
     it('fits an image inside the area, centered, keeping its aspect ratio', () => {
         expect(containRect(200, 100, 400, 400)).toEqual({ x: 0, y: 100, width: 400, height: 200 });
         expect(containRect(100, 200, 400, 200)).toEqual({ x: 150, y: 0, width: 100, height: 200 });

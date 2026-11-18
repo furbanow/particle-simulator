@@ -5,7 +5,7 @@ import {
 import { additiveBlending, clipSpaceCamera, type Uniform } from '../../gl/common';
 import { GridPass, gridTarget } from '../../gl/gridPass';
 import { glslFloat, withDefines } from '../../gl/withDefines';
-import { DARK_MATTER_DEFINES, darkMatterGlsl, type DarkMatterUniforms } from '../darkMatter/DarkMatterField';
+import { DRAWING_DEFINES, drawingGlsl, type DrawingUniforms } from '../drawing/DrawingField';
 import commonGlsl from '../../shaders/protostar-common.glsl?raw';
 import depositVert from '../../shaders/protostar-deposit.vert?raw';
 import depositFrag from '../../shaders/protostar-deposit.frag?raw';
@@ -21,18 +21,18 @@ const REDUCE_BLOCK = PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES;
 /** Defines of every shader including protostar-common.glsl. */
 export const PROTOSTAR_DEFINES = {
     MAX_SPECIES, GRID_RES: PROTOSTAR_GRID_RES, FUSION_RATE_MAX: glslFloat(PROTOSTAR_FUSION_RATE_MAX),
-    ...DARK_MATTER_DEFINES,
+    ...DRAWING_DEFINES,
 } as const;
 
-/** Prepends the defines and the shared GLSL (grid sampling and dark matter, fusion rate, random numbers). */
+/** Prepends the defines and the shared GLSL (grid sampling and drawings, fusion rate, random numbers). */
 export const withProtostarCommon = (source: string, defines: Record<string, string | number> = {}): string =>
-    withDefines(`${darkMatterGlsl}\n${commonGlsl}\n${source}`, { ...PROTOSTAR_DEFINES, ...defines });
+    withDefines(`${drawingGlsl}\n${commonGlsl}\n${source}`, { ...PROTOSTAR_DEFINES, ...defines });
 
 /**
- * The uniforms of protostar-common.glsl (and of dark-matter.glsl, which it uses), shared by reference
+ * The uniforms of protostar-common.glsl (and of drawing.glsl, which it uses), shared by reference
  * by every material that includes it.
  */
-export interface ProtostarCommonUniforms extends DarkMatterUniforms {
+export interface ProtostarCommonUniforms extends DrawingUniforms {
     gridForce: Uniform<THREE.Texture | null>;
     gridGas: Uniform<THREE.Texture | null>;
     gridHeat: Uniform<THREE.Texture | null>;
@@ -48,10 +48,10 @@ export interface ProtostarCommonUniforms extends DarkMatterUniforms {
     reactionEnergy: Uniform<number[]>;
 }
 
-export function createCommonUniforms(darkMatter: DarkMatterUniforms): ProtostarCommonUniforms {
+export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonUniforms {
     const perType = (fill: number): Uniform<number[]> => ({ value: new Array<number>(MAX_SPECIES).fill(fill) });
     return {
-        ...darkMatter,
+        ...drawing,
         gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null },
         gridCell: { value: 1 }, fusionTRef: { value: 1 }, seed: { value: 0 },
         reactionTo: perType(-1), reactionKeep: perType(0), reactionRate: perType(0),
@@ -134,8 +134,8 @@ export class ProtostarGrids {
     };
 
     constructor(private readonly renderer: THREE.WebGLRenderer, geometry: THREE.BufferGeometry,
-                splatMass: Uniform<number[]>, darkMatter: DarkMatterUniforms) {
-        this.common = createCommonUniforms(darkMatter);
+                splatMass: Uniform<number[]>, drawing: DrawingUniforms) {
+        this.common = createCommonUniforms(drawing);
         // Additive float32 blending needs EXT_float_blend (asking for it enables it); half floats otherwise.
         const blendType = renderer.extensions.has('EXT_float_blend') ? THREE.FloatType : THREE.HalfFloatType;
         const res = PROTOSTAR_GRID_RES;

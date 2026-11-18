@@ -1,5 +1,5 @@
 import { SIMULATION_CONFIGS_KEY, type Range } from './config';
-import { cloneDarkMatter, defaultDarkMatter, sanitizeDarkMatterSettings, type DarkMatterSettings } from './darkMatter';
+import { cloneDrawing, defaultDrawing, sanitizeDrawingSettings, type DrawingSettings } from './drawing';
 import {
     cleanName, cloneSetup, copyName, defaultSetup, finiteIn, isRecord, numberedName, randomId, sameSetup, sanitizeConfig,
     type AlgorithmCatalog, type ElementSetup, type KeyValueStorage,
@@ -16,8 +16,8 @@ export interface SimulationSetup extends ElementSetup {
     params: ParamValues;
     /** Sliders shared by every algorithm (speed, visual effects), by name. */
     controls: Record<string, number>;
-    /** The static dark matter's settings (its drawing and image are not saved). */
-    darkMatter: DarkMatterSettings;
+    /** The static drawings' settings (what is drawn and imported is not saved). */
+    drawing: DrawingSettings;
 }
 
 /** A named simulation setup saved in the browser. */
@@ -58,7 +58,7 @@ function defaultSimulationSetup(algorithm: AlgorithmDeclaration, controls: reado
         algorithm: algorithm.id,
         params: panelParams(algorithm, {}),
         controls: { ...defaultControls(controls), ...(algorithm.defaultSpeed === undefined ? {} : { speed: algorithm.defaultSpeed }) },
-        darkMatter: defaultDarkMatter(),
+        drawing: defaultDrawing(),
         ...defaultSetup(algorithm.particleTypes),
     };
 }
@@ -67,7 +67,7 @@ export const cloneSimulationSetup = (setup: SimulationSetup): SimulationSetup =>
     algorithm: setup.algorithm,
     params: { ...setup.params },
     controls: { ...setup.controls },
-    darkMatter: cloneDarkMatter(setup.darkMatter),
+    drawing: cloneDrawing(setup.drawing),
     ...cloneSetup(setup),
 });
 
@@ -75,8 +75,8 @@ const sortedEntries = (values: Readonly<Record<string, unknown>>): [string, unkn
     Object.keys(values).sort().map(k => [k, values[k]]);
 
 /** Two setups are equal when their elements are and this key is (independent of object shape). */
-const settingsKey = ({ algorithm, params, controls, darkMatter }: SimulationSetup): string =>
-    JSON.stringify([algorithm, sortedEntries(params), sortedEntries(controls), sortedEntries(darkMatter.params), darkMatter.text]);
+const settingsKey = ({ algorithm, params, controls, drawing }: SimulationSetup): string =>
+    JSON.stringify([algorithm, sortedEntries(params), sortedEntries(controls), sortedEntries(drawing.params), drawing.texts]);
 
 const sameSimulationSetup = (a: SimulationSetup, b: SimulationSetup): boolean =>
     settingsKey(a) === settingsKey(b) && sameSetup(a, b);
@@ -98,7 +98,7 @@ export function sanitizeSimulationConfig(raw: unknown, controls: readonly Contro
         name: typeof raw.name === 'string' && cleanName(raw.name) || NEW_CONFIG_PREFIX,
         params: panelParams(algorithm, isRecord(raw.params) ? raw.params : {}),
         controls: Object.fromEntries(controls.map(c => [c.key, finiteIn(rawControls[c.key], c.range, c.default)])),
-        darkMatter: sanitizeDarkMatterSettings(raw.darkMatter),
+        drawing: sanitizeDrawingSettings(raw.drawing ?? raw.darkMatter),   // darkMatter: the key before drawings had kinds
     };
 }
 

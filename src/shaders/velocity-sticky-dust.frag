@@ -1,6 +1,6 @@
 // GPGPU velocity step of the "sticky dust" algorithm: multi-scale gravity, threshold pressure,
-// viscosity toward the local flow, pull of the static dark matter (dark-matter.glsl, included before).
-// Defines: MAX_SPECIES, DARK_MATTER_RES. Provided by GPUComputationRenderer: resolution.
+// viscosity toward the local flow, force of the static drawings (drawing.glsl, included before).
+// Defines: MAX_SPECIES, DRAWING_RES. Provided by GPUComputationRenderer: resolution.
 // The state samplers are bound by GpuPipeline (the velocity pass declares no dependencies).
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
@@ -103,7 +103,7 @@ void main() {
 
     // Buoyancy: the pressure push is divided by the species' relative density, so species
     // denser than the mean sink to the core of clumps and lighter ones float to the rim.
-    vec2 v = vel.xy + bound * (kGravity * gravity + darkMatterAccel(pos)
+    vec2 v = vel.xy + bound * (kGravity * gravity + drawingAccel(pos)
                                - kPressure * speciesInvRelDensity[species] * pressure) * dt;
 
     // "Sticking": in dense regions, velocity relaxes toward the local mean flow, so

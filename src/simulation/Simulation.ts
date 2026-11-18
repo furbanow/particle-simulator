@@ -7,7 +7,7 @@ import {
     type ParamValue, type ParamValues, type ParticleType,
 } from './algorithm';
 import { ALGORITHMS, DEFAULT_ALGORITHM, type AlgorithmId } from './algorithms';
-import { DarkMatterField } from './darkMatter/DarkMatterField';
+import { DrawingField } from './drawing/DrawingField';
 import { GpuPipeline } from './GpuPipeline';
 import { GPU_MODELS } from './gpuModels';
 import { defaultParams, validParamValue } from './params';
@@ -40,8 +40,8 @@ export class Simulation {
     readonly glowFromState: Uniform<number> = { value: 0 };
     /** Particles per type at the last restart (the population split). */
     readonly speciesCounts = new Array<number>(MAX_SPECIES).fill(0);
-    /** The static dark matter: it outlives the pipelines (restarts and algorithm changes keep it). */
-    readonly darkMatter: DarkMatterField;
+    /** The static drawings: they outlive the pipelines (restarts and algorithm changes keep it). */
+    readonly drawing: DrawingField;
 
     // ---- Live parameters ----
     timeScale = 1;
@@ -63,7 +63,7 @@ export class Simulation {
 
     constructor(private readonly renderer: THREE.WebGLRenderer, algorithm: AlgorithmId = DEFAULT_ALGORITHM) {
         this.algorithmId = algorithm;
-        this.darkMatter = new DarkMatterField(renderer);
+        this.drawing = new DrawingField(renderer);
         this.pipeline = this.createPipeline();
     }
 
@@ -214,7 +214,7 @@ export class Simulation {
     /** Advances one rendered frame (substeps keep large time scales stable). Frozen at time scale 0. */
     step(): void {
         if (this.paused || this.timeScale <= 0) return;
-        this.darkMatter.prepare();
+        this.drawing.prepare();
         const steps = Math.max(1, Math.ceil(this.timeScale - 1e-6));
         this.pipeline.step(BASE_DT * this.timeScale / steps, steps);
     }

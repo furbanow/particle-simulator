@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { maskMassGrid } from '../src/simulation/darkMatter/massGrid';
+import { maskMassGrid } from '../src/simulation/drawing/massGrid';
 
 /** RGBA bytes of a width x height mask, alpha given per pixel (rows from the top). */
 function mask(width: number, height: number, alpha: (x: number, row: number) => number): Uint8ClampedArray {
@@ -12,7 +12,7 @@ function mask(width: number, height: number, alpha: (x: number, row: number) => 
 
 const massAt = (data: Float32Array, res: number, i: number, j: number): number => data[(j * res + i) * 4];
 
-describe('dark matter mass grid', () => {
+describe('drawing mass grid', () => {
     it('weighs 1 per opaque pixel and conserves the mass', () => {
         const { data, total } = maskMassGrid(mask(8, 4, () => 255), 8, 4, 4, 2);
         expect(total).toBe(32);

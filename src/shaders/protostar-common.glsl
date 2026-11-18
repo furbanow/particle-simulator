@@ -1,5 +1,5 @@
 // Shared by the protostar shaders: sampling of the grids at a particle, fusion rate, random numbers.
-// Defines: MAX_SPECIES, GRID_RES, FUSION_RATE_MAX. Included after dark-matter.glsl (darkMatterAccel).
+// Defines: MAX_SPECIES, GRID_RES, FUSION_RATE_MAX. Included after drawing.glsl (drawingAccel).
 uniform sampler2D gridForce;            // gravitational acceleration at the cell centers (px/s^2)
 uniform sampler2D gridGas;              // (rho / rho0, T px^2/s^2, mean vx, mean vy) of the 3x3 neighborhood
 uniform sampler2D gridHeat;             // fusion heating per unit mass of the 3x3 neighborhood, T0 per s
@@ -31,13 +31,13 @@ void gridCorners(vec2 x, out ivec2 c[4], out float w[4]) {
     w[3] = f.x * f.y;
 }
 
-/** Acceleration at x: bilinear interpolation of the gravity grid, plus the static dark matter's pull. */
+/** Acceleration at x: bilinear interpolation of the gravity grid, plus the static drawings' force. */
 vec2 forceAt(vec2 x) {
     ivec2 c[4]; float w[4];
     gridCorners(x, c, w);
     vec2 a = vec2(0.0);
     for (int k = 0; k < 4; k++) a += w[k] * texelFetch(gridForce, c[k], 0).xy;
-    return a + darkMatterAccel(x);
+    return a + drawingAccel(x);
 }
 
 struct Gas {

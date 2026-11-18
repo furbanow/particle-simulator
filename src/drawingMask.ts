@@ -1,5 +1,5 @@
-// Geometry and pixel rules of the dark matter mask: fitting an image, wrapping a text, the density
-// of an image pixel. Pure functions (tested); ui/darkMatter/maskCanvas.ts draws with them.
+// Geometry and pixel rules of the drawing masks: fitting an image, wrapping a text, the density
+// of an image pixel. Pure functions (tested); ui/drawing/maskCanvas.ts draws with them.
 
 export interface Rect {
     readonly x: number;

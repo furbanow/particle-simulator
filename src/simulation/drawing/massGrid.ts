@@ -1,4 +1,4 @@
-// Mass of the dark matter on its grid, from the opacity mask. Pure function (tested).
+// Mass of a drawing on its grid, from the opacity mask. Pure function (tested).
 
 /** The mass grid of a mask, and its total mass. */
 export interface MassGrid {

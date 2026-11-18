@@ -24,7 +24,7 @@ export const PANEL_TABS = [
     { id: 'physics', label: t('tab.physics') },
     { id: 'fusion', label: t('tab.fusion') },
     { id: 'supernova', label: t('tab.supernova') },
-    { id: 'darkMatter', label: t('tab.darkMatter') },
+    { id: 'drawing', label: t('tab.drawing') },
     { id: 'elements', label: t('tab.elements') },
     { id: 'effects', label: t('tab.effects') },
 ] as const;

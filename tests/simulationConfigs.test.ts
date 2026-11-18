@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PARTICLE_COUNT_SLIDER, SIMULATION_CONFIGS_KEY } from '../src/config';
-import { defaultDarkMatter } from '../src/darkMatter';
+import { defaultDrawing } from '../src/drawing';
 import type { KeyValueStorage } from '../src/elementConfigs';
 import { ALGORITHMS, algorithmList } from '../src/simulation/algorithms';
 import { sliderToParam, paramToSlider } from '../src/simulation/params';
@@ -79,8 +79,10 @@ describe('simulation config store', () => {
             s => { s.typeCount = 1; },
             s => { s.species[1].values.weight = 0.9; },
             s => { s.species[1].symbol = 'X'; },
-            s => { s.darkMatter.params.strength = 7; },
-            s => { s.darkMatter.text = 'Autre texte'; },
+            s => { s.drawing.params['attractor.strength'] = 7; },
+            s => { s.drawing.params['repeller.strength'] = 7; },
+            s => { s.drawing.texts.attractor = 'Autre texte'; },
+            s => { s.drawing.texts.repeller = 'Autre texte'; },
         ];
         for (const edit of edits) {
             const setup = cloneSimulationSetup(store.current);
@@ -90,18 +92,28 @@ describe('simulation config store', () => {
         }
     });
 
-    it('saves the dark matter settings, and gives them their defaults in older configs', () => {
+    it('saves the drawing settings, and gives them their defaults in older configs', () => {
         const storage = new MemoryStorage();
         const store = newStore(storage);
         store.create('stickyDust');
         const edited = cloneSimulationSetup(store.current);
-        edited.darkMatter.params.mode = 'text';
-        edited.darkMatter.text = 'Bonjour\nle monde';
+        edited.drawing.params['repeller.mode'] = 'text';
+        edited.drawing.texts.repeller = 'Bonjour\nle monde';
         expect(store.save(edited)).toBe(true);
-        expect(newStore(storage).current.darkMatter).toEqual(edited.darkMatter);
+        expect(newStore(storage).current.drawing).toEqual(edited.drawing);
 
-        const older = { ...store.current, darkMatter: undefined };
-        expect(sanitizeSimulationConfig(older, CONTROLS)?.darkMatter).toEqual(defaultDarkMatter());
+        const older = { ...store.current, drawing: undefined };
+        expect(sanitizeSimulationConfig(older, CONTROLS)?.drawing).toEqual(defaultDrawing());
+    });
+
+    it('reads the dark matter of older configs as the attractor', () => {
+        const store = newStore(new MemoryStorage());
+        const legacy = { ...store.current, drawing: undefined, darkMatter: { params: { strength: 4, mode: 'text' }, text: 'Old' } };
+        const drawing = sanitizeSimulationConfig(legacy, CONTROLS)?.drawing;
+        expect(drawing?.params['attractor.strength']).toBe(4);
+        expect(drawing?.params['attractor.mode']).toBe('text');
+        expect(drawing?.texts.attractor).toBe('Old');
+        expect(drawing?.params['repeller.strength']).toBe(defaultDrawing().params['repeller.strength']);
     });
 
     it('keeps the built-in configs read-only', () => {

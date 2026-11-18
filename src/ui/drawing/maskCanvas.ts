@@ -1,15 +1,13 @@
 import { t } from '../../i18n';
 import {
-    DARK_MATTER_BRUSH_HARDNESS, DARK_MATTER_BRUSH_SPACING, DARK_MATTER_TEXT_MARGIN, DARK_MATTER_TINT,
+    DRAWING_ATTRACTOR_TINT, DRAWING_BRUSH_HARDNESS, DRAWING_BRUSH_SPACING, DRAWING_REPELLER_TINT, DRAWING_TEXT_MARGIN,
 } from '../../config';
 import {
-    DARK_MATTER_PARAM as P, darkMatterChoice, darkMatterFlag, darkMatterFont, darkMatterMode, darkMatterNumber,
-    type DarkMatterSettings,
-} from '../../darkMatter';
-import { containRect, densityFromPixel, wrapText } from '../../darkMatterMask';
+    DRAWING_PARAM as P, drawingChoice, drawingFlag, drawingFont, drawingMode, drawingNumber,
+    type DrawingKind, type DrawingSettings,
+} from '../../drawing';
+import { containRect, densityFromPixel, wrapText } from '../../drawingMask';
 
-const [TINT_R, TINT_G, TINT_B] = DARK_MATTER_TINT;
-const tint = (alpha: number): string => `rgba(${TINT_R}, ${TINT_G}, ${TINT_B}, ${alpha})`;
 
 function context2d(canvas: HTMLCanvasElement, willReadFrequently = false): CanvasRenderingContext2D {
     const ctx = canvas.getContext('2d', { willReadFrequently });
@@ -24,7 +22,7 @@ export interface MaskPoint {
 }
 
 /**
- * The dark matter mask, the size of the simulation area in CSS px: its alpha is the density, its
+ * A drawing mask, the size of the simulation area in CSS px: its alpha is the density, its
  * color the preview tint, so the same canvas is shown as the preview. It is composed from one of
  * three sources, each keeping its own content: a drawing (a layer of its own, painted with soft
  * dabs), an image (fitted to the area, its density per pixel) or a text (wrapped to the area).
@@ -38,10 +36,18 @@ export class MaskCanvas {
     /** Fonts already asked for: each is loaded once (a failed load would otherwise loop). */
     private readonly requestedFonts = new Set<string>();
 
+    private readonly tintRgb: readonly [number, number, number];
+
     /** `onFontLoaded`: a font the text needs has just loaded, the text should be rendered again. */
-    constructor(private readonly onFontLoaded: () => void) {
-        this.canvas.className = 'dark-matter-overlay';
+    constructor(readonly kind: DrawingKind, private readonly onFontLoaded: () => void) {
+        this.tintRgb = kind === 'attractor' ? DRAWING_ATTRACTOR_TINT : DRAWING_REPELLER_TINT;
+        this.canvas.className = 'drawing-overlay';
         this.canvas.setAttribute('aria-hidden', 'true');
+    }
+
+    private tint(alpha: number): string {
+        const [r, g, b] = this.tintRgb;
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
     get width(): number { return this.canvas.width; }
@@ -67,9 +73,9 @@ export class MaskCanvas {
         const radius = diameter / 2;
         const dab = (x: number, y: number) => {
             const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
-            g.addColorStop(0, tint(1));
-            g.addColorStop(DARK_MATTER_BRUSH_HARDNESS, tint(1));
-            g.addColorStop(1, tint(0));
+            g.addColorStop(0, this.tint(1));
+            g.addColorStop(DRAWING_BRUSH_HARDNESS, this.tint(1));
+            g.addColorStop(1, this.tint(0));
             ctx.fillStyle = g;
             ctx.beginPath();
             ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -79,7 +85,7 @@ export class MaskCanvas {
             dab(to.x, to.y);
         } else {
             const distance = Math.hypot(to.x - from.x, to.y - from.y);
-            const steps = Math.max(1, Math.ceil(distance / Math.max(1, diameter * DARK_MATTER_BRUSH_SPACING)));
+            const steps = Math.max(1, Math.ceil(distance / Math.max(1, diameter * DRAWING_BRUSH_SPACING)));
             for (let k = 1; k <= steps; k++) {
                 const t = k / steps;
                 dab(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
@@ -92,18 +98,18 @@ export class MaskCanvas {
         this.drawingCtx.clearRect(0, 0, this.drawing.width, this.drawing.height);
     }
 
-    /** The imported image (the previous one is released). */
-    setImage(image: ImageBitmap): void {
+    /** The imported image (the previous one is released), or none. */
+    setImage(image: ImageBitmap | null): void {
         this.image?.close();
         this.image = image;
     }
 
     /** Composes the mask from the source the settings select. */
-    render(settings: DarkMatterSettings): void {
+    render(settings: DrawingSettings): void {
         const { ctx, width, height } = this;
         ctx.clearRect(0, 0, width, height);
         if (width === 0 || height === 0) return;
-        switch (darkMatterMode(settings)) {
+        switch (drawingMode(settings, this.kind)) {
             case 'draw':
                 ctx.drawImage(this.drawing, 0, 0);
                 break;
@@ -121,42 +127,40 @@ export class MaskCanvas {
         return this.ctx.getImageData(0, 0, this.width, this.height).data;
     }
 
-    private renderImage(settings: DarkMatterSettings): void {
+    private renderImage(settings: DrawingSettings): void {
         const { ctx, width, height, image } = this;
         if (!image) return;
         const r = containRect(image.width, image.height, width, height);
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(image, r.x, r.y, r.width, r.height);
-        const opacity = darkMatterNumber(settings, P.imageOpacity) / 100;
-        const invert = darkMatterFlag(settings, P.imageInvert);
+        const opacity = drawingNumber(settings, this.kind, P.imageOpacity) / 100;
+        const invert = drawingFlag(settings, this.kind, P.imageInvert);
         const pixels = ctx.getImageData(0, 0, width, height);
         const d = pixels.data;
         for (let i = 0; i < d.length; i += 4) {
             const density = d[i + 3] === 0 ? 0 : densityFromPixel(d[i], d[i + 1], d[i + 2], d[i + 3], invert) * opacity;
-            d[i] = TINT_R;
-            d[i + 1] = TINT_G;
-            d[i + 2] = TINT_B;
+            [d[i], d[i + 1], d[i + 2]] = this.tintRgb;
             d[i + 3] = Math.round(density * 255);
         }
         ctx.putImageData(pixels, 0, 0);
     }
 
-    private renderText(settings: DarkMatterSettings): void {
+    private renderText(settings: DrawingSettings): void {
         const { ctx, width, height } = this;
-        const font = darkMatterFont(settings);
-        const text = settings.text;
+        const font = drawingFont(settings, this.kind);
+        const text = settings.texts[this.kind];
         if (!this.requestedFonts.has(font) && !document.fonts.check(font, text)) {
             this.requestedFonts.add(font);
             document.fonts.load(font, text).then(() => this.onFontLoaded(), () => { /* fallback font kept */ });
         }
-        const fontSize = darkMatterNumber(settings, P.fontSize);
-        const lineHeight = fontSize * darkMatterNumber(settings, P.lineHeight);
-        const margin = DARK_MATTER_TEXT_MARGIN * Math.min(width, height);
-        const align = darkMatterChoice(settings, P.align);
+        const fontSize = drawingNumber(settings, this.kind, P.fontSize);
+        const lineHeight = fontSize * drawingNumber(settings, this.kind, P.lineHeight);
+        const margin = DRAWING_TEXT_MARGIN * Math.min(width, height);
+        const align = drawingChoice(settings, this.kind, P.align);
         ctx.save();
         ctx.font = font;
-        ctx.fillStyle = tint(1);
-        ctx.globalAlpha = darkMatterNumber(settings, P.textOpacity) / 100;
+        ctx.fillStyle = this.tint(1);
+        ctx.globalAlpha = drawingNumber(settings, this.kind, P.textOpacity) / 100;
         ctx.textBaseline = 'middle';
         ctx.textAlign = align === 'left' || align === 'right' ? align : 'center';
         const x = align === 'left' ? margin : align === 'right' ? width - margin : width / 2;
