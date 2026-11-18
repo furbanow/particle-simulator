@@ -1,14 +1,14 @@
 # Simulation algorithms
 
-The algorithm is chosen in the side panel, below the « Redémarrer » (Restart) button. Switching algorithm rebuilds the interface (parameters, element bar, statistics) from its declaration, then restarts the simulation. Each algorithm keeps its own values in memory: when you return to an algorithm, you find its sliders and elements as you left them.
+The algorithm is chosen in the side panel, below the "Restart" button. Switching algorithm rebuilds the interface (parameters, element bar, statistics) from its declaration, then restarts the simulation. Each algorithm keeps its own values in memory: when you return to an algorithm, you find its sliders and elements as you left them.
 
 | Name (interface) | Identifier | Status | Principle |
 |---|---|---|---|
-| Poussière collante (Sticky dust) | `stickyDust` | ✅ available | Gravity on a grid, pressure only inside clusters, viscosity that erases agitation |
-| Protoétoile (H → He fusion) (Protostar) | `protostar` | ✅ available | Softened gravity, Verlet integration, cooling, H → He fusion whose heat slows the collapse |
-| Gaz (Gas) | `gas` | 🕓 planned | Pressure everywhere, energy is conserved |
+| Sticky dust | `stickyDust` | ✅ available | Gravity on a grid, pressure only inside clusters, viscosity that erases agitation |
+| Protostar (H → He → C) | `protostar` | ✅ available | Softened gravity, Verlet integration, cooling, H → He fusion whose heat slows the collapse |
+| Gas | `gas` | 🕓 planned | Pressure everywhere, energy is conserved |
 | Plasma | `plasma` | 🕓 planned | Positive and negative charges on the same grid |
-| N-corps (N-body) | `nBody` | 🕓 planned | Gravity only, without collisions |
+| N-body | `nBody` | 🕓 planned | Gravity only, without collisions |
 
 ## Architecture
 
@@ -45,10 +45,10 @@ Just write its two halves and register them. **The interface is not touched.**
      The `count` parameter (`PARTICLE_COUNT_PARAM`), the number of particles, is mandatory and goes in the `initial` tab. Bounds and default values go in `src/config.ts`.
    - `particleTypes`, the particle type schema (`ParticleTypeSchema`):
      - a type (`ParticleType`) always has `name`, `symbol` and `color`. Its numeric properties are in `values`, by key;
-     - `properties`: the chart tabs, in order. A numeric property (`kind: 'number'`) has its key, unit, range (`range`, which is also used to validate reloaded configurations), scale (`linearScale(range, step)` or a custom scale, such as the logarithmic mass scale), `live`, its « Par défaut » (Default) / « Aléatoire » (Random) texts, `format` and an optional `randomize`. Only one may have `role: 'population'`: it is the distribution weight of particles at restart. `{ kind: 'color' }` adds the Color tab (hue, saturation, lightness);
+     - `properties`: the chart tabs, in order. A numeric property (`kind: 'number'`) has its key, unit, range (`range`, which is also used to validate reloaded configurations), scale (`linearScale(range, step)` or a custom scale, such as the logarithmic mass scale), `live`, its "Default" / "Random" texts, `format` and an optional `randomize`. Only one may have `role: 'population'`: it is the distribution weight of particles at restart. `{ kind: 'color' }` adds the Color tab (hue, saturation, lightness);
      - `readouts`: computed values, displayed in the editor (for example the density);
      - `transitions`: transformations from one type to another (`{ from, to, label }`, by rank). The GPU model performs them; the declaration lets the editor display them (« Fusion → He »);
-     - `defaults` (at most `MAX_SPECIES` types), optional `defaultCount`, `labels` (bar words: « Éléments », « Élément »…) and `builtinConfig` (identifier and name of the built-in configuration, read-only).
+     - `defaults` (at most `MAX_SPECIES` types), optional `defaultCount`, `labels` (bar words: "Elements", "Element"…) and `builtinConfig` (identifier and name of the built-in configuration, read-only).
    - `stats`: live statistics. `kind: 'value'` (a number; `flash` makes the tile blink when it increases), `kind: 'meter'` (a 0..1 fraction shown as a bar, with an optional marker placed at the position of a slider), `kind: 'typeCounts'` (number of particles per type).
 2. **Add the identifier** to `ALGORITHM_IDS` and the declaration to `ALGORITHMS` in `src/simulation/algorithms.ts`. The tests in `tests/algorithms.test.ts` check the consistency of each declaration (unique keys, existing tabs, documented parameters, default values within their bounds, complete default types, valid transitions and markers).
 3. **GPU model** (`src/simulation/<algo>/gpuModel.ts`), a `GpuModel` object, registered in `GPU_MODELS` (`src/simulation/gpuModels.ts`). The `Record<AlgorithmId, GpuModelFactory>` type prevents forgetting this step. The factory receives a `GpuModelContext`: renderer, geometry, `screenSize`, `speciesUniforms`, density field, and access to the current state textures.
@@ -79,7 +79,7 @@ Just write its two halves and register them. **The interface is not touched.**
 
 ### Static drawings
 
-Drawn in the panel's « Dessin » tab, in two kinds (attractor: pulls the matter, like dark matter; repeller: pushes it away), each with its own gravity and softening and its own opacity mask the size of the simulation area, from one of three sources: a drawing with the mouse (soft brush, right click or Shift to erase), an imported image (fitted without distortion; density = luminance × opacity, optionally inverted) or a multi-line text (font, size, weight, style, line height, alignment). A pixel of opacity 1 holds a unit of mass per px². The mask shows while it changes and fades `DRAWING_PREVIEW_MS` after the last change.
+Drawn in the panel's "Drawing" tab, in two kinds (attractor: pulls the matter, like dark matter; repeller: pushes it away), each with its own gravity and softening and its own opacity mask the size of the simulation area, from one of three sources: a drawing with the mouse (soft brush, right click or Shift to erase), an imported image (fitted without distortion; density = luminance × opacity, optionally inverted) or a multi-line text (font, size, weight, style, line height, alignment). A pixel of opacity 1 holds a unit of mass per px². The mask shows while it changes and fades `DRAWING_PREVIEW_MS` after the last change.
 
 Each kind's mass is summed on a `DRAWING_GRID_RES²` grid of square cells over max(width, height) (`massGrid.ts`, pure), and its softened gravity is computed on the GPU on two levels with the same passes as « Protostar » (`grid-coarse.frag`, `grid-gravity.frag`), only when the mask or the softening change (at most every `DRAWING_UPDATE_MS` while drawing). The particles read it interpolated bilinearly: a = ± strength × `DRAWING_GRAVITY_UNIT` × L (− for repellers) × Σ m (r_j − r) / (|r_j − r|² + ε²)^{3/2}, with L = min(width, height) and ε the softening in % of L, so the pull does not depend on the screen size. Drawings never move and feel nothing. Their settings (and the texts) are saved in simulation configurations; what is drawn and imported is not. Supernovae, the shock wave and cluster detection belong to the « Sticky dust » model (`src/simulation/stickyDust/gpuModel.ts`); their GLSL code is in its shader. They will be shared if another algorithm needs them.
 
@@ -217,7 +217,7 @@ The loop: fusion heats the core → it expands, its density drops (and its cooli
 
 ### Transitions: extensible model
 
-Reactions are a table (`PROTOSTAR_REACTIONS`, type `FusionReaction`): fusing type, product type, number of particles consumed, label, keys of the λ and α parameters, reference temperature and density exponent. The GPU model translates it into arrays of uniforms indexed by the fusing type (`reactionTo`, `reactionKeep`, `reactionRate`, `reactionExponent`, `reactionReference`, `reactionDensityExponent`, `reactionEnergy`; `reactionArrays()`), which the shaders read as they are. To add another reaction, it is enough to add its product to the default types, one line in the table and its two parameters: neither the shaders nor the model change. Limitation: a type fuses in only one reaction, so C + He → O could not coexist with a second helium reaction. The declaration derives `particleTypes.transitions` from it, which the editor displays (« Chaîne proton-proton (4 pour 1) → He »).
+Reactions are a table (`PROTOSTAR_REACTIONS`, type `FusionReaction`): fusing type, product type, number of particles consumed, label, keys of the λ and α parameters, reference temperature and density exponent. The GPU model translates it into arrays of uniforms indexed by the fusing type (`reactionTo`, `reactionKeep`, `reactionRate`, `reactionExponent`, `reactionReference`, `reactionDensityExponent`, `reactionEnergy`; `reactionArrays()`), which the shaders read as they are. To add another reaction, it is enough to add its product to the default types, one line in the table and its two parameters: neither the shaders nor the model change. Limitation: a type fuses in only one reaction, so C + He → O could not coexist with a second helium reaction. The declaration derives `particleTypes.transitions` from it, which the editor displays ("Proton-proton chain").
 
 ### Rendering
 
