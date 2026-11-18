@@ -4,6 +4,8 @@
 
 Multi-species GPGPU particle simulator running in the browser (TypeScript, Three.js, WebGL2).
 
+**Live demo: https://furbanow.github.io/particle-simulator/**
+
 - **Physics**: from 1,000 to N particles; their positions and velocities are stored in floating-point textures. Gravity is computed on a mipmapped *cloud-in-cell* density field, with relative pressure and viscosity.
 - **Elements**: the first 10 elements of the periodic table (hydrogen → neon), with their real atomic masses (in u), sizes proportional to atomic radii, and CPK colors. They stratify according to their density. A dedicated bar at the top of the page lets you activate 1 to 10 of them and edit their properties on a bar chart, one property at a time (population share, atomic mass, size, color as hue · saturation · lightness), with default values and random draws. The selected element also has all its sliders on the right, with its name and symbol. Element configurations are saved in the browser: new, duplicate, rename, delete, load.
 - **Simulation configurations**: above the **Restart** button, the entire simulation can be saved in the browser (algorithm, parameters, element definitions, visual effects, speed): new, duplicate, rename, delete, load. Loading a configuration restarts the simulation; the last one selected is restored when the page opens.
