@@ -74,6 +74,7 @@ export const fr: Record<MessageKey, string> = {
     'ui.settings.fps.unlimited': 'Illimité',
     'ui.settings.help': 'Afficher l\'aide (raccourcis)',
     'ui.settings.stats': 'Afficher les statistiques',
+    'ui.settings.toolbar': 'Afficher la barre de dessin',
     'ui.settings.author': 'Afficher l\'auteur',
     'ui.settings.particleCap': 'Limite de particules',
     'ui.settings.particleCap.title': 'Borne supérieure des curseurs du nombre de particules pour la proto-étoile, fixée par le benchmark du GPU. Augmentez-la pour tenter plus de particules. La poussière collante coûte moins cher et va 1,25 fois plus haut.',

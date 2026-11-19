@@ -13,7 +13,7 @@ class MemoryStorage {
 describe('display settings', () => {
     it('default to 60 FPS, help and stats shown, no particle cap before the benchmark', () => {
         expect(DEFAULT_DISPLAY_SETTINGS).toEqual({
-            fpsLimit: 60, showHelp: true, showStats: true, language: 'auto',
+            fpsLimit: 60, showHelp: true, showStats: true, showToolbar: true, language: 'auto',
             particleCap: null, benchmarkCap: null,
         });
     });
@@ -32,6 +32,12 @@ describe('display settings', () => {
         expect(sanitizeDisplaySettings(null)).toEqual(DEFAULT_DISPLAY_SETTINGS);
         expect(sanitizeDisplaySettings({ fpsLimit: 77, showHelp: 'x', showStats: true }))
             .toEqual({ ...DEFAULT_DISPLAY_SETTINGS, showStats: true });
+    });
+
+    it('show the drawing toolbar by default, and keep a hidden one hidden', () => {
+        expect(DEFAULT_DISPLAY_SETTINGS.showToolbar).toBe(true);
+        expect(sanitizeDisplaySettings({ showToolbar: false })).toMatchObject({ showToolbar: false });
+        expect(sanitizeDisplaySettings({ showToolbar: 'no' })).toMatchObject({ showToolbar: true });
     });
 
     it('ignores any stored showAuthor: the author overlay cannot be hidden', () => {

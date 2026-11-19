@@ -15,6 +15,7 @@ export class DisplaySettingsPanel {
     private readonly fps = byId<HTMLSelectElement>('fpsLimitSelect');
     private readonly help = byId<HTMLInputElement>('showHelpBox');
     private readonly stats = byId<HTMLInputElement>('showStatsBox');
+    private readonly toolbar = byId<HTMLInputElement>('showToolbarBox');
     private readonly particleCap = byId<HTMLInputElement>('particleCapInput');
     private readonly benchmarkResult = byId('benchmarkResult');
 
@@ -43,6 +44,7 @@ export class DisplaySettingsPanel {
         this.fps.addEventListener('change', () => store.update({ fpsLimit: Number(this.fps.value) }));
         this.help.addEventListener('change', () => store.update({ showHelp: this.help.checked }));
         this.stats.addEventListener('change', () => store.update({ showStats: this.stats.checked }));
+        this.toolbar.addEventListener('change', () => store.update({ showToolbar: this.toolbar.checked }));
         this.particleCap.addEventListener('change', () => {
             const cap = sanitizeParticleCap(this.particleCap.valueAsNumber);
             // An empty or invalid entry shows the current limit again.
@@ -83,6 +85,7 @@ export class DisplaySettingsPanel {
         this.fps.value = String(values.fpsLimit);
         this.help.checked = values.showHelp;
         this.stats.checked = values.showStats;
+        this.toolbar.checked = values.showToolbar;
         this.particleCap.value = values.particleCap === null ? '' : String(values.particleCap);
         this.benchmarkResult.textContent = values.benchmarkCap === null
             ? t('ui.settings.benchmark.none')
@@ -92,5 +95,6 @@ export class DisplaySettingsPanel {
             });
         document.body.classList.toggle('hide-help', !values.showHelp);
         document.body.classList.toggle('hide-stats', !values.showStats);
+        document.body.classList.toggle('hide-toolbar', !values.showToolbar);
     }
 }

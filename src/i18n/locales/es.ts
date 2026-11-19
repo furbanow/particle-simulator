@@ -74,6 +74,7 @@ export const es: Record<MessageKey, string> = {
     'ui.settings.fps.unlimited': 'Sin límite',
     'ui.settings.help': 'Mostrar la ayuda (atajos)',
     'ui.settings.stats': 'Mostrar las estadísticas',
+    'ui.settings.toolbar': 'Mostrar la barra de dibujo',
     'ui.settings.author': 'Mostrar el autor',
     'ui.settings.particleCap': 'Límite de partículas',
     'ui.settings.particleCap.title': 'Límite superior de los controles del número de partículas para la protoestrella, fijado por la prueba de la GPU. Auméntelo para probar con más partículas. El polvo pegajoso cuesta menos y llega 1,25 veces más lejos.',

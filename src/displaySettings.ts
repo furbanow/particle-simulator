@@ -11,6 +11,8 @@ export interface DisplaySettings {
     fpsLimit: number;
     showHelp: boolean;
     showStats: boolean;
+    /** The mouse toolbar (drawing tools) over the animation. */
+    showToolbar: boolean;
     /** Interface language; 'auto' follows the browser. A change takes effect after a reload. */
     language: LanguagePreference;
     /** Upper bound of the particle count sliders; null until the GPU benchmark has run. */
@@ -23,6 +25,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
     fpsLimit: DEFAULT_FPS_LIMIT,
     showHelp: true,
     showStats: true,
+    showToolbar: true,
     language: 'auto',
     particleCap: null,
     benchmarkCap: null,
@@ -44,6 +47,7 @@ export function sanitizeDisplaySettings(raw: unknown): DisplaySettings {
         fpsLimit: typeof src.fpsLimit === 'number' && FPS_LIMIT_OPTIONS.includes(src.fpsLimit) ? src.fpsLimit : d.fpsLimit,
         showHelp: flag(src.showHelp, d.showHelp),
         showStats: flag(src.showStats, d.showStats),
+        showToolbar: flag(src.showToolbar, d.showToolbar),
         language: isLanguagePreference(src.language) ? src.language : d.language,
         particleCap: sanitizeParticleCap(src.particleCap),
         benchmarkCap: sanitizeParticleCap(src.benchmarkCap),

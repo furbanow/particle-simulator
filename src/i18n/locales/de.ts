@@ -74,6 +74,7 @@ export const de: Record<MessageKey, string> = {
     'ui.settings.fps.unlimited': 'Unbegrenzt',
     'ui.settings.help': 'Hilfe anzeigen (Tastenkürzel)',
     'ui.settings.stats': 'Statistiken anzeigen',
+    'ui.settings.toolbar': 'Zeichenleiste anzeigen',
     'ui.settings.author': 'Autor anzeigen',
     'ui.settings.particleCap': 'Teilchenlimit',
     'ui.settings.particleCap.title': 'Obergrenze der Regler für die Teilchenzahl beim Protostern, vom GPU-Benchmark festgelegt. Erhöhen Sie sie, um mehr Teilchen zu versuchen. Der klebrige Staub ist günstiger und geht 1,25-mal höher.',

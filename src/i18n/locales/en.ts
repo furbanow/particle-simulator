@@ -90,6 +90,7 @@ export const en = {
     'ui.settings.fps.unlimited': 'Unlimited',
     'ui.settings.help': 'Show help (shortcuts)',
     'ui.settings.stats': 'Show statistics',
+    'ui.settings.toolbar': 'Show drawing toolbar',
     'ui.settings.author': 'Show author',
     'ui.settings.particleCap': 'Particle limit',
     'ui.settings.particleCap.title': 'Upper bound of the particle count sliders for the protostar, set by the GPU benchmark. Raise it to try more particles. The sticky dust costs less and goes 1.25 times higher.',

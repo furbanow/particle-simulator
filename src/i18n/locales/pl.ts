@@ -74,6 +74,7 @@ export const pl: Record<MessageKey, string> = {
     'ui.settings.fps.unlimited': 'Bez limitu',
     'ui.settings.help': 'Pokaż pomoc (skróty)',
     'ui.settings.stats': 'Pokaż statystyki',
+    'ui.settings.toolbar': 'Pokaż pasek rysowania',
     'ui.settings.author': 'Pokaż autora',
     'ui.settings.particleCap': 'Limit cząstek',
     'ui.settings.particleCap.title': 'Górna granica suwaków liczby cząstek dla protogwiazdy, ustalona przez test GPU. Zwiększ ją, aby spróbować więcej cząstek. Lepki pył jest tańszy i sięga 1,25 razy wyżej.',
