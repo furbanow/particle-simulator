@@ -50,6 +50,9 @@ body.panel-hidden .toolbar { left: 50%; max-width: calc(100vw - 2 * var(--tb-sid
     box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.75);
 }
 
+/* Hidden menus stay hidden whatever their display. */
+.tb-flyout[hidden], .tb-popover[hidden] { display: none; }
+
 /* The variants of a tool, unfolded under it. */
 .tb-flyout {
     position: absolute; top: calc(100% + 8px); transform: translateX(-50%);
