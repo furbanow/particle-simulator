@@ -160,6 +160,8 @@ export const DRAWING_POINT_MASS = 4;
 export const DRAWING_VORTEX_STRENGTH = 2;
 export const BRUSH_SIZE_KEY_FACTOR = 1.15;     // brush size multiplied (divided) per press of ] ([)
 export const BRUSH_FLOW_KEY_STEP = 5;          // brush density (%) added (removed) per press of Shift+] (Shift+[)
+export const VORTEX_TINT: readonly [number, number, number] = [56, 189, 248];   // toolbar color of the vortex (RGB)
+export const TOOLBAR_HOLD_MS = 350;            // press on a toolbar button this long to unfold its variants
 
 // ---- Species ----
 export const MAX_SPECIES = 10;

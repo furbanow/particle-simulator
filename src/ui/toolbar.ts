@@ -1,11 +1,13 @@
-import { DELETE_CONFIRM_MS, DRAWING_ATTRACTOR_TINT, DRAWING_REPELLER_TINT } from '../config';
 import {
-    brushParam, DRAWING_PARAM as P, DRAWING_PARAMS, drawingKey, type BrushOwner, type DrawingKind,
+    DELETE_CONFIRM_MS, DRAWING_ATTRACTOR_TINT, DRAWING_REPELLER_TINT, TOOLBAR_HOLD_MS, VORTEX_TINT,
+} from '../config';
+import {
+    brushParam, DRAWING_KINDS, DRAWING_PARAM as P, DRAWING_PARAMS, drawingKey, type BrushOwner, type DrawingKind,
 } from '../drawing';
 import { t, type MessageKey } from '../i18n';
 import {
-    nextShape, sameShape, SHAPE_STYLES, stepBrush, type ForceType, type MaskTool, type MouseTool, type ShapeStyle,
-    type ToolbarShortcut,
+    FORCE_TYPES, nextForce, nextShape, sameShape, SHAPE_STYLES, stepBrush, swapForce, type ForceType, type MaskTool,
+    type MouseTool, type ShapeStyle, type ToolbarShortcut,
 } from '../mouseTools';
 import type { NumberParam, ParamDef } from '../simulation/algorithm';
 import type { DrawingField } from '../simulation/drawing/DrawingField';
@@ -35,8 +37,6 @@ export interface ToolbarTargets {
 
 // Icons: inner markup of a 24x24 SVG, stroked (`solid` parts filled).
 const ICONS = {
-    none: '<path d="M6 3.5l12 10.2-5.3.5 3.1 6.3-2.4 1.1-3-6.4L6 19.3z"/>',
-    force: '<circle class="solid" cx="12" cy="12" r="2.2"/><circle cx="12" cy="12" r="7.5" stroke-dasharray="3 2.6"/>',
     brush: '<path d="M18.4 3.6a2.1 2.1 0 0 1 3 3L12.6 15.4l-3-3z"/><path d="M9.2 13.2c-2.6 0-4.2 1.6-4.2 4 0 1.4-.8 2.4-2 3 4 .8 8.2-.6 8.2-4.6"/>',
     eraser: '<path d="M9 20h11"/><path d="M14.6 4.4l5 5a1.5 1.5 0 0 1 0 2.1L11 20H7.5l-3.1-3.1a1.5 1.5 0 0 1 0-2.1l8.1-10.4a1.5 1.5 0 0 1 2.1 0z"/><path d="M9.3 9.6l5.1 5.1"/>',
     ellipseFilled: '<ellipse class="solid" cx="12" cy="12" rx="8.5" ry="6.2"/>',
@@ -52,33 +52,46 @@ const ICONS = {
     eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>',
     clear: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
 } as const;
-
-type SimpleTool = Exclude<MouseTool, 'shape'>;
-
-const TOOLS: readonly { tool: SimpleTool; icon: keyof typeof ICONS; label: MessageKey; doc: MessageKey }[] = [
-    { tool: 'none', icon: 'none', label: 'toolbar.tool.none', doc: 'toolbar.tool.none.doc' },
-    { tool: 'force', icon: 'force', label: 'toolbar.tool.force', doc: 'toolbar.tool.force.doc' },
-    { tool: 'brush', icon: 'brush', label: 'toolbar.tool.brush', doc: 'toolbar.tool.brush.doc' },
-    { tool: 'eraser', icon: 'eraser', label: 'toolbar.tool.eraser', doc: 'toolbar.tool.eraser.doc' },
-];
+type Icon = keyof typeof ICONS;
 
 const shapeId = (s: ShapeStyle) => `${s.shape}${s.filled ? 'Filled' : 'Hollow'}` as const;
-const SHAPE_TEXTS: Record<ReturnType<typeof shapeId>, { label: MessageKey; doc: MessageKey }> = {
-    ellipseFilled: { label: 'toolbar.shape.ellipseFilled', doc: 'toolbar.shape.ellipse.doc' },
-    ellipseHollow: { label: 'toolbar.shape.ellipseHollow', doc: 'toolbar.shape.ellipse.doc' },
-    rectFilled: { label: 'toolbar.shape.rectFilled', doc: 'toolbar.shape.rect.doc' },
-    rectHollow: { label: 'toolbar.shape.rectHollow', doc: 'toolbar.shape.rect.doc' },
+const SHAPE_LABELS: Record<ReturnType<typeof shapeId>, MessageKey> = {
+    ellipseFilled: 'toolbar.shape.ellipseFilled',
+    ellipseHollow: 'toolbar.shape.ellipseHollow',
+    rectFilled: 'toolbar.shape.rectFilled',
+    rectHollow: 'toolbar.shape.rectHollow',
 };
-
-const FORCES: readonly { type: ForceType; label: MessageKey; doc: MessageKey }[] = [
-    { type: 'attractor', label: 'toolbar.force.attractor', doc: 'toolbar.force.attractor.doc' },
-    { type: 'repeller', label: 'toolbar.force.repeller', doc: 'toolbar.force.repeller.doc' },
-    { type: 'vortex', label: 'toolbar.force.vortex', doc: 'toolbar.force.vortex.doc' },
-];
-const KIND_TINTS: Record<DrawingKind, readonly [number, number, number]> = {
+const FORCE_LABELS: Record<ForceType, MessageKey> = {
+    attractor: 'toolbar.force.attractor',
+    repeller: 'toolbar.force.repeller',
+    vortex: 'toolbar.force.vortex',
+};
+const BRUSH_LABELS: Record<DrawingKind, MessageKey> = {
+    attractor: 'toolbar.brush.attractor',
+    repeller: 'toolbar.brush.repeller',
+};
+const KIND_LABELS: Record<DrawingKind, MessageKey> = {
+    attractor: 'drawing.kind.attractor',
+    repeller: 'drawing.kind.repeller',
+};
+const TINTS: Record<ForceType, readonly [number, number, number]> = {
     attractor: DRAWING_ATTRACTOR_TINT,
     repeller: DRAWING_REPELLER_TINT,
+    vortex: VORTEX_TINT,
 };
+const tint = (type: ForceType): string => `rgb(${TINTS[type].join(', ')})`;
+
+/** The tools that unfold their variants when pressed long. */
+type Flyout = 'force' | 'brush' | 'shape';
+
+/** A variant of a tool, in its flyout. */
+interface Variant {
+    readonly icon: Icon;
+    readonly label: string;
+    readonly tint?: ForceType;
+    selected(): boolean;
+    choose(): void;
+}
 
 /** The settings edited in a popover under their button. */
 type Setting = 'size' | 'flow' | 'thickness';
@@ -104,14 +117,24 @@ function numberParam(param: ParamDef): NumberParam {
     return param;
 }
 
-function iconButton(icon: keyof typeof ICONS, onClick: () => void): HTMLButtonElement {
+const svg = (icon: Icon): string => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[icon]}</svg>`;
+
+function iconButton(icon: Icon, onClick: () => void): HTMLButtonElement {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'tb-btn';
-    b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[icon]}</svg>`;
+    b.innerHTML = svg(icon);
+    b.dataset.icon = icon;
     b.dataset.tooltipPlacement = 'below';
     b.addEventListener('click', onClick);
     return b;
+}
+
+/** Shows `icon` on the button (only when it changes). */
+function setIcon(b: HTMLElement, icon: Icon): void {
+    if (b.dataset.icon === icon) return;
+    b.dataset.icon = icon;
+    b.innerHTML = svg(icon);
 }
 
 /** Names the button (screen readers) and documents it (tooltip). */
@@ -132,23 +155,27 @@ function group(label: MessageKey, ...buttons: HTMLElement[]): HTMLElement {
 }
 
 /**
- * The toolbar over the simulation: what the mouse does (nothing, the point force, the brush, the
- * eraser, a shape), the type of force (attraction and repulsion are the drawing tab's kinds; the
- * vortex is a point force only), the brush (size, density) and shape thickness in popovers, and
- * actions on the drawings. It holds the point force while its button is pressed; the mask tools
+ * The toolbar over the simulation: what the mouse does (the point force, the brush, the eraser, a
+ * shape; clicking the active tool again drops it), the brush (size, density) and shape thickness
+ * in popovers, and actions on the drawings. A long press (or a right click, or the down arrow) on
+ * the point force, the brush or the shapes unfolds their variants: attraction, repulsion or vortex;
+ * the attractor or repeller brush (the drawing tab's selected kind, which the eraser and the shapes
+ * draw too); the four shapes. It holds the point force while its button is pressed; the mask tools
  * are DrawingPanel's. See setupShortcuts for its keys.
  */
 export class MouseToolbar {
     private tool: MouseTool = 'none';
     private shape: ShapeStyle = SHAPE_STYLES[0];
-    /** The vortex is the selected force type (else the drawing's selected kind). */
-    private vortex = false;
+    private force: ForceType = 'attractor';
     private held: Held | null = null;
     private popover: Popover | null = null;
     private readonly popoverElement = document.createElement('div');
-    private readonly toolButtons = new Map<SimpleTool, HTMLButtonElement>();
-    private readonly shapeButtons: [ShapeStyle, HTMLButtonElement][] = [];
-    private readonly forceButtons = new Map<ForceType, HTMLButtonElement>();
+    private readonly flyoutElement = document.createElement('div');
+    private flyout: Flyout | null = null;
+    private holdTimer: number | undefined;
+    /** A long press opened the flyout: the click that ends it does not pick the tool. */
+    private swallowClick = false;
+    private readonly toolButtons: Record<Exclude<MouseTool, 'none'>, HTMLButtonElement>;
     private readonly settingButtons: Record<Setting, HTMLButtonElement>;
     private readonly eyeButton: HTMLButtonElement;
     private readonly clearButton: HTMLButtonElement;
@@ -161,24 +188,13 @@ export class MouseToolbar {
         const { root, drawing } = targets;
         this.popoverStore = { value: key => drawing.store.value(key), set: (key, value) => drawing.setParam(key, value) };
 
-        for (const { tool, icon, label, doc } of TOOLS) {
-            const b = iconButton(icon, () => this.selectTool(tool));
-            describe(b, t(label), t(doc));
-            this.toolButtons.set(tool, b);
-        }
-        for (const style of SHAPE_STYLES) {
-            const id = shapeId(style);
-            const b = iconButton(id, () => this.selectTool('shape', style));
-            describe(b, t(SHAPE_TEXTS[id].label), t(SHAPE_TEXTS[id].doc, { name: t(SHAPE_TEXTS[id].label) }));
-            this.shapeButtons.push([style, b]);
-        }
-        for (const { type, label, doc } of FORCES) {
-            const b = iconButton(type, () => this.selectForce(type));
-            describe(b, t(label), t(doc));
-            b.classList.add('tb-force');
-            b.dataset.force = type;
-            this.forceButtons.set(type, b);
-        }
+        this.toolButtons = {
+            force: this.flyoutButton('force', this.force, () => this.toggleTool('force')),
+            brush: this.flyoutButton('brush', 'brush', () => this.toggleTool('brush')),
+            eraser: iconButton('eraser', () => this.toggleTool('eraser')),
+            shape: this.flyoutButton('shape', shapeId(this.shape), () => this.toggleTool('shape')),
+        };
+        for (const b of Object.values(this.toolButtons)) b.classList.add('tb-tool');
         const settingButton = (setting: Setting): HTMLButtonElement => {
             const b = iconButton(setting, () => this.togglePopover(setting));
             b.setAttribute('aria-haspopup', 'dialog');
@@ -198,20 +214,30 @@ export class MouseToolbar {
         this.popoverElement.className = 'tb-popover';
         this.popoverElement.hidden = true;
         this.popoverElement.setAttribute('role', 'dialog');
+        this.flyoutElement.className = 'tb-flyout';
+        this.flyoutElement.hidden = true;
+        this.flyoutElement.setAttribute('role', 'menu');
+        const { force, brush, eraser, shape } = this.toolButtons;
         root.append(
-            group('toolbar.group.tools', ...this.toolButtons.values()),
-            group('toolbar.group.shapes', ...this.shapeButtons.map(([, b]) => b), this.settingButtons.thickness),
-            group('toolbar.group.force', ...this.forceButtons.values()),
-            group('toolbar.group.brush', this.settingButtons.size, this.settingButtons.flow),
+            group('toolbar.group.force', force),
+            group('toolbar.group.draw', brush, eraser, shape),
+            group('toolbar.group.brush', this.settingButtons.size, this.settingButtons.flow, this.settingButtons.thickness),
             group('toolbar.group.actions', this.eyeButton, this.clearButton),
             this.popoverElement,
+            this.flyoutElement,
         );
         setupTooltips(root, targets.tooltip);
         setupSliders(this.popoverElement);
         window.addEventListener('pointerdown', e => {
-            if (this.popover && !(e.target instanceof Node && root.contains(e.target))) this.closePopover();
+            const target = e.target instanceof Node ? e.target : null;
+            if (this.popover && !(target && root.contains(target))) this.closePopover();
+            if (this.flyout && !(target && this.flyoutElement.contains(target))) this.closeFlyout();
         });
-        window.addEventListener('keydown', e => { if (e.key === 'Escape' && this.popover) this.closePopover(); });
+        window.addEventListener('keydown', e => {
+            if (e.key !== 'Escape') return;
+            if (this.popover) this.closePopover();
+            if (this.flyout) this.closeFlyout();
+        });
         this.listenToPointer(targets.surface);
         targets.onViewChange(() => this.applyForce());
         this.refresh();
@@ -220,17 +246,23 @@ export class MouseToolbar {
     /** Follows the drawings' settings and selected kind (call it when they change). */
     refresh(): void {
         const { drawing, container } = this.targets;
-        const maskTool = this.maskTool();
-        for (const [tool, b] of this.toolButtons) press(b, this.tool === tool);
-        for (const [style, b] of this.shapeButtons) press(b, this.tool === 'shape' && sameShape(style, this.shape));
-        const type = this.forceType;
-        for (const [force, b] of this.forceButtons) press(b, type === force);
-        this.forceButtons.get('vortex')!.disabled = maskTool !== null;
+        const kind = drawing.selectedKind;
+        const { force, brush, eraser, shape } = this.toolButtons;
+        for (const [tool, b] of Object.entries(this.toolButtons)) press(b, this.tool === tool);
+        setIcon(force, this.force);
+        setIcon(shape, shapeId(this.shape));
+        force.style.setProperty('--tb-tint', tint(this.force));
+        for (const b of [brush, eraser, shape]) b.style.setProperty('--tb-tint', tint(kind));
+        const forceName = t(FORCE_LABELS[this.force]);
+        describe(force, forceName, t('toolbar.tool.force.doc', { name: forceName }));
+        const brushName = t(BRUSH_LABELS[kind]);
+        describe(brush, brushName, t('toolbar.tool.brush.doc', { name: brushName }));
+        describe(eraser, t('toolbar.tool.eraser'), t('toolbar.tool.eraser.doc', { kind: t(KIND_LABELS[kind]) }));
+        const shapeName = t(SHAPE_LABELS[shapeId(this.shape)]);
+        describe(shape, shapeName, t(this.shape.shape === 'ellipse' ? 'toolbar.shape.ellipse.doc' : 'toolbar.shape.rect.doc',
+            { name: shapeName, kind: t(KIND_LABELS[kind]) }));
+
         this.settingButtons.thickness.disabled = this.tool === 'shape' && this.shape.filled;
-        for (const kind of ['attractor', 'repeller'] as const) {
-            const [r, g, b] = KIND_TINTS[kind];
-            this.forceButtons.get(kind)!.style.setProperty('--tb-tint', `rgb(${r}, ${g}, ${b})`);
-        }
         for (const setting of ['size', 'flow', 'thickness'] as const) {
             const param = this.settingParam(setting);
             const value = drawing.store.value(param.key);
@@ -238,6 +270,7 @@ export class MouseToolbar {
             describe(this.settingButtons[setting], param.label, t(`toolbar.${setting}.doc`, { value: text }));
         }
         container.dataset.tool = this.tool;
+        if (this.flyout) this.renderFlyout(this.flyout);
         this.syncPopover();
         this.applyForce();
     }
@@ -245,9 +278,12 @@ export class MouseToolbar {
     /** Applies a key of the toolbar (setupShortcuts). */
     shortcut(s: ToolbarShortcut): void {
         switch (s.action) {
-            case 'tool': this.selectTool(s.tool); break;
+            case 'tool':
+                if (s.tool === 'force' && this.tool === 'force') this.chooseForce(nextForce(this.force));
+                else this.selectTool(s.tool);
+                break;
             case 'shape': this.selectTool('shape', this.tool === 'shape' ? nextShape(this.shape) : this.shape); break;
-            case 'swap': this.selectForce(this.targets.drawing.selectedKind === 'attractor' ? 'repeller' : 'attractor'); break;
+            case 'swap': this.swap(); break;
             case 'brush': this.step(s.key, s.direction); break;
         }
         flash(this.targets.root);
@@ -255,13 +291,9 @@ export class MouseToolbar {
 
     // ---- Selection ----
 
-    private get forceType(): ForceType {
-        return this.vortex ? 'vortex' : this.targets.drawing.selectedKind;
-    }
-
-    /** The brush in use: the vortex's, or the selected kind's. */
+    /** The brush in use: the point force's type, or the selected kind of drawing. */
     private get owner(): BrushOwner {
-        return this.forceType;
+        return this.tool === 'force' ? this.force : this.targets.drawing.selectedKind;
     }
 
     private maskTool(): MaskTool | null {
@@ -273,25 +305,147 @@ export class MouseToolbar {
         }
     }
 
+    /** A click on a tool: picks it, or drops it if it is the active one. */
+    private toggleTool(tool: Exclude<MouseTool, 'none'>): void {
+        if (this.swallowClick) {
+            this.swallowClick = false;
+            return;
+        }
+        this.selectTool(this.tool === tool ? 'none' : tool);
+    }
+
     private selectTool(tool: MouseTool, shape?: ShapeStyle): void {
         this.release();
         this.tool = tool;
         if (shape) this.shape = shape;
-        const maskTool = this.maskTool();
-        if (maskTool) this.vortex = false;         // the masks are attractors or repellers
-        this.targets.drawing.setMaskTool(maskTool);
+        this.targets.drawing.setMaskTool(this.maskTool());
         this.refresh();
     }
 
-    private selectForce(type: ForceType): void {
-        if (type === 'vortex') {
-            if (this.maskTool()) return;
-            this.vortex = true;
-        } else {
-            this.vortex = false;
-            this.targets.drawing.setKind(type);
+    private chooseForce(type: ForceType): void {
+        this.force = type;
+        this.selectTool('force');
+    }
+
+    private chooseBrush(kind: DrawingKind): void {
+        this.targets.drawing.setKind(kind);
+        this.selectTool('brush');
+    }
+
+    /** X: the opposite force type with the point force, else the other kind of drawing. */
+    private swap(): void {
+        if (this.tool === 'force') {
+            this.chooseForce(swapForce(this.force));
+            return;
         }
+        this.targets.drawing.setKind(this.targets.drawing.selectedKind === 'attractor' ? 'repeller' : 'attractor');
         this.refresh();
+    }
+
+    // ---- Flyouts (variants of a tool) ----
+
+    /** A tool button that unfolds its variants on a long press, a right click or the down arrow. */
+    private flyoutButton(flyout: Flyout, icon: Icon, onClick: () => void): HTMLButtonElement {
+        const b = iconButton(icon, onClick);
+        b.classList.add('tb-has-flyout');
+        b.setAttribute('aria-haspopup', 'menu');
+        b.addEventListener('pointerdown', e => {
+            this.swallowClick = false;
+            window.clearTimeout(this.holdTimer);
+            if (e.button !== 0) return;
+            this.holdTimer = window.setTimeout(() => {
+                this.swallowClick = true;
+                this.openFlyout(flyout);
+            }, TOOLBAR_HOLD_MS);
+        });
+        const cancel = (): void => window.clearTimeout(this.holdTimer);
+        b.addEventListener('pointerup', cancel);
+        b.addEventListener('pointerleave', cancel);
+        b.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            this.openFlyout(flyout);
+        });
+        b.addEventListener('keydown', e => {
+            if (e.key !== 'ArrowDown') return;
+            e.preventDefault();
+            this.openFlyout(flyout);
+            this.flyoutElement.querySelector<HTMLElement>('[aria-checked=true]')?.focus();
+        });
+        return b;
+    }
+
+    private variants(flyout: Flyout): Variant[] {
+        switch (flyout) {
+            case 'force':
+                return FORCE_TYPES.map(type => ({
+                    icon: type, label: t(FORCE_LABELS[type]), tint: type,
+                    selected: () => this.force === type, choose: () => this.chooseForce(type),
+                }));
+            case 'brush':
+                return DRAWING_KINDS.map(kind => ({
+                    icon: 'brush', label: t(BRUSH_LABELS[kind]), tint: kind,
+                    selected: () => this.targets.drawing.selectedKind === kind, choose: () => this.chooseBrush(kind),
+                }));
+            case 'shape':
+                return SHAPE_STYLES.map(style => ({
+                    icon: shapeId(style), label: t(SHAPE_LABELS[shapeId(style)]),
+                    selected: () => sameShape(this.shape, style), choose: () => this.selectTool('shape', style),
+                }));
+        }
+    }
+
+    private openFlyout(flyout: Flyout): void {
+        window.clearTimeout(this.holdTimer);
+        this.closePopover();
+        this.flyout = flyout;
+        this.renderFlyout(flyout);
+        const anchor = this.toolButtons[flyout];
+        this.flyoutElement.style.left = `${anchor.offsetLeft + anchor.offsetWidth / 2}px`;
+        this.flyoutElement.hidden = false;
+        this.targets.root.classList.add('popover-open');
+        anchor.setAttribute('aria-expanded', 'true');
+    }
+
+    private renderFlyout(flyout: Flyout): void {
+        const items = this.variants(flyout).map(variant => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'tb-flyout-item';
+            item.setAttribute('role', 'menuitemradio');
+            item.setAttribute('aria-checked', String(variant.selected()));
+            item.innerHTML = svg(variant.icon);
+            const label = document.createElement('span');
+            label.textContent = variant.label;
+            item.appendChild(label);
+            if (variant.tint) item.style.setProperty('--tb-tint', tint(variant.tint));
+            const choose = (): void => {
+                if (this.flyout === null) return;
+                this.closeFlyout();
+                variant.choose();
+            };
+            // Released over an item after a long press, or clicked once unfolded.
+            item.addEventListener('pointerup', choose);
+            item.addEventListener('click', choose);
+            item.addEventListener('keydown', e => {
+                if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+                e.preventDefault();
+                const next = e.key === 'ArrowDown' ? item.nextElementSibling : item.previousElementSibling;
+                if (next instanceof HTMLElement) next.focus();
+            });
+            return item;
+        });
+        this.flyoutElement.replaceChildren(...items);
+    }
+
+    private closeFlyout(): void {
+        if (!this.flyout) return;
+        const anchor = this.toolButtons[this.flyout];
+        anchor.setAttribute('aria-expanded', 'false');
+        this.flyout = null;
+        this.flyoutElement.hidden = true;
+        this.flyoutElement.replaceChildren();
+        if (!this.popover) this.targets.root.classList.remove('popover-open');
+        if (this.flyoutElement.contains(document.activeElement)) anchor.focus();
     }
 
     // ---- Settings (popovers, wheel, keys) ----
@@ -319,6 +473,7 @@ export class MouseToolbar {
     }
 
     private openPopover(setting: Setting): void {
+        this.closeFlyout();
         const param = this.settingParam(setting);
         const field = paramField(param, this.popoverStore);
         field.element.dataset.tooltipPlacement = 'below';
@@ -336,14 +491,15 @@ export class MouseToolbar {
     }
 
     private closePopover(): void {
+        if (!this.popover) return;
         this.popover = null;
         this.popoverElement.hidden = true;
         this.popoverElement.replaceChildren();
-        this.targets.root.classList.remove('popover-open');
+        if (!this.flyout) this.targets.root.classList.remove('popover-open');
         for (const b of Object.values(this.settingButtons)) b.setAttribute('aria-expanded', 'false');
     }
 
-    /** The open popover follows the setting: another kind's (rebuilt), or a value changed elsewhere. */
+    /** The open popover follows the setting: another brush's (rebuilt), or a value changed elsewhere. */
     private syncPopover(): void {
         const popover = this.popover;
         if (!popover) return;
@@ -396,7 +552,6 @@ export class MouseToolbar {
             e.preventDefault();
             surface.setPointerCapture(e.pointerId);
             this.held = { pointerId: e.pointerId, reversed: e.button === 2 || e.shiftKey, clientX: e.clientX, clientY: e.clientY };
-            this.targets.container.classList.add('force-held');
             this.applyForce();
         });
         surface.addEventListener('pointermove', e => {
@@ -420,9 +575,9 @@ export class MouseToolbar {
         const box = surface.getBoundingClientRect();
         const view = getView();
         const world = screenToWorld(view, { x: held.clientX - box.left, y: held.clientY - box.top }, box.width, box.height);
-        const brush = drawing.brush(this.owner);
+        const brush = drawing.brush(this.force);
         field.setPointForce({
-            x: world.x, y: world.y, type: this.forceType, reversed: held.reversed,
+            x: world.x, y: world.y, type: this.force, reversed: held.reversed,
             diameter: brush.size / view.zoom, flow: brush.flow / 100,
         });
     }
@@ -430,7 +585,6 @@ export class MouseToolbar {
     private release(): void {
         if (!this.held) return;
         this.held = null;
-        this.targets.container.classList.remove('force-held');
         this.targets.field.setPointForce(null);
     }
 }

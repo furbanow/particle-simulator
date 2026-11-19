@@ -47,6 +47,15 @@ export type MaskTool =
 /** The type of the point force: the pull of an attractor, the push of a repeller, or a swirl. */
 export type ForceType = DrawingKind | 'vortex';
 
+/** The types of point force, in toolbar order (F, pressed again, goes through them). */
+export const FORCE_TYPES: readonly ForceType[] = ['attractor', 'repeller', 'vortex'];
+
+/** The force type after `type` in FORCE_TYPES, back to the first after the last. */
+export const nextForce = (type: ForceType): ForceType => FORCE_TYPES[(FORCE_TYPES.indexOf(type) + 1) % FORCE_TYPES.length];
+
+/** The opposite of a force type (X): attraction and repulsion swap, the vortex gives attraction. */
+export const swapForce = (type: ForceType): ForceType => type === 'attractor' ? 'repeller' : 'attractor';
+
 /** The point force held under the mouse. */
 export interface PointForce {
     /** World position (px of the simulation area, y up). */
@@ -109,8 +118,8 @@ export type ToolbarShortcut =
 const TOOL_KEYS: Readonly<Record<string, Exclude<MouseTool, 'shape'>>> = { v: 'none', f: 'force', b: 'brush', e: 'eraser' };
 
 /**
- * The toolbar's shortcut of a key: V, F, B, E pick a tool, U the next shape, X swaps attraction and
- * repulsion, [ and ] shrink and grow the brush (with Shift: its density). The brackets are read by
+ * The toolbar's shortcut of a key: V drops the tool, F, B, E pick a tool (F again: the next force
+ * type), U a shape (again: the next one), X swaps attraction and repulsion, [ and ] shrink and grow the brush (with Shift: its density). The brackets are read by
  * their position (`code`), so they work on every keyboard layout.
  */
 export function toolbarShortcut(key: string, code: string, shift: boolean): ToolbarShortcut | null {

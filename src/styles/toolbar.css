@@ -31,9 +31,13 @@ body.panel-hidden .toolbar { left: 50%; max-width: calc(100vw - 2 * var(--tb-sid
 .tb-btn svg .solid { fill: currentColor; }
 .tb-btn:hover { background: var(--surface-hover); color: var(--text); }
 .tb-btn[aria-pressed=true], .tb-btn[aria-expanded=true] { background: rgba(167, 139, 250, 0.2); color: var(--accent); }
-/* Attraction and repulsion wear the preview color of their drawings. */
-.tb-force[aria-pressed=true][data-force=attractor], .tb-force[aria-pressed=true][data-force=repeller] {
-    background: color-mix(in srgb, var(--tb-tint) 24%, transparent); color: var(--tb-tint);
+/* The tools wear the color of what they act with: the force type, or the kind of drawing. */
+.tb-tool[aria-pressed=true] { background: color-mix(in srgb, var(--tb-tint) 24%, transparent); color: var(--tb-tint); }
+/* A tool with variants shows a small corner in its color: a long press (or a right click) unfolds them. */
+.tb-has-flyout { position: relative; }
+.tb-has-flyout::after {
+    content: ''; position: absolute; right: 4px; bottom: 4px; pointer-events: none;
+    border-style: solid; border-width: 0 0 5px 5px; border-color: transparent transparent var(--tb-tint) transparent;
 }
 .tb-btn:disabled { opacity: 0.3; cursor: default; background: transparent; color: var(--text-2); }
 .tb-danger.confirm { background: rgba(248, 113, 113, 0.18); color: var(--bad); }
@@ -45,3 +49,25 @@ body.panel-hidden .toolbar { left: 50%; max-width: calc(100vw - 2 * var(--tb-sid
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
     box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.75);
 }
+
+/* The variants of a tool, unfolded under it. */
+.tb-flyout {
+    position: absolute; top: calc(100% + 8px); transform: translateX(-50%);
+    display: flex; flex-direction: column; gap: 2px; min-width: 170px; padding: 4px;
+    border-radius: 14px; background: rgba(12, 12, 16, 0.86); border: 1px solid var(--border-strong);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.75);
+}
+.tb-flyout-item {
+    display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 12px 0 9px;
+    border: 0; border-radius: 10px; background: transparent; cursor: pointer;
+    color: var(--text-2); font: 500 12px var(--font); text-align: left; white-space: nowrap;
+    transition: background 0.12s, color 0.12s;
+}
+.tb-flyout-item svg {
+    width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; color: var(--tb-tint, var(--text));
+    stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.tb-flyout-item svg .solid { fill: currentColor; }
+.tb-flyout-item:hover, .tb-flyout-item:focus-visible { background: var(--surface-hover); color: var(--text); outline: none; }
+.tb-flyout-item[aria-checked=true] { background: rgba(255, 255, 255, 0.08); color: var(--text); }
