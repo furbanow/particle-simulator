@@ -9,7 +9,8 @@ Multi-species GPGPU particle simulator running in the browser (TypeScript, Three
 - **Physics**: from 1,000 to N particles; their positions and velocities are stored in floating-point textures. Gravity is computed on a mipmapped *cloud-in-cell* density field, with relative pressure and viscosity.
 - **Elements**: the first 10 elements of the periodic table (hydrogen → neon), with their real atomic masses (in u), sizes proportional to atomic radii, and CPK colors. They stratify according to their density. A dedicated bar at the top of the page lets you activate 1 to 10 of them and edit their properties on a bar chart, one property at a time (population share, atomic mass, size, color as hue · saturation · lightness), with default values and random draws. The selected element also has all its sliders on the right, with its name and symbol. Element configurations are saved in the browser: new, duplicate, rename, delete, load.
 - **Simulation configurations**: above the **Restart** button, the entire simulation can be saved in the browser (algorithm, parameters, element definitions, visual effects, speed): new, duplicate, rename, delete, load. Loading a configuration restarts the simulation; the last one selected is restored when the page opens.
-- **Static drawings**: a **Drawing** tab places invisible masses that never move: **attractors** (like dark matter) pull the matter, **repellers** push it away. Both kinds can be active at once, each with its own mask, strength and softening, drawn with the mouse (visible while drawing, it fades a second later), imported from an image (fitted to the screen, bright parts dense) or written as a multi-line text (font, size, bold, italic, line height, alignment). Buttons clear all the drawings or only the selected kind; it applies to every algorithm.
+- **Static drawings**: a **Drawing** tab places invisible masses that never move: **attractors** (like dark matter) pull the matter, **repellers** push it away. Both kinds can be active at once, each with its own mask, strength and softening, drawn with the mouse (brush, eraser, filled or hollow ellipses and rectangles; visible while drawing, it fades a second later), imported from an image (fitted to the screen, bright parts dense) or written as a multi-line text (font, size, bold, italic, line height, alignment). Buttons clear all the drawings or only the selected kind; it applies to every algorithm.
+- **Mouse toolbar**: a discreet, see-through toolbar at the top center of the animation picks what the mouse does, as in a paint program: nothing, a **point force** (held under the pointer while the left button is pressed: attraction, repulsion or a **vortex**; right click gives the opposite force), the brush, the eraser or a shape (click and drag; Shift for a circle or a square, Alt from the center). Its other buttons pick the force type, the brush size and density and the outline thickness (in small popovers, or with the mouse wheel), keep the drawings shown and clear them.
 - **Supernovae**: when the densest zone exceeds the chosen threshold, it explodes (radial ejection), then a 1/r shock wave sweeps through the other clusters.
 - **Rendering**: half-float HDR pipeline, chaining a colored nebula, a gravitational lens with chromatic separation, bloom, vignette, grain and Khronos Neutral tone mapping.
 
@@ -59,6 +60,9 @@ make dev       # development server at http://localhost:5173
 
 - **R**: restart the simulation
 - **H**: hide or show the panel
+- **V / F / B / E / U**: no tool, point force, brush, eraser, shapes (U again: the next shape)
+- **X**: swap attraction and repulsion
+- **[ / ]**: smaller / larger brush (with Shift: its density)
 - **Double-click on a slider or a distribution bar**: reset to the default value
 
 ## Structure
@@ -74,7 +78,8 @@ src/
   elementConfigs.ts   saved element configurations (localStorage)
   simulationConfigs.ts  saved whole-simulation configurations (localStorage)
   visualEffects.ts    visual effects common to all algorithms (sliders of the Visual effects tab)
-  drawing.ts          settings of the static drawings (Drawing tab); drawingMask.ts: image fitting, text wrapping
+  drawing.ts          settings of the static drawings (Drawing tab); drawingMask.ts: image fitting, text wrapping, shape frames
+  mouseTools.ts       mouse tools, shapes, toolbar shortcuts and point force gains (ui/toolbar.ts builds the toolbar)
   displaySettings.ts  per-browser settings (language, FPS cap, particle limit, overlays)
   benchmark/          GPU benchmark: frame timing (runner.ts) and particle limit search (estimate.ts)
   simulation/         GPGPU (Simulation), density field, cluster detection, shock wave, drawing field

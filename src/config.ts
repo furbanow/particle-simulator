@@ -149,6 +149,17 @@ export const DRAWING_BRUSH_FLOW_SLIDER: SliderSpec = { min: 1, max: 100, step: 1
 export const DRAWING_OPACITY_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 100 };       // %
 export const DRAWING_FONT_SIZE_SLIDER: SliderSpec = { min: 12, max: 600, step: 1, default: 160 };    // px
 export const DRAWING_LINE_HEIGHT_SLIDER: SliderSpec = { min: 0.6, max: 2.5, step: 0.05, default: 1.1 };
+export const DRAWING_SHAPE_THICKNESS_SLIDER: SliderSpec = { min: 1, max: 200, step: 1, default: 20 };   // px
+
+// ---- Mouse toolbar: point force and shortcuts ----
+// The point force held under the mouse is a softened point mass M = POINT_MASS * density * pi * eps^2,
+// eps the brush radius (world px), pulling as a drawing of the same mass would (DRAWING_GRAVITY_UNIT,
+// the kind's strength): its peak acceleration depends on the density only, its size sets its reach.
+export const DRAWING_POINT_MASS = 4;
+// The vortex: the same profile, tangential (counterclockwise), this strength in place of a kind's.
+export const DRAWING_VORTEX_STRENGTH = 2;
+export const BRUSH_SIZE_KEY_FACTOR = 1.15;     // brush size multiplied (divided) per press of ] ([)
+export const BRUSH_FLOW_KEY_STEP = 5;          // brush density (%) added (removed) per press of Shift+] (Shift+[)
 
 // ---- Species ----
 export const MAX_SPECIES = 10;

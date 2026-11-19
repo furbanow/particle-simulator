@@ -6,19 +6,16 @@ import {
     DRAWING_PARAM as P, drawingChoice, drawingFlag, drawingFont, drawingMode, drawingNumber,
     type DrawingKind, type DrawingSettings,
 } from '../../drawing';
-import { containRect, densityFromPixel, wrapText } from '../../drawingMask';
+import { containRect, densityFromPixel, hollowStroke, wrapText, type MaskPoint, type Rect } from '../../drawingMask';
+import type { ShapeStyle } from '../../mouseTools';
+
+export type { MaskPoint };
 
 
 function context2d(canvas: HTMLCanvasElement, willReadFrequently = false): CanvasRenderingContext2D {
     const ctx = canvas.getContext('2d', { willReadFrequently });
     if (!ctx) throw new Error(t('error.canvas2d'));
     return ctx;
-}
-
-/** A point of the simulation area, in CSS px from its top left corner (canvas coordinates). */
-export interface MaskPoint {
-    readonly x: number;
-    readonly y: number;
 }
 
 /**
@@ -90,6 +87,33 @@ export class MaskCanvas {
                 const t = k / steps;
                 dab(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
             }
+        }
+        ctx.restore();
+    }
+
+    /**
+     * Paints a shape filling `rect` on the drawing at density `alpha`, or erases there; a hollow one
+     * with an outline of `thickness` px inside the frame (filled when too thin for it).
+     */
+    shape(rect: Rect, style: ShapeStyle, thickness: number, alpha: number, erase: boolean): void {
+        if (rect.width <= 0 || rect.height <= 0) return;
+        const ctx = this.drawingCtx;
+        const outline = style.filled ? null : hollowStroke(rect, thickness);
+        const inset = outline?.inset ?? 0;
+        const x = rect.x + inset, y = rect.y + inset;
+        const w = rect.width - 2 * inset, h = rect.height - 2 * inset;
+        ctx.save();
+        ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over';
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = ctx.strokeStyle = this.tint(1);
+        ctx.beginPath();
+        if (style.shape === 'ellipse') ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+        else ctx.rect(x, y, w, h);
+        if (outline) {
+            ctx.lineWidth = outline.lineWidth;
+            ctx.stroke();
+        } else {
+            ctx.fill();
         }
         ctx.restore();
     }

@@ -1,0 +1,43 @@
+/* ---------- Mouse toolbar: discreet, see-through, at the top center of the animation ---------- */
+.toolbar {
+    position: fixed; top: 12px; z-index: 9;
+    left: calc(var(--panel-w) + (100vw - var(--panel-w)) / 2); transform: translateX(-50%);
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 14px;
+    max-width: calc(100vw - var(--panel-w) - 24px); width: max-content;
+    padding: 3px 8px; border-radius: 18px;
+    background: rgba(0, 0, 0, 0.16); border: 1px solid var(--border);
+    opacity: 0.3; transition: opacity 0.25s, left 0.35s var(--ease), max-width 0.35s var(--ease);
+}
+.toolbar:hover, .toolbar:focus-within, .toolbar.popover-open { opacity: 1; transition-duration: 0.12s, 0.35s, 0.35s; }
+/* A shortcut shows the toolbar for a moment. */
+.toolbar.flash { animation: tb-flash 1.2s ease-out; }
+@keyframes tb-flash { from, 40% { opacity: 1; } }
+body.panel-hidden .toolbar { left: 50%; max-width: calc(100vw - 24px); }
+
+.tb-group { display: flex; align-items: center; gap: 2px; }
+.tb-btn {
+    width: 28px; height: 28px; flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+    border: 0; border-radius: 50%; background: transparent; color: var(--text-2); cursor: pointer;
+    transition: background 0.15s, color 0.15s, opacity 0.15s;
+}
+.tb-btn svg {
+    width: 16px; height: 16px; fill: none; stroke: currentColor;
+    stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.tb-btn svg .solid { fill: currentColor; }
+.tb-btn:hover { background: var(--surface-hover); color: var(--text); }
+.tb-btn[aria-pressed=true], .tb-btn[aria-expanded=true] { background: rgba(167, 139, 250, 0.2); color: var(--accent); }
+/* Attraction and repulsion wear the preview color of their drawings. */
+.tb-force[aria-pressed=true][data-force=attractor], .tb-force[aria-pressed=true][data-force=repeller] {
+    background: color-mix(in srgb, var(--tb-tint) 24%, transparent); color: var(--tb-tint);
+}
+.tb-btn:disabled { opacity: 0.3; cursor: default; background: transparent; color: var(--text-2); }
+.tb-danger.confirm { background: rgba(248, 113, 113, 0.18); color: var(--bad); }
+
+.tb-popover {
+    position: absolute; top: calc(100% + 8px); width: 230px; transform: translateX(-50%);
+    padding: 10px 12px 4px; border-radius: var(--radius);
+    background: rgba(12, 12, 16, 0.86); border: 1px solid var(--border-strong);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.75);
+}

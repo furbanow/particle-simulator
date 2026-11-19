@@ -33,6 +33,7 @@ import { ParamPanel } from './ui/paramPanel';
 import { setupShortcuts } from './ui/shortcuts';
 import { setupSliders, syncAllRanges, titleResettableRanges } from './ui/sliders';
 import { Stats } from './ui/stats';
+import { MouseToolbar } from './ui/toolbar';
 import { setupTooltips } from './ui/tooltip';
 
 // The static texts of the page, in the language fixed at load (changing it reloads the page).
@@ -135,7 +136,11 @@ const elementsQuick = new ElementsQuickPanel(simulation, elementBar, () => eleme
 const drawing = new DrawingPanel({ field: simulation.drawing, container, surface: renderer.domElement, getView: () => view, onViewChange: listener => viewListeners.push(listener) });
 const params = new ParamPanel(byId('panelTabs'), byId('panelTabContent'), simulation, controls.effects, {
     extraContent: { elements: elementsQuick.element, drawing: drawing.element },
-    onTabChange: id => drawing.setTabOpen(id === 'drawing'),
+});
+// What the mouse does on the simulation (point force, brush, eraser, shapes), over the animation.
+const toolbar = new MouseToolbar({
+    root: byId('toolbar'), tooltip: byId('tooltip'), drawing, field: simulation.drawing, container,
+    surface: renderer.domElement, getView: () => view, onViewChange: listener => viewListeners.push(listener),
 });
 const stats = new Stats(simulation);
 
@@ -224,6 +229,11 @@ elementBar.onEdit = () => {
     refreshSimulationPicker();
     elementsQuick.refresh();
 };
+// The toolbar edits the drawings' settings too (outside the panel).
+drawing.onChange(() => {
+    toolbar.refresh();
+    refreshSimulationPicker();
+});
 
 /** Bounds the particle count sliders (the counts above it come down to it, applied on restart). */
 function applyParticleCap(cap: number | null): void {
@@ -339,7 +349,8 @@ function changeSpeed(direction: -1 | 1): void {
 setupShortcuts({ togglePause, changeSpeed,
     move: (dx, dy) => setView({ zoom: view.zoom, center: {
         x: view.center.x + dx * PAN_KEY_PX / view.zoom, y: view.center.y + dy * PAN_KEY_PX / view.zoom } }),
-    zoom: direction => zoomView(direction > 0 ? ZOOM_KEY_FACTOR : 1 / ZOOM_KEY_FACTOR, view.center), restart: () => { restart(); flash(startBtn); }, togglePanel }, renderer.domElement);
+    zoom: direction => zoomView(direction > 0 ? ZOOM_KEY_FACTOR : 1 / ZOOM_KEY_FACTOR, view.center), restart: () => { restart(); flash(startBtn); }, togglePanel,
+    toolbar: shortcut => toolbar.shortcut(shortcut) }, renderer.domElement);
 window.addEventListener('resize', resize);
 syncAllRanges(uiPanel);
 syncAllRanges(byId('element-bar'));

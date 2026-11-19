@@ -5,7 +5,7 @@
 
 import {
     DRAWING_BRUSH_FLOW_SLIDER, DRAWING_BRUSH_SIZE_SLIDER, DRAWING_FONT_SIZE_SLIDER,
-    DRAWING_LINE_HEIGHT_SLIDER, DRAWING_OPACITY_SLIDER, DRAWING_SOFTENING_SLIDER,
+    DRAWING_LINE_HEIGHT_SLIDER, DRAWING_OPACITY_SLIDER, DRAWING_SHAPE_THICKNESS_SLIDER, DRAWING_SOFTENING_SLIDER,
     DRAWING_STRENGTH_SLIDER, DRAWING_TEXT_MAX,
 } from './config';
 import { formatNumber, t } from './i18n';
@@ -36,6 +36,7 @@ export const DRAWING_PARAM = {
     mode: 'mode',
     brushSize: 'brushSize',
     brushFlow: 'brushFlow',
+    shapeThickness: 'shapeThickness',
     imageOpacity: 'imageOpacity',
     imageInvert: 'imageInvert',
     fontFamily: 'fontFamily',
@@ -87,6 +88,10 @@ function declareParams(kind: DrawingKind): readonly DrawingParam[] {
             label: t('drawing.param.brushFlow.label'),
             doc: t('drawing.param.brushFlow.doc'),
             format: percent },
+        { ...sliderFields(DRAWING_SHAPE_THICKNESS_SLIDER), key: P.shapeThickness, tab: 'drawing', group: 'draw',
+            label: t('drawing.param.shapeThickness.label'),
+            doc: t('drawing.param.shapeThickness.doc'),
+            format: px },
         { ...sliderFields(DRAWING_OPACITY_SLIDER), key: P.imageOpacity, tab: 'drawing', group: 'image',
             label: t('drawing.param.imageOpacity.label'),
             doc: t('drawing.param.imageOpacity.doc'),
@@ -129,8 +134,44 @@ export const DRAWING_PARAMS: Readonly<Record<DrawingKind, readonly DrawingParam[
     repeller: declareParams('repeller'),
 };
 
-/** Every setting of every kind. */
-export const ALL_DRAWING_PARAMS: readonly DrawingParam[] = DRAWING_KINDS.flatMap(kind => DRAWING_PARAMS[kind]);
+/**
+ * What owns a brush: a kind of drawing (its brush paints its mask and sizes its point force), or the
+ * vortex, a point force only (toolbar), whose brush is saved as `vortex.<key>`.
+ */
+export type BrushOwner = DrawingKind | 'vortex';
+
+/** The brush settings of the vortex (edited in the toolbar only). */
+export const VORTEX_PARAMS: readonly DrawingParam[] = [
+    { ...sliderFields(DRAWING_BRUSH_SIZE_SLIDER), key: `vortex.${P.brushSize}`, tab: 'drawing', group: 'draw',
+        label: t('drawing.param.vortexBrushSize.label'),
+        doc: t('drawing.param.vortexBrushSize.doc'),
+        format: px },
+    { ...sliderFields(DRAWING_BRUSH_FLOW_SLIDER), key: `vortex.${P.brushFlow}`, tab: 'drawing', group: 'draw',
+        label: t('drawing.param.vortexBrushFlow.label'),
+        doc: t('drawing.param.vortexBrushFlow.doc'),
+        format: percent },
+];
+
+/** Every setting of every kind, and the vortex's. */
+export const ALL_DRAWING_PARAMS: readonly DrawingParam[] = [...DRAWING_KINDS.flatMap(kind => DRAWING_PARAMS[kind]), ...VORTEX_PARAMS];
+
+/** A brush setting of `owner`: its size (px) or density (%). */
+export type BrushKey = typeof P.brushSize | typeof P.brushFlow;
+
+/** The declaration of a brush setting of `owner`. */
+export function brushParam(owner: BrushOwner, key: BrushKey): DrawingParam {
+    const name = `${owner}.${key}`;
+    const found = ALL_DRAWING_PARAMS.find(p => p.key === name);
+    if (!found) throw new Error(`Unknown brush parameter: ${name}`);
+    return found;
+}
+
+/** Value of a brush setting of `owner`, its default when missing or invalid. */
+export function brushNumber(s: DrawingSettings, owner: BrushOwner, key: BrushKey): number {
+    const param = brushParam(owner, key);
+    const v = s.params[param.key];
+    return typeof v === 'number' ? v : param.default as number;
+}
 
 /** The drawings' settings: the declared parameters, by prefixed key, and the text of each kind's text mask. */
 export interface DrawingSettings {

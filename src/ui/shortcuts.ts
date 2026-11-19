@@ -1,3 +1,5 @@
+import { toolbarShortcut, type ToolbarShortcut } from '../mouseTools';
+
 export interface ShortcutActions {
     restart(): void;
     togglePause(): void;
@@ -8,13 +10,20 @@ export interface ShortcutActions {
     /** Zooms out (-1) or in (+1) around the center of the view. */
     zoom(direction: -1 | 1): void;
     togglePanel(): void;
+    /** A key of the mouse toolbar (tools, force type, brush). */
+    toolbar(shortcut: ToolbarShortcut): void;
 }
 
 const ARROWS: Record<string, readonly [-1 | 0 | 1, -1 | 0 | 1] | undefined> = {
     ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1],
 };
 
-/** +/- zoom, the arrows move the zoomed view and PageUp/PageDown speed up/slow down the animation while the render area has the focus. R restarts, Space pauses/resumes, H hides/shows the panel (ignored while typing in a text field, in a modal or with modifiers). */
+/**
+ * +/- zoom, the arrows move the zoomed view and PageUp/PageDown speed up/slow down the animation while
+ * the render area has the focus. R restarts, Space pauses/resumes, H hides/shows the panel, and the
+ * toolbar's keys (toolbarShortcut(); the brush ones repeat) apply anywhere (ignored while typing in a
+ * text field, in a modal or with modifiers other than Shift).
+ */
 export function setupShortcuts(actions: ShortcutActions, renderSurface: HTMLElement): void {
     window.addEventListener('keydown', e => {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -29,9 +38,16 @@ export function setupShortcuts(actions: ShortcutActions, renderSurface: HTMLElem
             else actions.changeSpeed(speed > 0 ? 1 : -1);
             return;
         }
-        if (e.repeat) return;
         if ((e.target as Element).closest?.('input:not([type=range]), textarea')) return;
         if (document.querySelector('.modal:not([hidden])')) return;
+        const tool = toolbarShortcut(e.key, e.code, e.shiftKey);
+        if (tool) {
+            if (e.repeat && tool.action !== 'brush') return;
+            e.preventDefault();
+            actions.toolbar(tool);
+            return;
+        }
+        if (e.repeat) return;
         if (e.key === ' ') {
             if ((e.target as Element).closest?.('select')) return;
             e.preventDefault();             // no page scroll, no click on a focused button

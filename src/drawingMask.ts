@@ -54,3 +54,39 @@ export function densityFromPixel(r: number, g: number, b: number, a: number, inv
     const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
     return (invert ? 1 - luminance : luminance) * a / 255;
 }
+
+/** A point of the drawing area (canvas coordinates). */
+export interface MaskPoint {
+    readonly x: number;
+    readonly y: number;
+}
+
+/**
+ * The frame of a shape dragged from `start` to `end`: from corner to corner, or from its center
+ * (`fromCenter`, the frame then spans the drag on both sides); a square when `constrain`, on the
+ * side of the longer drag, toward the pointer.
+ */
+export function shapeRect(start: MaskPoint, end: MaskPoint, constrain: boolean, fromCenter: boolean): Rect {
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    if (constrain) {
+        const side = Math.max(Math.abs(dx), Math.abs(dy));
+        dx = dx < 0 ? -side : side;
+        dy = dy < 0 ? -side : side;
+    }
+    if (fromCenter) {
+        const w = Math.abs(dx), h = Math.abs(dy);
+        return { x: start.x - w, y: start.y - h, width: 2 * w, height: 2 * h };
+    }
+    return { x: Math.min(start.x, start.x + dx), y: Math.min(start.y, start.y + dy), width: Math.abs(dx), height: Math.abs(dy) };
+}
+
+/**
+ * The outline of a hollow shape of `thickness` inside `rect`: the stroke is centered on the frame
+ * inset by half the thickness, so its outer edge is the frame. Null when the outline would fill
+ * the shape (thickness at least half its short side): the shape is then drawn filled.
+ */
+export function hollowStroke(rect: Rect, thickness: number): { inset: number; lineWidth: number } | null {
+    if (thickness <= 0 || 2 * thickness >= Math.min(rect.width, rect.height)) return null;
+    return { inset: thickness / 2, lineWidth: thickness };
+}

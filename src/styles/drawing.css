@@ -4,7 +4,19 @@
     opacity: 0; transition: opacity 0.6s var(--ease);
 }
 .drawing-overlay.visible { opacity: 0.6; transition-duration: 0.12s; }
-#sim-container.drawing-active canvas { cursor: crosshair; }
+/* The mouse tools of the toolbar (data-tool, see MouseToolbar). */
+#sim-container:is([data-tool=force], [data-tool=brush], [data-tool=eraser], [data-tool=shape]) canvas { cursor: crosshair; }
+/* The shape being dragged, laid over the zoomed view as the masks are (canvas coordinates). */
+.shape-layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+.shape-preview {
+    position: absolute; box-sizing: border-box;
+    border: 0 solid color-mix(in srgb, var(--dw-tint) 75%, transparent);
+}
+.shape-preview[hidden] { display: none; }
+.shape-preview.ellipse { border-radius: 50%; }
+.shape-preview.filled { background: color-mix(in srgb, var(--dw-tint) 45%, transparent); }
+.shape-preview.erase { border-style: dashed; border-color: var(--text-2); background: transparent; }
+.shape-preview.erase.filled { border-width: 1.5px; background: rgba(0, 0, 0, 0.35); }
 
 .dw-group + .dw-group { margin-top: 4px; }
 .dw-subtitle {

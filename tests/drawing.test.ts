@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { DRAWING_STRENGTH_SLIDER, DRAWING_TEXT_MAX } from '../src/config';
+import { DRAWING_BRUSH_SIZE_SLIDER, DRAWING_SHAPE_THICKNESS_SLIDER, DRAWING_STRENGTH_SLIDER, DRAWING_TEXT_MAX } from '../src/config';
 import {
-    ALL_DRAWING_PARAMS, DRAWING_KINDS, DRAWING_PARAM, DRAWING_PARAMS, drawingFont, drawingKey, drawingMode,
+    ALL_DRAWING_PARAMS, brushNumber, DRAWING_KINDS, VORTEX_PARAMS, DRAWING_PARAM, DRAWING_PARAMS, drawingFont, drawingKey, drawingMode,
     drawingNumber, DEFAULT_DRAWING_TEXTS, defaultDrawing, sanitizeDrawingSettings,
 } from '../src/drawing';
 import { panelParamValue } from '../src/simulation/params';
@@ -60,5 +60,23 @@ describe('drawing settings', () => {
             params: { 'attractor.italic': true, 'attractor.bold': true, 'attractor.fontSize': 100, 'attractor.fontFamily': 'inter' },
         });
         expect(drawingFont(settings, 'attractor')).toBe('italic 700 100px \'Inter\', sans-serif');
+    });
+
+    it('give the vortex a brush of its own, saved with the drawings', () => {
+        expect(VORTEX_PARAMS.map(p => p.key)).toEqual(['vortex.brushSize', 'vortex.brushFlow']);
+        for (const param of VORTEX_PARAMS) expect(ALL_DRAWING_PARAMS).toContain(param);
+        const defaults = defaultDrawing();
+        expect(brushNumber(defaults, 'vortex', 'brushSize')).toBe(DRAWING_BRUSH_SIZE_SLIDER.default);
+        const settings = sanitizeDrawingSettings({ params: { 'vortex.brushSize': 90, 'vortex.brushFlow': 'dense' } });
+        expect(brushNumber(settings, 'vortex', 'brushSize')).toBe(90);
+        expect(brushNumber(settings, 'vortex', 'brushFlow')).toBe(brushNumber(defaults, 'vortex', 'brushFlow'));
+        expect(brushNumber(settings, 'attractor', 'brushSize')).toBe(DRAWING_BRUSH_SIZE_SLIDER.default);
+    });
+
+    it('keep the shape thickness of each kind, within its slider', () => {
+        const settings = sanitizeDrawingSettings({ params: { 'attractor.shapeThickness': 7, 'repeller.shapeThickness': 1e6 } });
+        expect(drawingNumber(settings, 'attractor', DRAWING_PARAM.shapeThickness)).toBe(7);
+        expect(drawingNumber(settings, 'repeller', DRAWING_PARAM.shapeThickness)).toBe(DRAWING_SHAPE_THICKNESS_SLIDER.max);
+        expect(drawingNumber(defaultDrawing(), 'attractor', DRAWING_PARAM.shapeThickness)).toBe(DRAWING_SHAPE_THICKNESS_SLIDER.default);
     });
 });

@@ -2,16 +2,19 @@ import {
     DRAWING_ATTRACTOR_TINT, DRAWING_PREVIEW_MS, DRAWING_REPELLER_TINT, DRAWING_TEXT_MAX, DRAWING_UPDATE_MS,
 } from '../config';
 import {
-    cloneDrawing, DRAWING_KINDS, DRAWING_PARAM as P, DRAWING_PARAMS, drawingMode, drawingNumber, defaultDrawing,
-    sanitizeDrawingSettings, type DrawingGroup, type DrawingKind, type DrawingSettings,
+    brushNumber, cloneDrawing, DRAWING_KINDS, DRAWING_PARAM as P, DRAWING_PARAMS, drawingKey, drawingMode, drawingNumber,
+    defaultDrawing, sanitizeDrawingSettings, type BrushOwner, type DrawingGroup, type DrawingKind, type DrawingSettings,
 } from '../drawing';
+import { hollowStroke, shapeRect } from '../drawingMask';
 import { t } from '../i18n';
+import type { MaskTool, ShapeStyle } from '../mouseTools';
 import type { ParamDef, ParamValue } from '../simulation/algorithm';
 import type { DrawingField } from '../simulation/drawing/DrawingField';
+import { paramToSlider } from '../simulation/params';
 import { canvasTransform, screenToCanvas, type ViewState } from '../view';
 import { MaskCanvas, type MaskPoint } from './drawing/maskCanvas';
 import { paramField, type ParamField, type ParamStore } from './paramPanel';
-import { syncAllRanges } from './sliders';
+import { syncAllRanges, syncRange } from './sliders';
 
 export interface DrawingPanelTargets {
     field: DrawingField;
@@ -48,11 +51,29 @@ const KIND_PARAM: ParamDef = {
     doc: t('drawing.param.kind.doc'),
 };
 const GRAVITY_KEYS: ReadonlySet<string> = new Set([P.strength, P.softening]);
+/** Settings of the mouse tools: a change does not change the masks. */
+const TOOL_KEYS: ReadonlySet<string> = new Set([P.brushSize, P.brushFlow, P.shapeThickness]);
 
+/** A brush or eraser stroke in progress. */
 interface Stroke {
-    pointerId: number;
+    readonly type: 'stroke';
+    readonly pointerId: number;
     last: MaskPoint;
-    erase: boolean;
+    readonly erase: boolean;
+}
+
+/** A shape being dragged: drawn when the button is released. */
+interface ShapeDrag {
+    readonly type: 'shape';
+    readonly pointerId: number;
+    readonly style: ShapeStyle;
+    readonly start: MaskPoint;
+    end: MaskPoint;
+    /** Shift: a circle or a square. */
+    constrain: boolean;
+    /** Alt: from the center. */
+    fromCenter: boolean;
+    readonly erase: boolean;
 }
 
 /** The kind and the setting a prefixed key (`repeller.strength`) stands for. */
@@ -63,27 +84,36 @@ function splitKey(key: string): { kind: DrawingKind; name: string } | null {
 
 /**
  * The content of the panel's drawing tab, and the masks it edits. Each kind of drawing (attractor,
- * repeller) has its own mask and settings; the kind selector chooses the one shown and drawn on,
- * both stay active. A mask is drawn with the mouse on the simulation while the tab is shown in draw
- * mode, imported from an image or written as a text. The previews show while a mask changes and
- * fade DRAWING_PREVIEW_MS after the last change. Every new mask goes to the drawing field (at most
- * every DRAWING_UPDATE_MS while drawing).
+ * repeller) has its own mask and settings; the kind selector (also the toolbar's) chooses the one
+ * shown and drawn on, both stay active. A mask is drawn with the mouse on the simulation while the
+ * toolbar has a mask tool (brush, eraser, shape), imported from an image or written as a text. The
+ * previews show while a mask changes and fade DRAWING_PREVIEW_MS after the last change, unless
+ * pinned. Every new mask goes to the drawing field (at most every DRAWING_UPDATE_MS while drawing).
  */
 export class DrawingPanel {
     readonly element = document.createElement('div');
     private settings = defaultDrawing();
     private kind: DrawingKind = 'attractor';
     private readonly masks: Record<DrawingKind, MaskCanvas>;
-    private readonly store: ParamStore = {
+    /** The settings and the selected kind, as the controls read and set them. */
+    readonly store: ParamStore = {
         value: key => key === KIND_KEY ? this.kind : this.settings.params[key],
         set: (key, value) => key === KIND_KEY ? this.selectKind(value) : this.set(key, value),
     };
     private groups = new Map<DrawingGroup, HTMLElement>();
+    /** The controls of the tab, by setting key (the selected kind's). */
+    private fields = new Map<string, ParamField>();
     private readonly fileNames: Record<DrawingKind, string> = { attractor: '', repeller: '' };
     private fileName = document.createElement('span');
-    private tabOpen = false;
+    private maskTool: MaskTool | null = null;
     private size = { width: 1, height: 1 };
-    private stroke: Stroke | null = null;
+    private gesture: Stroke | ShapeDrag | null = null;
+    /** The dragged shape's outline, laid over the zoomed view as the masks are. */
+    private readonly shapeLayer = document.createElement('div');
+    private readonly shapePreview = document.createElement('div');
+    private pinned = false;
+    private readonly listeners: Array<() => void> = [];
+    private notifyQueued = false;
     private readonly pendingRender = new Set<DrawingKind>();
     private readonly lastCommit: Record<DrawingKind, number> = { attractor: 0, repeller: 0 };
     private readonly commitTimers: Partial<Record<DrawingKind, number>> = {};
@@ -99,6 +129,11 @@ export class DrawingPanel {
             targets.container.appendChild(mask.canvas);
             mask.canvas.style.transformOrigin = '0 0';
         }
+        this.shapeLayer.className = 'shape-layer';
+        this.shapePreview.className = 'shape-preview';
+        this.shapePreview.hidden = true;
+        this.shapeLayer.appendChild(this.shapePreview);
+        targets.container.appendChild(this.shapeLayer);
         targets.onViewChange(() => this.applyView());
         this.listenToPointer(targets.surface);
         this.build();
@@ -107,6 +142,60 @@ export class DrawingPanel {
     /** The settings, as saved in simulation configs. */
     values(): DrawingSettings {
         return cloneDrawing(this.settings);
+    }
+
+    /** The kind of drawing edited and drawn on. */
+    get selectedKind(): DrawingKind {
+        return this.kind;
+    }
+
+    setKind(kind: DrawingKind): void {
+        this.selectKind(kind);
+    }
+
+    /** The brush of `owner`: its diameter (screen px) and density (%). */
+    brush(owner: BrushOwner): { size: number; flow: number } {
+        return { size: brushNumber(this.settings, owner, P.brushSize), flow: brushNumber(this.settings, owner, P.brushFlow) };
+    }
+
+    /** Calls `listener` after the settings or the selected kind change (once per batch of changes). */
+    onChange(listener: () => void): void {
+        this.listeners.push(listener);
+    }
+
+    /** Sets a setting from outside the tab (the toolbar): the tab's control follows. */
+    setParam(key: string, value: ParamValue): void {
+        const field = this.fields.get(key);
+        const input = field?.element.querySelector('input');
+        if (field && input && field.param.kind === 'number' && typeof value === 'number') {
+            input.value = String(paramToSlider(field.param, value));
+            syncRange(input);
+            field.update();                         // stores the value and paints it
+        } else {
+            this.set(key, value);
+        }
+    }
+
+    /**
+     * What the mouse does on the simulation: draws, erases or drags shapes on the selected kind's
+     * mask (which then shows its drawing), or nothing here (null).
+     */
+    setMaskTool(tool: MaskTool | null): void {
+        this.endGesture(false);
+        this.maskTool = tool;
+        if (tool) this.useDrawSource();
+    }
+
+    /** Removes everything drawn, imported and written, of both kinds. */
+    clearAll(): void {
+        this.clear(DRAWING_KINDS);
+    }
+
+    /** Keeps the masks shown (true), or lets them fade after each change as usual. */
+    setMasksPinned(pinned: boolean): void {
+        this.pinned = pinned;
+        if (pinned) this.reveal();
+        else for (const mask of Object.values(this.masks)) mask.canvas.classList.remove('visible');
     }
 
     /** Applies saved settings (the drawings and the images stay: they are not saved). */
@@ -130,26 +219,42 @@ export class DrawingPanel {
         const { width, height } = this.size;
         const transform = canvasTransform(this.targets.getView(), width, height);
         for (const mask of Object.values(this.masks)) mask.canvas.style.transform = transform;
-    }
-
-    /** Whether the drawing tab is shown: the mouse draws only then (in draw mode). */
-    setTabOpen(open: boolean): void {
-        this.tabOpen = open;
-        this.updateDrawing();
+        Object.assign(this.shapeLayer.style, { width: `${width}px`, height: `${height}px`, transform });
     }
 
     // ---- Settings ----
 
+    private notify(): void {
+        if (this.notifyQueued) return;
+        this.notifyQueued = true;
+        queueMicrotask(() => {
+            this.notifyQueued = false;
+            for (const listener of this.listeners) listener();
+        });
+    }
+
     private selectKind(value: ParamValue): void {
         // The selector's update() sends its current value back here: only a real change rebuilds.
         if ((value !== 'attractor' && value !== 'repeller') || value === this.kind) return;
+        this.endGesture(false);
         this.kind = value;
+        // A mask tool draws on the selected kind's drawing: it is shown.
+        if (this.maskTool) this.settings.params[drawingKey(value, P.mode)] = 'draw';
+        this.build();
+        this.reveal();
+    }
+
+    /** Shows the drawing of the selected kind (its image or text stays, for later). */
+    private useDrawSource(): void {
+        if (drawingMode(this.settings, this.kind) === 'draw') return;
+        this.settings.params[drawingKey(this.kind, P.mode)] = 'draw';
         this.build();
         this.reveal();
     }
 
     private set(key: string, value: ParamValue): void {
         this.settings.params[key] = value;
+        this.notify();
         const target = splitKey(key);
         if (!target) return;
         const { kind, name } = target;
@@ -158,9 +263,8 @@ export class DrawingPanel {
         else if (name === P.softening) field.setSoftening(kind, drawingNumber(this.settings, kind, P.softening));
         else if (name === P.mode) {
             this.showMode();
-            this.updateDrawing();
             this.renderSoon(kind);
-        } else if (name !== P.brushSize && name !== P.brushFlow) {
+        } else if (!TOOL_KEYS.has(name)) {
             this.renderSoon(kind);
         }
     }
@@ -169,6 +273,7 @@ export class DrawingPanel {
     private build(): void {
         const kind = this.kind;
         const fields: ParamField[] = [];
+        this.fields = new Map();
         this.groups = new Map(GROUP_ORDER.map(group => {
             const section = document.createElement('div');
             section.className = 'dw-group';
@@ -183,6 +288,7 @@ export class DrawingPanel {
                 // A change shows the masks, but a change of the gravity only matters to the particles.
                 const field = paramField(param, this.store, GRAVITY_KEYS.has(splitKey(param.key)?.name ?? '') ? undefined : () => this.reveal());
                 fields.push(field);
+                this.fields.set(param.key, field);
                 section.appendChild(field.element);
             }
             return [group, section];
@@ -201,7 +307,7 @@ export class DrawingPanel {
             this.renderSoon(k);
         }
         this.showMode();
-        this.updateDrawing();
+        this.notify();
     }
 
     /** The clear buttons and the kind selector, above the settings of the selected kind. */
@@ -353,47 +459,104 @@ export class DrawingPanel {
         for (const mask of Object.values(this.masks)) mask.canvas.classList.add('visible');
         window.clearTimeout(this.hideTimer);
         this.hideTimer = window.setTimeout(() => {
+            if (this.pinned) return;
             for (const mask of Object.values(this.masks)) mask.canvas.classList.remove('visible');
         }, DRAWING_PREVIEW_MS);
     }
 
     // ---- Drawing with the mouse ----
 
-    private get drawing(): boolean {
-        return this.tabOpen && drawingMode(this.settings, this.kind) === 'draw';
-    }
-
-    private updateDrawing(): void {
-        this.targets.container.classList.toggle('drawing-active', this.drawing);
-        if (!this.drawing) this.stroke = null;
-    }
-
     private listenToPointer(surface: HTMLElement): void {
-        surface.addEventListener('contextmenu', e => { if (this.drawing) e.preventDefault(); });
+        surface.addEventListener('contextmenu', e => { if (this.maskTool) e.preventDefault(); });
         surface.addEventListener('pointerdown', e => {
-            if (!this.drawing || this.stroke || (e.button !== 0 && e.button !== 2)) return;
+            const tool = this.maskTool;
+            if (!tool || this.gesture || (e.button !== 0 && e.button !== 2)) return;
             e.preventDefault();
             surface.setPointerCapture(e.pointerId);
-            this.stroke = { pointerId: e.pointerId, last: this.pointOf(e, surface), erase: e.button === 2 || e.shiftKey };
-            this.paint(null, this.stroke.last);
+            this.useDrawSource();
+            const point = this.pointOf(e, surface);
+            if (tool.tool === 'shape') {
+                this.gesture = {
+                    type: 'shape', pointerId: e.pointerId, style: tool.style, start: point, end: point,
+                    constrain: e.shiftKey, fromCenter: e.altKey, erase: e.button === 2,
+                };
+                this.showShape();
+                return;
+            }
+            const erase = tool.tool === 'eraser' || e.button === 2 || e.shiftKey;
+            this.gesture = { type: 'stroke', pointerId: e.pointerId, last: point, erase };
+            this.paint(null, point);
         });
         surface.addEventListener('pointermove', e => {
-            const stroke = this.stroke;
-            if (!stroke || e.pointerId !== stroke.pointerId) return;
+            const gesture = this.gesture;
+            if (!gesture || e.pointerId !== gesture.pointerId) return;
+            if (gesture.type === 'shape') {
+                gesture.end = this.pointOf(e, surface);
+                gesture.constrain = e.shiftKey;
+                gesture.fromCenter = e.altKey;
+                this.showShape();
+                return;
+            }
             // Coalesced events keep fast strokes smooth.
             for (const event of e.getCoalescedEvents?.() ?? [e]) {
                 const point = this.pointOf(event, surface);
-                this.paint(stroke.last, point);
-                stroke.last = point;
+                this.paint(gesture.last, point);
+                gesture.last = point;
             }
         });
-        const end = (e: PointerEvent) => {
-            if (!this.stroke || e.pointerId !== this.stroke.pointerId) return;
-            this.stroke = null;
+        surface.addEventListener('pointerup', e => { if (e.pointerId === this.gesture?.pointerId) this.endGesture(true); });
+        surface.addEventListener('pointercancel', e => { if (e.pointerId === this.gesture?.pointerId) this.endGesture(false); });
+        // Escape drops the shape being dragged.
+        window.addEventListener('keydown', e => {
+            if (e.key !== 'Escape' || this.gesture?.type !== 'shape') return;
+            e.preventDefault();
+            this.endGesture(false);
+        });
+    }
+
+    /** Ends the stroke (sent to the field) or the shape drag (drawn if `draw`, else dropped). */
+    private endGesture(draw: boolean): void {
+        const gesture = this.gesture;
+        if (!gesture) return;
+        this.gesture = null;
+        if (gesture.type === 'stroke') {
             this.commit(this.kind);
-        };
-        surface.addEventListener('pointerup', end);
-        surface.addEventListener('pointercancel', end);
+            return;
+        }
+        this.shapePreview.hidden = true;
+        if (!draw) return;
+        const kind = this.kind;
+        const mask = this.masks[kind];
+        const rect = shapeRect(gesture.start, gesture.end, gesture.constrain, gesture.fromCenter);
+        mask.shape(rect, gesture.style, this.shapeThickness(), drawingNumber(this.settings, kind, P.brushFlow) / 100, gesture.erase);
+        mask.render(this.settings);
+        this.commit(kind);
+        this.reveal();
+    }
+
+    /** The outline thickness of the hollow shapes, in canvas px (the setting is in screen px). */
+    private shapeThickness(): number {
+        return drawingNumber(this.settings, this.kind, P.shapeThickness) / this.targets.getView().zoom;
+    }
+
+    /** Lays the outline of the dragged shape over the simulation. */
+    private showShape(): void {
+        const gesture = this.gesture;
+        if (gesture?.type !== 'shape') return;
+        const rect = shapeRect(gesture.start, gesture.end, gesture.constrain, gesture.fromCenter);
+        const thickness = this.shapeThickness();
+        const filled = gesture.style.filled || !hollowStroke(rect, thickness);
+        const [r, g, b] = KIND_TINTS[this.kind];
+        const preview = this.shapePreview;
+        preview.hidden = false;
+        preview.classList.toggle('ellipse', gesture.style.shape === 'ellipse');
+        preview.classList.toggle('filled', filled);
+        preview.classList.toggle('erase', gesture.erase);
+        Object.assign(preview.style, {
+            left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px`,
+            borderWidth: filled ? '' : `${thickness}px`,
+        });
+        preview.style.setProperty('--dw-tint', `rgb(${r}, ${g}, ${b})`);
     }
 
     /** The event's position in the canvas coordinates of the world (the zoom undone). */
@@ -404,11 +567,11 @@ export class DrawingPanel {
     }
 
     private paint(from: MaskPoint | null, to: MaskPoint): void {
-        if (!this.stroke) return;
+        if (this.gesture?.type !== 'stroke') return;
         const s = this.settings;
         const kind = this.kind;
         const mask = this.masks[kind];
-        mask.stroke(from, to, drawingNumber(s, kind, P.brushSize) / this.targets.getView().zoom, drawingNumber(s, kind, P.brushFlow) / 100, this.stroke.erase);
+        mask.stroke(from, to, drawingNumber(s, kind, P.brushSize) / this.targets.getView().zoom, drawingNumber(s, kind, P.brushFlow) / 100, this.gesture.erase);
         mask.render(s);
         this.commitSoon(kind);
         this.reveal();

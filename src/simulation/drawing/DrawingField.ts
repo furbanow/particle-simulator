@@ -4,6 +4,7 @@ import {
     DRAWING_SOFTENING_SLIDER, DRAWING_STRENGTH_SLIDER,
 } from '../../config';
 import type { DrawingKind } from '../../drawing';
+import { pointForceGains, type PointForce } from '../../mouseTools';
 import type { Uniform } from '../../gl/common';
 import { GridPass, gridTarget } from '../../gl/gridPass';
 import { withDefines } from '../../gl/withDefines';
@@ -26,6 +27,10 @@ export interface DrawingUniforms {
     drawingGainAttractor: Uniform<number>;
     drawingGainRepeller: Uniform<number>;
     drawingCell: Uniform<number>;
+    drawingPoint: Uniform<THREE.Vector2>;
+    drawingPointRadial: Uniform<number>;
+    drawingPointSwirl: Uniform<number>;
+    drawingPointSoftening2: Uniform<number>;
 }
 
 /** The gravity of one kind of drawing: its mass grid, its two-level field and its settings. */
@@ -98,6 +103,7 @@ export class DrawingField {
     private readonly cell: Uniform<number> = { value: 1 };
     private readonly kinds: Record<DrawingKind, KindField>;
     private length = 1;                                              // L = min(width, height), px
+    private pointForce: PointForce | null = null;
 
     constructor(renderer: THREE.WebGLRenderer) {
         this.kinds = { attractor: new KindField(renderer, this.cell), repeller: new KindField(renderer, this.cell) };
@@ -107,12 +113,24 @@ export class DrawingField {
             drawingGainAttractor: { value: 0 },
             drawingGainRepeller: { value: 0 },
             drawingCell: this.cell,
+            drawingPoint: { value: new THREE.Vector2() },
+            drawingPointRadial: { value: 0 },
+            drawingPointSwirl: { value: 0 },
+            drawingPointSoftening2: { value: 1 },
         };
     }
 
-    /** Whether a drawing acts on anything (some mass, a strength above 0). */
+    /** Whether a drawing or the point force acts on anything (some mass, a strength above 0). */
     get active(): boolean {
-        return this.uniforms.drawingGainAttractor.value !== 0 || this.uniforms.drawingGainRepeller.value !== 0;
+        const u = this.uniforms;
+        return u.drawingGainAttractor.value !== 0 || u.drawingGainRepeller.value !== 0
+            || u.drawingPointRadial.value !== 0 || u.drawingPointSwirl.value !== 0;
+    }
+
+    /** The point force held under the mouse, or none; applies at once. */
+    setPointForce(force: PointForce | null): void {
+        this.pointForce = force;
+        this.updatePointForce();
     }
 
     /** New mask of `kind`: RGBA bytes of a `width` x `height` canvas (the simulation area), alpha = density. */
@@ -154,5 +172,16 @@ export class DrawingField {
         const gain = (k: KindField): number => k.totalMass > 0 ? k.strength * DRAWING_GRAVITY_UNIT * this.length : 0;
         this.uniforms.drawingGainAttractor.value = gain(this.kinds.attractor);
         this.uniforms.drawingGainRepeller.value = -gain(this.kinds.repeller);   // pushes: the opposite direction
+        this.updatePointForce();
+    }
+
+    private updatePointForce(): void {
+        const force = this.pointForce;
+        const gains = pointForceGains(force, { attractor: this.kinds.attractor.strength, repeller: this.kinds.repeller.strength }, this.length);
+        const u = this.uniforms;
+        if (force) u.drawingPoint.value.set(force.x, force.y);
+        u.drawingPointRadial.value = gains.radial;
+        u.drawingPointSwirl.value = gains.swirl;
+        u.drawingPointSoftening2.value = gains.softening2;
     }
 }
