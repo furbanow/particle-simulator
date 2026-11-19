@@ -1,12 +1,14 @@
 import { t } from '../../i18n';
 import {
-    DRAWING_ATTRACTOR_TINT, DRAWING_BRUSH_HARDNESS, DRAWING_BRUSH_SPACING, DRAWING_REPELLER_TINT, DRAWING_TEXT_MARGIN,
+    DRAWING_ATTRACTOR_TINT, DRAWING_BRUSH_FALLOFF_STOPS, DRAWING_BRUSH_TIPS, DRAWING_REPELLER_TINT, DRAWING_TEXT_MARGIN,
 } from '../../config';
 import {
     DRAWING_PARAM as P, drawingChoice, drawingFlag, drawingFont, drawingMode, drawingNumber,
-    type DrawingKind, type DrawingSettings,
+    type BrushTip, type DrawingKind, type DrawingSettings,
 } from '../../drawing';
-import { containRect, densityFromPixel, hollowStroke, wrapText, type MaskPoint, type Rect } from '../../drawingMask';
+import {
+    containRect, dabFalloff, densityFromPixel, hollowStroke, sprayDots, wrapText, type MaskPoint, type Rect,
+} from '../../drawingMask';
 import type { ShapeStyle } from '../../mouseTools';
 
 export type { MaskPoint };
@@ -21,8 +23,8 @@ function context2d(canvas: HTMLCanvasElement, willReadFrequently = false): Canva
 /**
  * A drawing mask, the size of the simulation area in CSS px: its alpha is the density, its
  * color the preview tint, so the same canvas is shown as the preview. It is composed from one of
- * three sources, each keeping its own content: a drawing (a layer of its own, painted with soft
- * dabs), an image (fitted to the area, its density per pixel) or a text (wrapped to the area).
+ * three sources, each keeping its own content: a drawing (a layer of its own, painted with brush
+ * dabs and shapes), an image (fitted to the area, its density per pixel) or a text (wrapped to the area).
  */
 export class MaskCanvas {
     readonly canvas = document.createElement('canvas');
@@ -61,31 +63,40 @@ export class MaskCanvas {
         if (old && width > 0 && height > 0) this.drawingCtx.drawImage(old, 0, 0, width, height);
     }
 
-    /** Paints soft dabs from `from` to `to` (or one dab at `to`) on the drawing, or erases there. */
-    stroke(from: MaskPoint | null, to: MaskPoint, diameter: number, flow: number, erase: boolean): void {
+    /**
+     * Paints dabs of `tip` at `points` on the drawing, or erases there: a disc fading past the tip's
+     * hardness, or the scattered dots of the spray, each at density `flow`.
+     */
+    dabs(points: readonly MaskPoint[], diameter: number, flow: number, tip: BrushTip, erase: boolean): void {
+        if (points.length === 0) return;
         const ctx = this.drawingCtx;
         ctx.save();
         ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over';
         ctx.globalAlpha = flow;
         const radius = diameter / 2;
-        const dab = (x: number, y: number) => {
-            const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
-            g.addColorStop(0, this.tint(1));
-            g.addColorStop(DRAWING_BRUSH_HARDNESS, this.tint(1));
-            g.addColorStop(1, this.tint(0));
-            ctx.fillStyle = g;
-            ctx.beginPath();
-            ctx.arc(x, y, radius, 0, Math.PI * 2);
-            ctx.fill();
-        };
-        if (!from) {
-            dab(to.x, to.y);
+        if (tip === 'spray') {
+            ctx.fillStyle = this.tint(1);
+            for (const point of points) {
+                ctx.beginPath();
+                for (const dot of sprayDots(point, diameter, Math.random)) {
+                    ctx.moveTo(dot.x + dot.radius, dot.y);
+                    ctx.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
+                }
+                ctx.fill();
+            }
         } else {
-            const distance = Math.hypot(to.x - from.x, to.y - from.y);
-            const steps = Math.max(1, Math.ceil(distance / Math.max(1, diameter * DRAWING_BRUSH_SPACING)));
-            for (let k = 1; k <= steps; k++) {
-                const t = k / steps;
-                dab(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
+            const { hardness } = DRAWING_BRUSH_TIPS[tip];
+            for (const { x, y } of points) {
+                const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+                g.addColorStop(0, this.tint(1));
+                for (let i = 0; i <= DRAWING_BRUSH_FALLOFF_STOPS; i++) {
+                    const r = hardness + (1 - hardness) * i / DRAWING_BRUSH_FALLOFF_STOPS;
+                    g.addColorStop(r, this.tint(dabFalloff(hardness, r)));
+                }
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
         ctx.restore();

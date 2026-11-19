@@ -5,7 +5,7 @@
 import {
     BRUSH_FLOW_KEY_STEP, BRUSH_SIZE_KEY_FACTOR, DRAWING_GRAVITY_UNIT, DRAWING_POINT_MASS, DRAWING_VORTEX_STRENGTH,
 } from './config';
-import type { DrawingKind } from './drawing';
+import { BRUSH_TIPS, type BrushTip, type DrawingKind } from './drawing';
 import type { NumberParam } from './simulation/algorithm';
 import { panelParamValue } from './simulation/params';
 
@@ -23,7 +23,10 @@ export interface ShapeStyle {
     readonly filled: boolean;
 }
 
-/** The shape tools, in toolbar order (U goes through them). */
+/** The outlines of the shape tool, in toolbar order. */
+export const SHAPE_KINDS: readonly ShapeKind[] = ['ellipse', 'rect'];
+
+/** The shape tools, in the order U goes through them. */
 export const SHAPE_STYLES: readonly ShapeStyle[] = [
     { shape: 'ellipse', filled: true },
     { shape: 'ellipse', filled: false },
@@ -33,11 +36,16 @@ export const SHAPE_STYLES: readonly ShapeStyle[] = [
 
 export const sameShape = (a: ShapeStyle, b: ShapeStyle): boolean => a.shape === b.shape && a.filled === b.filled;
 
-/** The shape after `style` in SHAPE_STYLES, back to the first after the last. */
-export function nextShape(style: ShapeStyle): ShapeStyle {
-    const i = SHAPE_STYLES.findIndex(s => sameShape(s, style));
-    return SHAPE_STYLES[(i + 1) % SHAPE_STYLES.length];
+/** The item after `item` in `list`, back to the first after the last. */
+function cycle<T>(list: readonly T[], item: T, same: (a: T, b: T) => boolean = Object.is): T {
+    return list[(list.findIndex(x => same(x, item)) + 1) % list.length];
 }
+
+/** The shape after `style` in SHAPE_STYLES, back to the first after the last. */
+export const nextShape = (style: ShapeStyle): ShapeStyle => cycle(SHAPE_STYLES, style, sameShape);
+
+/** The brush tip after `tip` (B pressed again), back to the first after the last. */
+export const nextTip = (tip: BrushTip): BrushTip => cycle(BRUSH_TIPS, tip);
 
 /** What a tool editing the drawn mask does (the brush, the eraser, a shape). */
 export type MaskTool =
@@ -47,14 +55,21 @@ export type MaskTool =
 /** The type of the point force: the pull of an attractor, the push of a repeller, or a swirl. */
 export type ForceType = DrawingKind | 'vortex';
 
-/** The types of point force, in toolbar order (F, pressed again, goes through them). */
-export const FORCE_TYPES: readonly ForceType[] = ['attractor', 'repeller', 'vortex'];
+/**
+ * What the point force does: gravity (it pulls or pushes, as the selected kind of drawing) or a
+ * vortex. F, pressed again, goes from one to the other.
+ */
+export type ForceMode = 'gravity' | 'vortex';
 
-/** The force type after `type` in FORCE_TYPES, back to the first after the last. */
-export const nextForce = (type: ForceType): ForceType => FORCE_TYPES[(FORCE_TYPES.indexOf(type) + 1) % FORCE_TYPES.length];
+export const FORCE_MODES: readonly ForceMode[] = ['gravity', 'vortex'];
 
-/** The opposite of a force type (X): attraction and repulsion swap, the vortex gives attraction. */
-export const swapForce = (type: ForceType): ForceType => type === 'attractor' ? 'repeller' : 'attractor';
+export const nextForceMode = (mode: ForceMode): ForceMode => cycle(FORCE_MODES, mode);
+
+/** The type of the point force: the vortex, or the selected kind's gravity. */
+export const forceType = (mode: ForceMode, kind: DrawingKind): ForceType => mode === 'vortex' ? 'vortex' : kind;
+
+/** The other kind of drawing (X): attractor and repeller swap. */
+export const otherKind = (kind: DrawingKind): DrawingKind => kind === 'attractor' ? 'repeller' : 'attractor';
 
 /** The point force held under the mouse. */
 export interface PointForce {
@@ -118,9 +133,10 @@ export type ToolbarShortcut =
 const TOOL_KEYS: Readonly<Record<string, Exclude<MouseTool, 'shape'>>> = { v: 'none', f: 'force', b: 'brush', e: 'eraser' };
 
 /**
- * The toolbar's shortcut of a key: V drops the tool, F, B, E pick a tool (F again: the next force
- * type), U a shape (again: the next one), X swaps attraction and repulsion, [ and ] shrink and grow the brush (with Shift: its density). The brackets are read by
- * their position (`code`), so they work on every keyboard layout.
+ * The toolbar's shortcut of a key: V drops the tool, F, B, E pick a tool (F again: gravity or vortex;
+ * B again: the next brush tip), U a shape (again: the next one), X swaps attractor and repeller, [
+ * and ] shrink and grow the brush (with Shift: its density). The brackets are read by their position
+ * (`code`), so they work on every keyboard layout.
  */
 export function toolbarShortcut(key: string, code: string, shift: boolean): ToolbarShortcut | null {
     if (code === 'BracketLeft' || code === 'BracketRight') {

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { BRUSH_FLOW_KEY_STEP, DRAWING_BRUSH_FLOW_SLIDER, DRAWING_BRUSH_SIZE_SLIDER } from '../src/config';
 import { brushParam } from '../src/drawing';
+import { BRUSH_TIPS } from '../src/drawing';
 import {
-    FORCE_TYPES, nextForce, nextShape, pointForceAccel, swapForce, pointForceGains, SHAPE_STYLES, stepBrush, toolbarShortcut, type PointForce,
+    FORCE_MODES, forceType, nextForceMode, nextShape, nextTip, otherKind, pointForceAccel, pointForceGains, SHAPE_STYLES, stepBrush,
+    toolbarShortcut, type PointForce,
 } from '../src/mouseTools';
 import type { NumberParam } from '../src/simulation/algorithm';
 
@@ -80,11 +82,17 @@ describe('toolbar shortcuts', () => {
         expect(toolbarShortcut('}', 'BracketRight', true)).toEqual({ action: 'brush', key: 'flow', direction: 1 });
     });
 
-    it('go through every force type with F, swap attraction and repulsion with X', () => {
-        expect(FORCE_TYPES.map(nextForce)).toEqual(['repeller', 'vortex', 'attractor']);
-        expect(swapForce('attractor')).toBe('repeller');
-        expect(swapForce('repeller')).toBe('attractor');
-        expect(swapForce('vortex')).toBe('attractor');
+    it('go from gravity to vortex with F, through the brush tips with B, swap the drawing type with X', () => {
+        expect(FORCE_MODES.map(nextForceMode)).toEqual(['vortex', 'gravity']);
+        expect(BRUSH_TIPS.map(nextTip)).toEqual(['hard', 'spray', 'soft']);
+        expect(otherKind('attractor')).toBe('repeller');
+        expect(otherKind('repeller')).toBe('attractor');
+    });
+
+    it('give the point force the drawing type, unless it is a vortex', () => {
+        expect(forceType('gravity', 'attractor')).toBe('attractor');
+        expect(forceType('gravity', 'repeller')).toBe('repeller');
+        expect(forceType('vortex', 'repeller')).toBe('vortex');
     });
 
     it('go through every shape, then back to the first', () => {

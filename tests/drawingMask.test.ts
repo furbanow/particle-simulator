@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { containRect, densityFromPixel, hollowStroke, shapeRect, wrapText } from '../src/drawingMask';
+import { DRAWING_SPRAY_DOT_MIN } from '../src/config';
+import {
+    containRect, dabFalloff, dabsAlong, densityFromPixel, hollowStroke, shapeRect, sprayDots, wrapText,
+} from '../src/drawingMask';
 
 const measure = (s: string): number => s.length;   // one unit per character
 
@@ -51,5 +54,52 @@ describe('drawing mask', () => {
         expect(hollowStroke(rect, 10)).toEqual({ inset: 5, lineWidth: 10 });
         expect(hollowStroke(rect, 30)).toBeNull();
         expect(hollowStroke(rect, 0)).toBeNull();
+    });
+});
+
+describe('brush dabs', () => {
+    it('are evenly spaced along a stroke, however its events cut it', () => {
+        const whole = dabsAlong({ x: 0, y: 0 }, { x: 100, y: 0 }, 10, 0);
+        expect(whole.dabs.map(d => d.x)).toEqual([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+        expect(whole.carry).toBeCloseTo(0);
+        // The same stroke in uneven pieces gives the same dabs.
+        const xs: number[] = [];
+        let carry = 0;
+        let from = 0;
+        for (const to of [3, 4, 27, 55, 56, 100]) {
+            const piece = dabsAlong({ x: from, y: 0 }, { x: to, y: 0 }, 10, carry);
+            xs.push(...piece.dabs.map(d => d.x));
+            carry = piece.carry;
+            from = to;
+        }
+        expect(xs.map(x => Math.round(x * 1e6) / 1e6)).toEqual(whole.dabs.map(d => d.x));
+    });
+
+    it('wait until the stroke has gone far enough', () => {
+        const short = dabsAlong({ x: 0, y: 0 }, { x: 3, y: 4 }, 10, 2);
+        expect(short.dabs).toEqual([]);
+        expect(short.carry).toBeCloseTo(7);
+    });
+
+    it('fade from full density past the hardness to nothing at the edge', () => {
+        expect(dabFalloff(0.5, 0.2)).toBe(1);
+        expect(dabFalloff(0.5, 0.5)).toBe(1);
+        expect(dabFalloff(0.5, 1)).toBe(0);
+        expect(dabFalloff(0, 0.5)).toBeGreaterThan(dabFalloff(0, 0.7));
+        expect(dabFalloff(0, 0.5)).toBeLessThan(1);
+    });
+
+    it('of the spray are dots inside the brush, more for a larger brush', () => {
+        let seed = 1;
+        const random = (): number => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        const center = { x: 50, y: 50 };
+        const dots = sprayDots(center, 80, random);
+        expect(dots.length).toBeGreaterThan(10);
+        for (const dot of dots) {
+            expect(dot.radius).toBeGreaterThanOrEqual(DRAWING_SPRAY_DOT_MIN / 2);
+            expect(Math.hypot(dot.x - center.x, dot.y - center.y) + dot.radius).toBeLessThanOrEqual(40 + 1e-9);
+        }
+        expect(sprayDots(center, 200, random).length).toBeGreaterThanOrEqual(dots.length);
+        expect(sprayDots(center, 2, random).length).toBe(1);
     });
 });

@@ -1,76 +1,89 @@
 /* ---------- Mouse toolbar: discreet, see-through, at the top center of the animation ----------
-   Each group of buttons is a pill of its own, with empty space between the groups. */
+   The bar of tools stays put; under it, the options bar shows the active tool's settings. */
 .toolbar {
     position: fixed; top: 12px; z-index: 9;
     left: calc(var(--panel-w) + (100vw - var(--panel-w)) / 2); transform: translateX(-50%);
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 14px;
-    /* Room is kept for the overlays in the corners (shortcuts, statistics): the groups wrap instead. */
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    /* Room is kept for the overlays in the corners (shortcuts, statistics): the options wrap instead. */
     --tb-side: 262px;
+    --tb-tint: var(--accent);
+    --tb-bg: rgba(10, 10, 14, 0.62);
     max-width: calc(100vw - var(--panel-w) - 2 * var(--tb-side)); width: max-content;
-    opacity: 0.3; transition: opacity 0.25s, left 0.35s var(--ease), max-width 0.35s var(--ease);
+    opacity: 0.35; transition: opacity 0.25s, left 0.35s var(--ease), max-width 0.35s var(--ease);
 }
-.toolbar:hover, .toolbar:focus-within, .toolbar.popover-open { opacity: 1; transition-duration: 0.12s, 0.35s, 0.35s; }
+/* With a tool in hand, its settings stay readable. */
+.toolbar:not([data-tool=none]) { opacity: 0.55; }
+.toolbar:hover, .toolbar:focus-within { opacity: 1; transition-duration: 0.12s, 0.35s, 0.35s; }
 /* A shortcut shows the toolbar for a moment. */
 .toolbar.flash { animation: tb-flash 1.2s ease-out; }
 @keyframes tb-flash { from, 40% { opacity: 1; } }
 body.panel-hidden .toolbar { left: 50%; max-width: calc(100vw - 2 * var(--tb-side)); }
 
-.tb-group {
-    display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px;
-    background: rgba(0, 0, 0, 0.16); border: 1px solid var(--border);
+.tb-bar, .tb-options {
+    display: flex; align-items: center; gap: 2px; padding: 3px;
+    background: var(--tb-bg); border: 1px solid var(--border-strong);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.7);
 }
+.tb-bar { border-radius: 999px; }
+.tb-options { flex-wrap: wrap; justify-content: center; row-gap: 4px; border-radius: 18px; padding: 3px 6px; }
+.tb-options[hidden] { display: none; }
+.tb-group { display: flex; align-items: center; gap: 2px; }
+.tb-sep { width: 1px; height: 18px; margin: 0 5px; background: var(--border-strong); flex: none; }
+
 .tb-btn {
-    width: 26px; height: 26px; flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+    width: 28px; height: 28px; flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0;
     border: 0; border-radius: 50%; background: transparent; color: var(--text-2); cursor: pointer;
     transition: background 0.15s, color 0.15s, opacity 0.15s;
 }
 .tb-btn svg {
-    width: 15px; height: 15px; fill: none; stroke: currentColor;
+    width: 16px; height: 16px; fill: none; stroke: currentColor;
     stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
 }
 .tb-btn svg .solid { fill: currentColor; }
+.tb-btn svg .faint2 { opacity: 0.55; }
+.tb-btn svg .faint3 { opacity: 0.25; }
 .tb-btn:hover { background: var(--surface-hover); color: var(--text); }
-.tb-btn[aria-pressed=true], .tb-btn[aria-expanded=true] { background: rgba(167, 139, 250, 0.2); color: var(--accent); }
-/* The tools wear the color of what they act with: the force type, or the kind of drawing. */
+.tb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tb-btn[aria-pressed=true] { background: rgba(167, 139, 250, 0.2); color: var(--accent); }
+/* The tools wear the color of what they act with: the drawing type, or the vortex. */
 .tb-tool[aria-pressed=true] { background: color-mix(in srgb, var(--tb-tint) 24%, transparent); color: var(--tb-tint); }
-/* A tool with variants shows a small corner in its color: a long press (or a right click) unfolds them. */
-.tb-has-flyout { position: relative; }
-.tb-has-flyout::after {
-    content: ''; position: absolute; right: 4px; bottom: 4px; pointer-events: none;
-    border-style: solid; border-width: 0 0 5px 5px; border-color: transparent transparent var(--tb-tint) transparent;
-}
-.tb-btn:disabled { opacity: 0.3; cursor: default; background: transparent; color: var(--text-2); }
 .tb-danger.confirm { background: rgba(248, 113, 113, 0.18); color: var(--bad); }
 
-.tb-popover {
-    position: absolute; top: calc(100% + 8px); width: 230px; transform: translateX(-50%);
-    padding: 10px 12px 4px; border-radius: var(--radius);
-    background: rgba(12, 12, 16, 0.86); border: 1px solid var(--border-strong);
-    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-    box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.75);
-}
+/* The drawing type, as the two color swatches of a paint program: the selected one in front. */
+.tb-ink { width: 32px; border-radius: 14px; }
+.tb-ink svg { width: 22px; height: 22px; }
+.tb-ink .ink-front, .tb-ink .ink-back { stroke: var(--panel); stroke-width: 1.6; transition: fill 0.2s; }
+.tb-ink .ink-front { fill: var(--ink-front); }
+.tb-ink .ink-back { fill: var(--ink-back); opacity: 0.8; }
+.tb-ink.tb-muted svg { opacity: 0.4; }
 
-/* Hidden menus stay hidden whatever their display. */
-.tb-flyout[hidden], .tb-popover[hidden] { display: none; }
+/* Options bar: exclusive choices as segments, settings as compact sliders. */
+.tb-seg { display: flex; gap: 1px; padding: 1px; border-radius: 999px; background: rgba(255, 255, 255, 0.035); }
+.tb-seg .tb-btn { width: 26px; height: 26px; }
+.tb-seg .tb-btn svg { width: 15px; height: 15px; }
+.tb-seg .tb-btn[aria-checked=true] { background: rgba(255, 255, 255, 0.13); color: var(--text); }
 
-/* The variants of a tool, unfolded under it. */
-.tb-flyout {
-    position: absolute; top: calc(100% + 8px); transform: translateX(-50%);
-    display: flex; flex-direction: column; gap: 2px; min-width: 170px; padding: 4px;
-    border-radius: 14px; background: rgba(12, 12, 16, 0.86); border: 1px solid var(--border-strong);
-    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-    box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.75);
-}
-.tb-flyout-item {
-    display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 12px 0 9px;
-    border: 0; border-radius: 10px; background: transparent; cursor: pointer;
-    color: var(--text-2); font: 500 12px var(--font); text-align: left; white-space: nowrap;
-    transition: background 0.12s, color 0.12s;
-}
-.tb-flyout-item svg {
-    width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; color: var(--tb-tint, var(--text));
+.tb-slider { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px 0 6px; color: var(--text-2); cursor: pointer; }
+.tb-slider svg {
+    width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor;
     stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
 }
-.tb-flyout-item svg .solid { fill: currentColor; }
-.tb-flyout-item:hover, .tb-flyout-item:focus-visible { background: var(--surface-hover); color: var(--text); outline: none; }
-.tb-flyout-item[aria-checked=true] { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.tb-slider svg .solid { fill: currentColor; }
+.tb-slider:hover { color: var(--text); }
+.tb-slider input[type=range] { --range-color: var(--tb-tint); width: 96px; height: 18px; margin: 0; }
+.tb-slider output {
+    min-width: 46px; text-align: right; color: var(--text);
+    font: 500 11px var(--mono); font-variant-numeric: tabular-nums;
+}
+
+/* The outline of the brush (or of the point force) under the pointer, in the simulation area. */
+.tb-cursor {
+    position: absolute; left: 0; top: 0; z-index: 2; box-sizing: border-box; pointer-events: none;
+    border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--tb-tint) 70%, white);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.tb-cursor[hidden] { display: none; }
+.tb-cursor.spray { border-style: dotted; }
+.tb-cursor.erase { border: 1.5px dashed rgba(255, 255, 255, 0.85); }
+.tb-cursor.held { background: color-mix(in srgb, var(--tb-tint) 16%, transparent); }

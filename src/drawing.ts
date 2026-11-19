@@ -17,6 +17,12 @@ export type DrawingKind = 'attractor' | 'repeller';
 
 export const DRAWING_KINDS: readonly DrawingKind[] = ['attractor', 'repeller'];
 
+/** The tip of the brush (and of the eraser): fading edge, sharp edge, or scattered dots. */
+export type BrushTip = 'soft' | 'hard' | 'spray';
+
+/** The brush tips, in toolbar order (B, pressed again, goes through them). */
+export const BRUSH_TIPS: readonly BrushTip[] = ['soft', 'hard', 'spray'];
+
 /** Where the mask comes from: one source at a time, each keeping its own content. */
 export type DrawingMode = 'draw' | 'image' | 'text';
 
@@ -34,6 +40,7 @@ export const DRAWING_PARAM = {
     strength: 'strength',
     softening: 'softening',
     mode: 'mode',
+    brushTip: 'brushTip',
     brushSize: 'brushSize',
     brushFlow: 'brushFlow',
     shapeThickness: 'shapeThickness',
@@ -80,6 +87,9 @@ function declareParams(kind: DrawingKind): readonly DrawingParam[] {
                 { value: 'text', label: t('drawing.option.mode.text') },
             ],
             doc: t('drawing.param.mode.doc') },
+        { kind: 'choice', key: P.brushTip, tab: 'drawing', group: 'draw', label: t('drawing.param.brushTip.label'), default: 'soft',
+            options: BRUSH_TIPS.map(value => ({ value, label: t(`drawing.option.tip.${value}`) })),
+            doc: t('drawing.param.brushTip.doc') },
         { ...sliderFields(DRAWING_BRUSH_SIZE_SLIDER), key: P.brushSize, tab: 'drawing', group: 'draw',
             label: t('drawing.param.brushSize.label'),
             doc: t('drawing.param.brushSize.doc'),
@@ -227,6 +237,11 @@ function valueOf<T extends ParamValue>(settings: DrawingSettings, kind: DrawingK
 export const drawingNumber = (s: DrawingSettings, kind: DrawingKind, key: string): number => valueOf<number>(s, kind, key, 'number');
 export const drawingFlag = (s: DrawingSettings, kind: DrawingKind, key: string): boolean => valueOf<boolean>(s, kind, key, 'boolean');
 export const drawingChoice = (s: DrawingSettings, kind: DrawingKind, key: string): string => valueOf<string>(s, kind, key, 'string');
+
+export function drawingTip(s: DrawingSettings, kind: DrawingKind): BrushTip {
+    const tip = drawingChoice(s, kind, P.brushTip);
+    return BRUSH_TIPS.find(b => b === tip) ?? 'soft';
+}
 
 export function drawingMode(s: DrawingSettings, kind: DrawingKind): DrawingMode {
     const mode = drawingChoice(s, kind, P.mode);

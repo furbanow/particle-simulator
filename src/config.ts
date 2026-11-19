@@ -137,8 +137,18 @@ export const DRAWING_PREVIEW_MS = 1000;        // the mask shows while it change
 export const DRAWING_UPDATE_MS = 100;          // gravity recomputed at most this often while drawing
 export const DRAWING_ATTRACTOR_TINT: readonly [number, number, number] = [139, 92, 246];   // preview color (RGB)
 export const DRAWING_REPELLER_TINT: readonly [number, number, number] = [249, 115, 22];
-export const DRAWING_BRUSH_SPACING = 0.25;     // distance between brush dabs / brush diameter
-export const DRAWING_BRUSH_HARDNESS = 0.4;     // fraction of the dab radius at full density
+// Brush tips: the fraction of the dab radius at full density (beyond it the density fades to the
+// edge), and the distance between dabs / brush diameter. The spray scatters dots instead of a disc.
+export const DRAWING_BRUSH_TIPS = {
+    soft: { hardness: 0, spacing: 0.12 },
+    hard: { hardness: 0.85, spacing: 0.1 },
+    spray: { hardness: 1, spacing: 0.3 },
+} as const;
+export const DRAWING_BRUSH_FALLOFF_STOPS = 6;  // gradient stops of a dab's fading edge
+export const DRAWING_SPRAY_DOT = 0.035;        // diameter of a spray dot / brush diameter
+export const DRAWING_SPRAY_DOT_MIN = 1.2;      // smallest spray dot diameter, px
+export const DRAWING_SPRAY_COVERAGE = 0.2;     // area of the dots of one spray dab / area of the dab
+export const DRAWING_SPRAY_MAX_DOTS = 400;     // at most this many dots per spray dab
 export const DRAWING_TEXT_MARGIN = 0.05;       // text margins / min(width, height)
 export const DRAWING_TEXT_MAX = 2000;          // characters kept in a saved config
 // Panel parameters (slider min, max, step, default).
@@ -161,7 +171,6 @@ export const DRAWING_VORTEX_STRENGTH = 2;
 export const BRUSH_SIZE_KEY_FACTOR = 1.15;     // brush size multiplied (divided) per press of ] ([)
 export const BRUSH_FLOW_KEY_STEP = 5;          // brush density (%) added (removed) per press of Shift+] (Shift+[)
 export const VORTEX_TINT: readonly [number, number, number] = [56, 189, 248];   // toolbar color of the vortex (RGB)
-export const TOOLBAR_HOLD_MS = 350;            // press on a toolbar button this long to unfold its variants
 
 // ---- Species ----
 export const MAX_SPECIES = 10;

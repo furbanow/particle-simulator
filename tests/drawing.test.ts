@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DRAWING_BRUSH_SIZE_SLIDER, DRAWING_SHAPE_THICKNESS_SLIDER, DRAWING_STRENGTH_SLIDER, DRAWING_TEXT_MAX } from '../src/config';
 import {
     ALL_DRAWING_PARAMS, brushNumber, DRAWING_KINDS, VORTEX_PARAMS, DRAWING_PARAM, DRAWING_PARAMS, drawingFont, drawingKey, drawingMode,
-    drawingNumber, DEFAULT_DRAWING_TEXTS, defaultDrawing, sanitizeDrawingSettings,
+    drawingNumber, drawingTip, DEFAULT_DRAWING_TEXTS, defaultDrawing, sanitizeDrawingSettings,
 } from '../src/drawing';
 import { panelParamValue } from '../src/simulation/params';
 
@@ -78,5 +78,12 @@ describe('drawing settings', () => {
         expect(drawingNumber(settings, 'attractor', DRAWING_PARAM.shapeThickness)).toBe(7);
         expect(drawingNumber(settings, 'repeller', DRAWING_PARAM.shapeThickness)).toBe(DRAWING_SHAPE_THICKNESS_SLIDER.max);
         expect(drawingNumber(defaultDrawing(), 'attractor', DRAWING_PARAM.shapeThickness)).toBe(DRAWING_SHAPE_THICKNESS_SLIDER.default);
+    });
+
+    it('keep the brush tip of each kind, soft by default', () => {
+        const settings = sanitizeDrawingSettings({ params: { 'attractor.brushTip': 'spray', 'repeller.brushTip': 'felt' } });
+        expect(drawingTip(settings, 'attractor')).toBe('spray');
+        expect(drawingTip(settings, 'repeller')).toBe('soft');
+        expect(drawingTip(defaultDrawing(), 'attractor')).toBe('soft');
     });
 });

@@ -1,11 +1,11 @@
 import {
-    DRAWING_ATTRACTOR_TINT, DRAWING_PREVIEW_MS, DRAWING_REPELLER_TINT, DRAWING_TEXT_MAX, DRAWING_UPDATE_MS,
+    DRAWING_ATTRACTOR_TINT, DRAWING_BRUSH_TIPS, DRAWING_PREVIEW_MS, DRAWING_REPELLER_TINT, DRAWING_TEXT_MAX, DRAWING_UPDATE_MS,
 } from '../config';
 import {
-    brushNumber, cloneDrawing, DRAWING_KINDS, DRAWING_PARAM as P, DRAWING_PARAMS, drawingKey, drawingMode, drawingNumber,
+    brushNumber, cloneDrawing, DRAWING_KINDS, DRAWING_PARAM as P, DRAWING_PARAMS, drawingKey, drawingMode, drawingNumber, drawingTip,
     defaultDrawing, sanitizeDrawingSettings, type BrushOwner, type DrawingGroup, type DrawingKind, type DrawingSettings,
 } from '../drawing';
-import { hollowStroke, shapeRect } from '../drawingMask';
+import { dabsAlong, hollowStroke, shapeRect } from '../drawingMask';
 import { t } from '../i18n';
 import type { MaskTool, ShapeStyle } from '../mouseTools';
 import type { ParamDef, ParamValue } from '../simulation/algorithm';
@@ -52,13 +52,15 @@ const KIND_PARAM: ParamDef = {
 };
 const GRAVITY_KEYS: ReadonlySet<string> = new Set([P.strength, P.softening]);
 /** Settings of the mouse tools: a change does not change the masks. */
-const TOOL_KEYS: ReadonlySet<string> = new Set([P.brushSize, P.brushFlow, P.shapeThickness]);
+const TOOL_KEYS: ReadonlySet<string> = new Set([P.brushTip, P.brushSize, P.brushFlow, P.shapeThickness]);
 
 /** A brush or eraser stroke in progress. */
 interface Stroke {
     readonly type: 'stroke';
     readonly pointerId: number;
     last: MaskPoint;
+    /** Distance travelled since the last dab, canvas px. */
+    carry: number;
     readonly erase: boolean;
 }
 
@@ -167,10 +169,14 @@ export class DrawingPanel {
     setParam(key: string, value: ParamValue): void {
         const field = this.fields.get(key);
         const input = field?.element.querySelector('input');
+        const select = field?.element.querySelector('select');
         if (field && input && field.param.kind === 'number' && typeof value === 'number') {
             input.value = String(paramToSlider(field.param, value));
             syncRange(input);
             field.update();                         // stores the value and paints it
+        } else if (field && select && typeof value === 'string') {
+            select.value = value;
+            field.update();
         } else {
             this.set(key, value);
         }
@@ -484,7 +490,7 @@ export class DrawingPanel {
                 return;
             }
             const erase = tool.tool === 'eraser' || e.button === 2 || e.shiftKey;
-            this.gesture = { type: 'stroke', pointerId: e.pointerId, last: point, erase };
+            this.gesture = { type: 'stroke', pointerId: e.pointerId, last: point, carry: 0, erase };
             this.paint(null, point);
         });
         surface.addEventListener('pointermove', e => {
@@ -566,12 +572,23 @@ export class DrawingPanel {
         return screenToCanvas(this.targets.getView(), { x: e.clientX - box.left, y: e.clientY - box.top }, width, height);
     }
 
+    /** Paints the stroke from `from` to `to` (or its first dab, at `to`) with the brush of the selected kind. */
     private paint(from: MaskPoint | null, to: MaskPoint): void {
-        if (this.gesture?.type !== 'stroke') return;
+        const gesture = this.gesture;
+        if (gesture?.type !== 'stroke') return;
         const s = this.settings;
         const kind = this.kind;
         const mask = this.masks[kind];
-        mask.stroke(from, to, drawingNumber(s, kind, P.brushSize) / this.targets.getView().zoom, drawingNumber(s, kind, P.brushFlow) / 100, this.gesture.erase);
+        const tip = drawingTip(s, kind);
+        const diameter = drawingNumber(s, kind, P.brushSize) / this.targets.getView().zoom;
+        let dabs = [to];
+        if (from) {
+            const along = dabsAlong(from, to, diameter * DRAWING_BRUSH_TIPS[tip].spacing, gesture.carry);
+            dabs = along.dabs;
+            gesture.carry = along.carry;
+        }
+        if (dabs.length === 0) return;
+        mask.dabs(dabs, diameter, drawingNumber(s, kind, P.brushFlow) / 100, tip, gesture.erase);
         mask.render(s);
         this.commitSoon(kind);
         this.reveal();
