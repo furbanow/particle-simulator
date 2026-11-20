@@ -6,6 +6,7 @@ import {
 } from './config';
 import { clampCenter, screenToWorld, zoomAt, type ViewState } from './view';
 import type { ViewUniforms } from './gl/common';
+import { createRenderer } from './gl/createRenderer';
 import { DisplaySettingsStore, frameMs } from './displaySettings';
 import { applyStaticTranslations, getLanguage, t } from './i18n';
 import { NebulaLayer } from './render/nebulaLayer';
@@ -46,15 +47,7 @@ const startBtn = byId('startBtn');
 const pauseBtn = byId('pauseBtn');
 
 // ---- Renderer ----
-function createRenderer(): THREE.WebGLRenderer {
-    try {
-        const created = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-        if (created.extensions.has('EXT_color_buffer_float')) return created;
-        created.dispose();
-    } catch { /* no WebGL 2 context: falls through to the apology */ }
-    return showUnsupported();
-}
-const renderer = createRenderer();
+const renderer = createRenderer() ?? showUnsupported();
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x000000, 1);
 renderer.toneMapping = THREE.NeutralToneMapping; // applied by the OutputPass; keeps hues in bright cores
