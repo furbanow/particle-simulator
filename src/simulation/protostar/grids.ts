@@ -24,6 +24,17 @@ export const PROTOSTAR_DEFINES = {
     ...DRAWING_DEFINES,
 } as const;
 
+let halfFloatDepositForced = false;
+
+/**
+ * Dev-only (the lab page, src/lab): makes the grids created from now on deposit in half floats
+ * even where EXT_float_blend is available, to test the path of the GPUs without it. Off by
+ * default, the application never sets it.
+ */
+export function forceHalfFloatDeposit(forced: boolean): void {
+    halfFloatDepositForced = forced;
+}
+
 /** Prepends the defines and the shared GLSL (grid sampling and drawings, fusion rate, random numbers). */
 export const withProtostarCommon = (source: string, defines: Record<string, string | number> = {}): string =>
     withDefines(`${drawingGlsl}\n${commonGlsl}\n${source}`, { ...PROTOSTAR_DEFINES, ...defines });
@@ -151,7 +162,8 @@ export class ProtostarGrids {
                 splatMass: Uniform<number[]>, drawing: DrawingUniforms) {
         this.common = createCommonUniforms(drawing);
         // Additive float32 blending needs EXT_float_blend (asking for it enables it); half floats otherwise.
-        const blendType = renderer.extensions.has('EXT_float_blend') ? THREE.FloatType : THREE.HalfFloatType;
+        const blendType = !halfFloatDepositForced && renderer.extensions.has('EXT_float_blend')
+            ? THREE.FloatType : THREE.HalfFloatType;
         const res = PROTOSTAR_GRID_RES;
         const { u, common } = this;
         const particleUniforms = { ...common, ...u, speciesSplatMass: splatMass };
