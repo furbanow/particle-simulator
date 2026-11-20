@@ -10,7 +10,7 @@ import {
 } from '../../simulation/protostar/ignition';
 import {
     BASELINE_SERIES_POINTS, IGNITION_REFERENCE_DENSITY, IGNITION_REFERENCE_RATE, IGNITION_SENSITIVITY_DENSITIES,
-    IGNITION_SENSITIVITY_RATES, REAL_IGNITION_RATIO,
+    IGNITION_SENSITIVITY_RATES, OMEGA_DT_LIMIT, REAL_IGNITION_RATIO,
 } from '../config';
 import { probeCore } from '../core';
 import { frameSeconds, modelStats, protostarGrids, restart, runFrames, sleep, substepsPerFrame } from '../driver';
@@ -86,6 +86,9 @@ export const defaultCloud: Scenario = {
         const lateWindow = samples.slice(Math.floor(samples.length * 0.75));
         const firstFusion = samples.find(s => s.fusionRate > 0);
         const peak = (pick: (s: Sample) => number): number => samples.reduce((m, s) => Math.max(m, pick(s)), 0);
+        const peakSeconds = (pick: (s: Sample) => number): number | null =>
+            samples.reduce<Sample | null>((best, s) => best === null || pick(s) > pick(best) ? s : best, null)?.seconds ?? null;
+        const overLimit = samples.find(s => s.omegaDt > OMEGA_DT_LIMIT);
         const series = decimate(samples, BASELINE_SERIES_POINTS);
         const fixed = (v: number | null): JsonValue => v === null ? null : significant(v, SIGNIFICANT_DIGITS);
         const metrics: Record<string, JsonValue> = {
@@ -104,6 +107,11 @@ export const defaultCloud: Scenario = {
                 coreTemperatureMK: fixed(peak(s => s.coreMK)), maxDensity: fixed(peak(s => s.maxDensity)),
                 fusionRatePerSecond: fixed(peak(s => s.fusionRate)), coreOmegaDt: fixed(peak(s => s.omegaDt)),
             },
+            peakAtSeconds: {
+                coreTemperature: fixed(peakSeconds(s => s.coreMK)), maxDensity: fixed(peakSeconds(s => s.maxDensity)),
+                fusionRate: fixed(peakSeconds(s => s.fusionRate)),
+            },
+            omegaDtOverLimit: { limit: OMEGA_DT_LIMIT, firstFrame: overLimit?.frame ?? null, firstSeconds: fixed(overLimit?.seconds ?? null) },
             lastQuarterMean: {
                 coreTemperatureMK: fixed(mean(lateWindow.map(s => s.coreMK))),
                 maxDensity: fixed(mean(lateWindow.map(s => s.maxDensity))),

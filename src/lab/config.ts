@@ -30,6 +30,8 @@ export const BASELINE_FRAMES = 1200;
 /** A software rasterizer cannot run the full baseline in reasonable time: a smaller, noisier one. */
 export const BASELINE_PARTICLES_SOFTWARE = 20000;
 export const BASELINE_FRAMES_SOFTWARE = 200;
+/** The omega.dt the Verlet integrator is meant to stay under in the core (the energy-drift criterion of phase P5). */
+export const OMEGA_DT_LIMIT = 0.1;
 /** Points kept of each time series in the results (decimated evenly). */
 export const BASELINE_SERIES_POINTS = 60;
 
