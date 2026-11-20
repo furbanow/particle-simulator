@@ -150,6 +150,7 @@ export class ProtostarModel implements GpuModel {
         this.initialAccel = null;
         this.generation++;
         this.frame = 0;
+        this.substep = 0;                              // a restart replays the same random stream (the lab relies on it)
         this.coreTemperature = null;
         this.coreDensity = null;
         this.fusionRate = null;
