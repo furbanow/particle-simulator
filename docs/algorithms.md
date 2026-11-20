@@ -35,7 +35,7 @@ Just write its two halves and register them. **The interface is not touched.**
    - `id`, `label`, `description`;
    - `params`: the global parameters, in display order within each tab. Each has a `key` (letters, digits, `_`), a `label`, a `doc` (concise explanation shown on hover: what it is and what it does in the algorithm) and a `tab`, the panel tab among `PANEL_TABS`:
      - `initial` (Initial conditions): everything that applies only at restart, and only that;
-     - `physics` (Physics), `fusion` (Fusion), `supernova` (Supernova), `effects` (Visual effects): applied live.
+     - `physics` (Physics), `fusion` (Fusion), `supernova` (Supernova), `features` (Features: the optional parts of the algorithm, as boolean switches), `effects` (Visual effects): applied live.
 
      A tab appears only if a parameter is declared in it: an algorithm gets its Fusion or Supernova tab by declaring its parameters there. Three kinds of parameters:
      - `kind: 'number'` → slider: `min`, `max`, `step`, `default`, `format(v)`, and `scale: 'log'` for values spanning several orders of magnitude (λ₀ for example);

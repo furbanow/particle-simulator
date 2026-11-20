@@ -24,6 +24,8 @@ const TAB_ICONS: Readonly<Record<PanelTabId, string>> = {
     fusion: '<path d="M12 3c.5 3 2.2 4.9 3.9 6.6C17.3 11 18 12.7 18 14.5a6 6 0 0 1-12 0c0-1.5.5-2.8 1.4-3.8.3 1.3 1.1 2.1 2.1 2.3-.5-3.5.3-7 2.5-10z"/>',
     // A burst.
     supernova: '<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/>',
+    // A toggle switch: the optional features.
+    features: '<rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="16" cy="12" r="2.2"/>',
     // A pencil drawing a line.
     drawing: '<path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="M14 7l3 3"/><path d="M3 21c2.5-1.5 4.5.8 7-.2"/>',
     // A sparkle.

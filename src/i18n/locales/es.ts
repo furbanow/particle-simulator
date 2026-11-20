@@ -124,6 +124,7 @@ export const es: Record<MessageKey, string> = {
     'tab.physics': 'Física',
     'tab.fusion': 'Fusión',
     'tab.supernova': 'Supernova',
+    'tab.features': 'Funciones',
     'tab.drawing': 'Dibujo',
     'tab.effects': 'Efectos visuales',
 

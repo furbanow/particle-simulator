@@ -140,6 +140,7 @@ export const en = {
     'tab.physics': 'Physics',
     'tab.fusion': 'Fusion',
     'tab.supernova': 'Supernova',
+    'tab.features': 'Features',
     'tab.drawing': 'Drawing',
     'tab.effects': 'Visual effects',
 

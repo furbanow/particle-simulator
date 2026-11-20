@@ -18,12 +18,14 @@ export const PARTICLE_COUNT_PARAM = 'count';
  * The tabs of the panel, in display order. 'initial' holds what only takes effect on the next
  * restart; the other tabs hold what applies while it changes. A tab shows only when a parameter
  * is declared in it, so an algorithm gets its Fusion or Supernova tab by declaring its parameters.
+ * 'features' holds the optional parts of an algorithm (boolean switches, applied right away).
  */
 export const PANEL_TABS = [
     { id: 'initial', label: t('tab.initial') },
     { id: 'physics', label: t('tab.physics') },
     { id: 'fusion', label: t('tab.fusion') },
     { id: 'supernova', label: t('tab.supernova') },
+    { id: 'features', label: t('tab.features') },
     { id: 'drawing', label: t('tab.drawing') },
     { id: 'elements', label: t('tab.elements') },
     { id: 'effects', label: t('tab.effects') },
