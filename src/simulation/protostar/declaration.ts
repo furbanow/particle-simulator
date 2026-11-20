@@ -17,7 +17,7 @@ import { ELEMENTS, formatMass, massToSlider, randomSpeciesMasses, randomSpeciesS
 import { formatInt } from '../../util/format';
 import { clamp } from '../../util/math';
 import {
-    linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type NumberParam, type ParticleType,
+    linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type ParamDef, type ParticleType,
 } from '../algorithm';
 import { reactionTransitions, type FusionReaction } from './reactions';
 
@@ -76,7 +76,7 @@ const fixed = (digits: number) => (v: number): string => formatNumber(v, digits)
 /** A temperature in T0, in millions of kelvins. */
 export const formatTemperature = (t: number): string => `${fixed(1)(t * PROTOSTAR_T0_KELVIN / KELVIN_PER_MK)} MK`;
 
-const params: readonly NumberParam[] = [
+const params: readonly ParamDef[] = [
     { ...sliderFields(PROTOSTAR_COUNT_SLIDER), key: PROTOSTAR_PARAM.count, tab: 'initial', label: t('algo.protostar.param.count.label'),
         doc: t('algo.protostar.param.count.doc'),
         format: formatInt },

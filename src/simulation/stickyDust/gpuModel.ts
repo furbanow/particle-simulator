@@ -6,7 +6,7 @@ import {
 } from '../../config';
 import { withDefines } from '../../gl/withDefines';
 import { clamp } from '../../util/math';
-import type { ParamValue, ParticleType } from '../algorithm';
+import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
 import { analyzeConcentration } from '../concentration';
 import { DRAWING_DEFINES, drawingGlsl } from '../drawing/DrawingField';
 import type { GpuModel, GpuModelContext } from '../gpuModel';
@@ -47,6 +47,8 @@ export class StickyDustModel implements GpuModel {
         speciesEjectScale: { value: new Array<number>(MAX_SPECIES).fill(1) },
     };
 
+    /** Every value the model was given, by key: the booleans and choices (features) are read from here. */
+    private readonly params: ParamValues = {};
     // Overwritten by setParam with the panel values when the model is created.
     private supernovaThreshold = SUPERNOVA_THRESHOLD_SLIDER.default / 100; // fraction of the particles
     private concentrationRadius = CONCENTRATION_RADIUS_SLIDER.default;     // px
@@ -65,6 +67,11 @@ export class StickyDustModel implements GpuModel {
         this.velocityUniforms.textureSupernova.value = this.supernovaTexture;
     }
 
+    /** Dev-only, read-only: the values the model holds, whatever their kind. */
+    get debugParams(): Readonly<ParamValues> {
+        return this.params;
+    }
+
     typeMass(t: ParticleType): number {
         return t.values[STICKY_DUST_PROPERTY.mass];
     }
@@ -74,6 +81,7 @@ export class StickyDustModel implements GpuModel {
     }
 
     setParam(key: string, value: ParamValue): void {
+        this.params[key] = value;
         if (typeof value !== 'number') return;
         switch (key) {
             case P.gravity: this.velocityUniforms.kGravity.value = value; break;
@@ -84,7 +92,8 @@ export class StickyDustModel implements GpuModel {
         }
     }
 
-    reset(): void {
+    reset(params: ParamValues): void {
+        Object.assign(this.params, params);
         this.cooldown = 0;
         this.supernovaCount = 0;
         this.concentration = null;

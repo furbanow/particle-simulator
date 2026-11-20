@@ -14,7 +14,7 @@ import {
 import { formatInt } from '../../util/format';
 import { clamp } from '../../util/math';
 import {
-    linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type NumberParam, type ParticleType,
+    linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type ParamDef, type ParticleType,
 } from '../algorithm';
 
 /** Keys of the parameters and of the type properties, shared with the GPU model. */
@@ -32,7 +32,7 @@ export const STICKY_DUST_STAT = { supernovae: 'supernovae', concentration: 'conc
 
 const percent = (v: number): string => t('format.percent', { value: v });
 
-const params: readonly NumberParam[] = [
+const params: readonly ParamDef[] = [
     { ...sliderFields(PARTICLE_COUNT_SLIDER), key: STICKY_DUST_PARAM.count, tab: 'initial', label: t('algo.stickyDust.param.count.label'),
         doc: t('algo.stickyDust.param.count.doc'),
         format: formatInt },
