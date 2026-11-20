@@ -50,13 +50,16 @@ export const REAL_IGNITION_RATIO = 100 / 15;
 // ---- Performance probe ----
 export const PERF_ALGORITHMS = ['protostar', 'stickyDust'] as const;
 export const PERF_COUNTS = [400000, 1000000] as const;
-export const PERF_WARMUP_FRAMES = 30;
+/** Timed frames per measurement, in chunks synchronized with the GPU (the median chunk is reported). */
 export const PERF_FRAMES = 120;
+export const PERF_CHUNK_FRAMES = 30;
+/** Warm-up before each measurement: at least this many frames and this long (a GPU raises its clocks under load). */
+export const PERF_WARMUP_FRAMES = 30;
+export const PERF_WARMUP_MS = 1500;
 /** A software renderer would take minutes: a couple of frames only, to exercise the path. */
-export const PERF_WARMUP_FRAMES_SOFTWARE = 1;
 export const PERF_FRAMES_SOFTWARE = 2;
 /**
  * Animation-frame intervals shorter than this fraction of the synchronized frame time do not
  * reflect the GPU load (the browser lets frames pile up, as headless Chrome does at its fixed rate).
  */
-export const PERF_ANIMATION_FRAME_TRUST = 0.8;
+export const PERF_ANIMATION_FRAME_TRUST = 0.95;

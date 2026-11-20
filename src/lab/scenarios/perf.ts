@@ -1,13 +1,14 @@
-// Performance probe: ms per frame of each algorithm at fixed particle counts. The numbers only
+// Performance probe: ms per frame of each algorithm at fixed particle counts (the median of
+// chunks of frames, each ended by a wait for the GPU). The numbers only
 // mean something on a real GPU; on a software rasterizer the probe runs a couple of frames to
 // exercise its code and says so (status `skip`, `valid: false`).
 
 import type { AlgorithmId } from '../../simulation/algorithms';
 import {
-    LAB_AREA, PERF_ALGORITHMS, PERF_ANIMATION_FRAME_TRUST, PERF_COUNTS, PERF_FRAMES_SOFTWARE, PERF_WARMUP_FRAMES,
-    PERF_WARMUP_FRAMES_SOFTWARE,
+    LAB_AREA, PERF_ALGORITHMS, PERF_ANIMATION_FRAME_TRUST, PERF_CHUNK_FRAMES, PERF_COUNTS, PERF_FRAMES_SOFTWARE,
+    PERF_WARMUP_FRAMES, PERF_WARMUP_MS,
 } from '../config';
-import { nextAnimationFrame, restart, runFrames, substepsPerFrame } from '../driver';
+import { nextAnimationFrame, restart, substepsPerFrame } from '../driver';
 import { mean, quantile, significant } from '../numbers';
 import { RenderStack } from '../renderStack';
 import type { LabContext, Scenario, ScenarioOutcome } from '../types';
@@ -22,6 +23,27 @@ function renderStack(context: LabContext): RenderStack {
         stacks.set(context, stack);
     }
     return stack;
+}
+
+/** ms per frame of each chunk of `chunkFrames` frames, the GPU being waited for at the end of each. */
+async function timeChunks(context: LabContext, frame: () => void, chunkFrames: number, chunks: number): Promise<number[]> {
+    const texture = () => context.simulation.positionTexture;
+    const out: number[] = [];
+    for (let c = 0; c < chunks; c++) {
+        const start = performance.now();
+        for (let i = 0; i < chunkFrames; i++) frame();
+        await context.sync.wait(texture());
+        out.push((performance.now() - start) / chunkFrames);
+    }
+    return out;
+}
+
+/** Runs `frame` for at least `frames` frames and `minMs` (in synchronized chunks), untimed. */
+async function warmUp(context: LabContext, frame: () => void, chunkFrames: number, frames: number, minMs: number): Promise<void> {
+    const start = performance.now();
+    for (let done = 0; done < frames || performance.now() - start < minMs; done += chunkFrames) {
+        await timeChunks(context, frame, chunkFrames, 1);
+    }
 }
 
 /** Intervals between animation frames, each running `frame` (the way the application's GPU benchmark times a frame). */
@@ -43,26 +65,29 @@ async function frameIntervals(warmup: number, frames: number, frame: () => void)
 
 async function probe(context: LabContext, algorithm: AlgorithmId, count: number): Promise<ScenarioOutcome> {
     const { simulation, software } = context;
-    const warmup = software ? PERF_WARMUP_FRAMES_SOFTWARE : PERF_WARMUP_FRAMES;
+    const chunkFrames = software ? 1 : PERF_CHUNK_FRAMES;
+    const warmupFrames = software ? 1 : PERF_WARMUP_FRAMES;
+    const warmupMs = software ? 0 : PERF_WARMUP_MS;
     const frames = software ? PERF_FRAMES_SOFTWARE : context.options.perfFrames;
+    const chunks = Math.max(1, Math.round(frames / chunkFrames));
     await restart(context, { algorithm, count });
     const stack = renderStack(context);
     stack.prepare();
 
-    // Simulation only (step + endFrame), the GPU synchronized every few frames and at the end: the pure GPU cost, free of the display's refresh.
-    await runFrames(context, warmup, { endFrame: true });
-    const simStart = performance.now();
-    await runFrames(context, frames, { endFrame: true });
-    const simMs = (performance.now() - simStart) / frames;
+    // Simulation only (step + endFrame), the GPU waited for after each chunk: the pure GPU cost, free of the display's refresh.
+    const simulate = () => { simulation.step(); simulation.endFrame(); };
+    await warmUp(context, simulate, chunkFrames, warmupFrames, warmupMs);
+    const simChunks = await timeChunks(context, simulate, chunkFrames, chunks);
+    const simMs = quantile(simChunks, 0.5);
 
     // The same with whole frames (simulation, particles, nebula, bloom, output).
-    await runFrames(context, warmup, { step: () => stack.frame() });
-    const frameStart = performance.now();
-    await runFrames(context, frames, { step: () => stack.frame() });
-    const frameMs = (performance.now() - frameStart) / frames;
+    const whole = () => stack.frame();
+    await warmUp(context, whole, chunkFrames, warmupFrames, warmupMs);
+    const frameChunks = await timeChunks(context, whole, chunkFrames, chunks);
+    const frameMs = quantile(frameChunks, 0.5);
 
     // Whole frames, one per animation frame: the application's way, which cannot go below the display's refresh interval.
-    const intervals = await frameIntervals(warmup, frames, () => stack.frame());
+    const intervals = await frameIntervals(warmupFrames, chunkFrames * chunks, whole);
     const median = quantile(intervals, 0.5);
     const animationFramesIgnoreGpu = median < PERF_ANIMATION_FRAME_TRUST * frameMs;
 
@@ -75,10 +100,14 @@ async function probe(context: LabContext, algorithm: AlgorithmId, count: number)
         requestedParticles: count,
         timeScale: simulation.timeScale,
         substepsPerFrame: substepsPerFrame(context),
-        warmupFrames: warmup,
-        timedFrames: frames,
+        warmupFrames,
+        warmupMs,
+        timedFrames: chunkFrames * chunks,
+        chunkFrames,
         simulationMsPerFrame: significant(simMs, DIGITS),
+        simulationChunksMsPerFrame: simChunks.map(v => significant(v, DIGITS)),
         wholeFrameMsPerFrame: significant(frameMs, DIGITS),
+        wholeFrameChunksMsPerFrame: frameChunks.map(v => significant(v, DIGITS)),
         animationFrameMeanMs: significant(mean(intervals), DIGITS),
         animationFrameMedianMs: significant(median, DIGITS),
         animationFrameP95Ms: significant(quantile(intervals, 0.95), DIGITS),
