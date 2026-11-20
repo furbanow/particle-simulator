@@ -11,7 +11,7 @@ import type { GpuModel, GpuModelContext, GpuVariable, InitialState } from '../gp
 import { countTypes } from '../typeCounts';
 import { centerOfMass, driftCorrection, type Vec2 } from './drift';
 import { PROTOSTAR_PARAM, PROTOSTAR_PROPERTY, PROTOSTAR_REACTIONS, PROTOSTAR_STAT } from './declaration';
-import { ProtostarGrids, withProtostarCommon } from './grids';
+import { ProtostarGrids, withProtostarCommon, type ProtostarGridTargets } from './grids';
 import { fillCloud } from './initialConditions';
 import { reactionArrays } from './reactions';
 import velocityFrag from '../../shaders/protostar-velocity.frag?raw';
@@ -97,6 +97,16 @@ export class ProtostarModel implements GpuModel {
         }];
         const size = context.screenSize.value;
         this.scales = { length: Math.max(1, Math.min(size.x, size.y)), cloudRadius: 1, count: 1 };
+    }
+
+    /** Dev-only, read-only: the render targets of the grid passes, for the lab page (src/lab). */
+    get debugGridTargets(): ProtostarGridTargets {
+        return this.grids.targets;
+    }
+
+    /** Dev-only, read-only: the values the model holds, whatever their kind. */
+    get debugParams(): Readonly<ParamValues> {
+        return this.params;
     }
 
     typeMass(t: ParticleType): number {

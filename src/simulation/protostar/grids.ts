@@ -60,6 +60,20 @@ export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonU
     };
 }
 
+/** The render targets of the grid passes (see ProtostarGrids), by pass name. */
+export interface ProtostarGridTargets {
+    readonly moments: THREE.WebGLRenderTarget;
+    readonly gas: THREE.WebGLRenderTarget;
+    readonly power: THREE.WebGLRenderTarget;
+    readonly heat: THREE.WebGLRenderTarget;
+    readonly coarse: THREE.WebGLRenderTarget;
+    readonly gravity: THREE.WebGLRenderTarget;
+    /** First stage of the stats reduction. */
+    readonly reduce1: THREE.WebGLRenderTarget;
+    /** The single texel the stats are read from. */
+    readonly reduce2: THREE.WebGLRenderTarget;
+}
+
 /** Physical scales the grid passes need, set before each substep. */
 export interface GridScales {
     /** Deposit units per simulation mass unit (the mean particle mass is 1 deposit unit). */
@@ -172,6 +186,14 @@ export class ProtostarGrids {
             source: { value: this.reduce1.target.texture }, gridPower: { value: null },
             fusionTRef: common.fusionTRef,
         }, gridTarget(1, THREE.FloatType));
+    }
+
+    /** Dev-only, read-only: the render targets of every pass, to read the grids back. */
+    get targets(): ProtostarGridTargets {
+        return {
+            moments: this.moments.target, gas: this.gas.target, power: this.power.target, heat: this.heat.target,
+            coarse: this.coarse.target, gravity: this.gravity.target, reduce1: this.reduce1.target, reduce2: this.reduce2.target,
+        };
     }
 
     setScales(s: GridScales): void {

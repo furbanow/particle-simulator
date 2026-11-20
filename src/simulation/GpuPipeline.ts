@@ -142,6 +142,11 @@ export class GpuPipeline {
         return this.gpu.getCurrentRenderTarget(this.velVar).texture;
     }
 
+    /** Dev-only, read-only: the algorithm's GPU model, for the lab page (src/lab). Not used by the app. */
+    get debugModel(): GpuModel {
+        return this.model;
+    }
+
     setParam(key: string, value: ParamValue): void {
         this.model.setParam(key, value);
     }
@@ -222,6 +227,7 @@ export class GpuPipeline {
             for (const variable of this.extraVars) {
                 this.velUniforms[variable.name].value = this.gpu.getCurrentRenderTarget(variable).texture;
             }
+            model.afterDensity?.();
             this.gpu.compute();
             model.afterSubstep?.();
         }

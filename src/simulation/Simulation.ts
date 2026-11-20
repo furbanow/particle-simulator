@@ -132,6 +132,11 @@ export class Simulation {
         };
     }
 
+    /** Dev-only, read-only: the running pipeline (and through it the model), for the lab page (src/lab). Not used by the app. */
+    get debugPipeline(): GpuPipeline {
+        return this.pipeline;
+    }
+
     get positionTexture(): THREE.Texture {
         return this.pipeline.positionTexture;
     }

@@ -110,6 +110,12 @@ export interface GpuModel {
     updateSpecies(types: readonly ParticleType[], typeCounts: readonly number[]): void;
     /** Before each substep's density splat and GPGPU pass: extra passes go here. */
     beforeSubstep?(dt: number): void;
+    /**
+     * Each substep, once the density field and its mipmaps are rendered (when the model uses them)
+     * and right before the GPGPU pass. Extra passes that read the field go here; the GPGPU pass
+     * sets its own render targets, so nothing needs restoring.
+     */
+    afterDensity?(): void;
     afterSubstep?(): void;
     endFrame?(): void;
     /** Asked every CLUSTER_CHECK_INTERVAL frames: whether to read the positions back. */
