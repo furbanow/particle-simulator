@@ -130,7 +130,7 @@ Parameters: number of particles (at restart), gravity constant, stickiness, coll
 
 ## Protostar (`protostar`), available
 
-Declaration: `src/simulation/protostar/declaration.ts`. GPU model: `src/simulation/protostar/gpuModel.ts` and `grids.ts`. Pure logic: `reactions.ts` (reaction table, rate law, mass balance), `drift.ts` (statistical drift) and `initialConditions.ts` (initial cloud). Shaders: `src/shaders/protostar-*.{vert,frag,glsl}`.
+Declaration: `src/simulation/protostar/declaration.ts`. GPU model: `src/simulation/protostar/gpuModel.ts` and `grids.ts`. Pure logic: `reactions.ts` (reaction table, rate law, mass balance), `drift.ts` (statistical drift), `initialConditions.ts` (initial cloud), `disc.ts`, `turbulence.ts` and `toomre.ts` (what it is made of). Shaders: `src/shaders/protostar-*.{vert,frag,glsl}`.
 
 A hydrogen cloud contracts under its own gravity while it cools, and hydrogen fuses into helium (proton-proton chain). The released energy heats the core, which expands: fusion slows down, and cooling and gravity contract it again. The star settles into a self-regulated equilibrium. Once the hydrogen is exhausted, nothing supports the helium core any more: it contracts and heats up to about 100 MK, where helium fuses into carbon (triple alpha). Everything runs on the GPU; the CPU orchestrates the passes and reads back one small reduction of the grids (the statistics and the energy diagnostics), plus the positions to count the types and measure the drift.
 
@@ -230,11 +230,15 @@ What is left is not the scheme's: with the time step divided by 1, 2 and 4 the d
 
 ### Initial conditions
 
-A uniform disk of radius 0.38 L (`PROTOSTAR_CLOUD_RADIUS`), centered on the screen (`initialConditions.ts`):
+A disc of radius 0.38 L (`PROTOSTAR_CLOUD_RADIUS`), centered on the screen, whose velocities are set by two energies in units of the disc's own potential energy |U|, not by fractions of a circular speed ([the spike](spikes/a8-initial-conditions.md) has the derivations and the measurements). Code: `initialConditions.ts` (the cloud), `disc.ts` (the disc's self-gravity), `turbulence.ts` (the correlated agitation), `toomre.ts` (Toomre's Q).
 
-- **rotation**: tangential velocity = rotation × v_circ(r), with v_circ(r) = √(G·M_enc(r)·r² / (r² + ε²)^(3/2)), i.e. √(G·M_enc(r)/r) far from ε, zero at the center. M_enc(r) is the mass of the particles drawn inside r (rank / N × total mass: types are drawn independently of radius);
-- **agitation**: Gaussian noise with standard deviation agitation × v_circ(R) on each component; the mean momentum is removed so the cloud does not drift. Together with the Poisson noise of positions, this is what fragments the cloud;
-- the initial acceleration, for the first Verlet step, is that of the enclosed mass.
+- **Density profile** (`profile`): *uniform* (default: the same density up to the edge) or *Maclaurin*, Σ ∝ √(1 − r²/R²), whose in-plane pull grows linearly with r up to the edge (g = (3π/4)·G·M·r/R³): a cold Maclaurin disc falls in homologously, its radius a(t) obeying a″ = −(3π/4)·G·M/a², hence the free-fall time t_ff = (π/2)·√(2R³/(3π·G·M)).
+- **The disc's pull**: at each restart `buildDiscTable()` tabulates the pull g(r), the potential Φ(r), the potential energy U and the energy of circular motion of the softened (Plummer ε) disc by quadrature over rings (the angular integral of a ring is a pair of complete elliptic integrals; 257 nodes, about 5 ms). The circular speed is v_circ(r) = √(r·g(r)), not the sphere's √(G·M_enc/r): against the sphere's formula, which the cloud used before, the disc's is 0.33× at 0.07 R (the sphere over-rotated the inner disc 3 times), 0.75× at R/2 and 1.44× at the edge (ε = 1.6 % L).
+- **Rotation energy** (`betaRot`, β = E_rot/|U|, default 0.08): the tangential speed is the same fraction f of v_circ(r) at every radius, counterclockwise, and f is chosen so that the rotation has the energy β·|U| to the particle: f = √(β·|U|/K_circ), K_circ = ½∫ v_circ² dm being the energy of the disc on circular orbits (K_circ/|U| ≈ 0.48 with the default softening, 0.5 without). A cloud on exactly circular orbits has β = K_circ/|U| (the lab uses 0.48, 1.003 × v_circ).
+- **Virial ratio** (`alphaVir`, α = 2K/|U|, default 0.33): the whole kinetic energy, rotation and agitation. The agitation has the energy (α/2 − β)·|U| (nothing if the rotation takes it all: α is then raised to 2β), spread over the two components with a dispersion σ per component, K_agit = M·σ². It has the mean momentum and the part along the rotation's pattern taken off (so the cloud does not drift and the two energies add), and is scaled to the particle: the sliders' energies are the ones of the cloud drawn, up to the Poisson noise of the positions in |U|.
+- **Structure of the agitation** (`turbulence`): *white* noise (default: a Gaussian of its own for each particle, which the temperature of the gas reads in full as heat) or *correlated*: a Gaussian, solenoidal (divergence-free) random field of power spectrum P(k) ∝ k⁻³ per Fourier mode of the plane (E(k) ∝ k⁻² per wave number, Larson's supersonic turbulence) for wave numbers 1 to 8 across the diameter (`PROTOSTAR_TURBULENCE_*`), made by FFT on a 64 × 64 grid at restart and sampled bilinearly at the particles. Neighbors move alike, so the gas pass (which subtracts the mean velocity of a 3 × 3 cell neighborhood) reads it as bulk motion, not as heat, until flows collide.
+- **Toomre's Q** = κσ/(3.36·G·Σ) (the criterion of a stellar disc; the gas's π would read 7 % higher), κ² = (1/r³)·d(r²v²)/dr from the initial rotation: `measureToomre()` gives it from the velocity field of the particles (the lab's `protostar.initial-conditions`). The default cloud has Q ≈ 0.2 to 0.35 from the center to 0.9 R: it is unstable at every scale, which is what fragments it. With the sphere's formula it was 1.6 × higher at 0.3 R and 0.5 × as high at 0.94 R.
+- **No initial acceleration** is stored: the first substep of the integration owes no half kick (see [Integration](#integration-velocity-verlet)). The table gives it anyway (`discAcceleration()`), which the lab uses to check the gravity grid at t = 0 (`protostar.initial-grid-force`).
 
 ### Cooling
 
@@ -300,8 +304,10 @@ The color comes from the type (editor). The model declares `glow: 'state'`: each
 | Parameter | Key | Default | Applied |
 |---|---|---|---|
 | Number of particles | `count` | 400,000 | restart |
-| Initial rotation (× v_circ) | `rotation` | 0.44 | restart |
-| Initial agitation (× v_circ(R)) | `agitation` | 0.26 | restart |
+| Initial virial ratio 2K/\|U\| | `alphaVir` | 0.33 | restart |
+| Initial rotation energy E_rot/\|U\| | `betaRot` | 0.08 | restart |
+| Density profile (uniform, Maclaurin) | `profile` | uniform | restart |
+| Structure of the agitation (white, correlated) | `turbulence` | white | restart |
 | Gravity constant G | `gravity` | 9 | live |
 | Softening ε (% of L) | `softening` | 1.6% | live |
 | Cooling k (/s) | `cooling` | 0.51 | live |

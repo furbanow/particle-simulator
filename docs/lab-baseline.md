@@ -584,6 +584,40 @@ Simulation ms/frame, `perf.protostar.400k` and `.1m`, `4dae91f` and the new code
 
 Not measurable (a spread of 5 to 10 % of the readings): the change adds no texture read and two cheap branches.
 
+## After phase P5b: initial conditions consistent with the disc
+
+P5b ([the spike](spikes/a8-initial-conditions.md)) changes the initial cloud of the protostar: the circular speed is the disc's own (a table of the softened disc, not the sphere's formula), the sliders
+`rotation` and `agitation` become the virial ratio `alphaVir` = 2K/|U| (0.33) and the rotation energy `betaRot` = E_rot/|U| (0.08), and there are two new choices: a Maclaurin density profile and a correlated
+agitation (white noise is the default). Same GPU and protocol as the sections above (400 000 particles, seeds 20240611 to 20240613, 1 200 frames, 1024 x 768 px area); "before" is `da1473c`, which reproduces the
+P5a table above to the digit.
+
+The initial energies (seed 20240611, `|U|` = 2.261e8 mass px^2/s^2 from the disc's table): K 3.681e7 before, 3.731e7 after (+1.4 %); E_rot 1.79e7 and 1.81e7; 2K/|U| 0.326 and 0.330 (the old recipe on the disc: 0.325, with beta 0.079). The
+reduction reads at t = 0 the virial ratio the sliders ask for to 0.2 % (`protostar.initial-conditions`, ten clouds) and the grid's pull matches the table's to 0.5 % in the median ring (worst ring 5 % at 0.16 R,
+`protostar.initial-grid-force`). Toomre's Q (stellar criterion, measured on the particles): 0.19 to 0.25 from 0.25 to 0.75 R after, against 0.33 at 0.3 R falling to 0.18 at 0.94 R before.
+
+The cold Maclaurin disc (`protostar.maclaurin-collapse`): the free-fall time estimated from the half-mass radius is 1.0125, 1.017, 1.023 and 1.025 of the analytic 1.787 s at 0.75, 0.5, 0.25 and 0.1 of the initial radius,
+the same at half the time step; within the plan's 2 % for the first half of the fall, 0.7 to 0.9 points of the excess being the grid's smoothing (2.4 px as a Plummer length) and the slider's softening 0.2 to 0.3.
+
+The default cloud (`baseline.protostar.default-cloud-tuning`, the series are decimated to 60 points of 0.57 s):
+
+| 34 s, three seeds | before | after (white, the default) |
+|---|---|---|
+| peak density of the first collapse (rho0) | 25.7, 25.8, 26.7 | 30.2, 28.3, 31.5 |
+| peak fusion rate of the first burst (per s), time | 43 000, 43 900, 43 400 at 3.1 s | 32 000, 30 400, 33 500 at 2.55 s |
+| core T at that burst (MK) | 19, 19, 21 | 23, 22, 26 |
+| hydrogen burnt by 4.5 s | 30, 29, 31 % | 37, 36, 37 % |
+| core T, 8 to 12 s (MK) | 14.2, 16.5, 19.8 | 10.2, 13.8, 19.6 |
+| hydrogen below 20 000 at (s) | 21.5, 18.7, 22.1 | 24.4, 22.7, 18.7 |
+| carbon above 10 000 at (s) | 34.0, 27.8, 31.7 | 27.8, 24.9, not reached |
+| highest core T (MK) | 114, 214, 114 | 219, 259, 147 |
+| hydrogen / helium / carbon at 34 s | 219 / 61 723 / 12 750, 51 / 1 505 / 32 558, 459 / 67 684 / 10 737 | 62 / 196 / 33 443, 210 / 3 638 / 32 056, 1 096 / 75 082 / 8 236 |
+
+The first collapse shifts the same way in the three seeds (10 to 20 % denser, burst 25 % lower and 0.5 s earlier at a core 3 to 5 MK hotter, 6 to 7 points more hydrogen burnt by 4.5 s; the likely cause, not isolated by a run of its own, is the rotation of the inner disc, which is a third of the sphere's at 0.07 R and 0.55 of it at 0.33 R); afterwards the history is the chaotic one of before, with the same plateaus and flashes. With `turbulence: correlated` the burst is 3 to 10 times higher (105 000 to 298 000 per second at 48 to 116 MK):
+the gas pass reads a correlated flow as bulk motion, not as heat, and the cloud has almost no pressure at the start.
+
+The restart (`perf.protostar.restart`, median of five): 305, 629 and 1 047 ms at 400 000, 1 000 000 and 2 000 000 particles against 487, 1 154 and 2 388 ms before (the sort by radius is gone); the table is 4.4 ms.
+Not P5b's: `protostar.reduction-channels` still fails by the temperature of the peak (see P5a above) and `baseline.protostar.energy-drift` skips when the shared GPU does not leave its budget (95 of 100 orbits: drift -0.17 %, largest 0.80 %).
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a; it was a documented
