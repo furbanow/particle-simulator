@@ -135,6 +135,23 @@ export const PROTOSTAR_NEAR_RADIUS = 2;
 // G slider -> G_eff = G * GRAVITY_UNIT * L^3 / TOTAL_MASS (px^3 / (mass s^2)).
 export const PROTOSTAR_GRAVITY_UNIT = 0.001;
 export const PROTOSTAR_CLOUD_RADIUS = 0.38;        // initial cloud radius / L
+// Initial conditions (initialConditions.ts, disc.ts, turbulence.ts). The disc's self-gravity is tabulated at restart: the
+// table has DISC_TABLE_NODES intervals, each ring integral is cut into DISC_UNIFORM_PANELS equal panels plus panels graded
+// towards the field point and (Maclaurin) towards the edge, DISC_EDGE_PANELS of them, of DISC_PANEL_POINTS Gauss-Legendre
+// points each; a softening below DISC_MIN_SOFTENING x R is taken as that (the quadrature's panels would crowd to nothing).
+export const PROTOSTAR_DISC_TABLE_NODES = 256;
+export const PROTOSTAR_DISC_PANEL_POINTS = 8;
+export const PROTOSTAR_DISC_UNIFORM_PANELS = 16;
+export const PROTOSTAR_DISC_EDGE_PANELS = 16;
+export const PROTOSTAR_DISC_MIN_SOFTENING = 1e-4;
+// The correlated agitation is a solenoidal Gaussian field of power P(k) ~ k^-TURBULENCE_SLOPE per Fourier mode of the plane
+// (a velocity spectrum E(k) = 2 pi k P(k) ~ k^-2 per wave number: the supersonic turbulence of molecular clouds, Larson's
+// law v ~ l^1/2), on a TURBULENCE_GRID x TURBULENCE_GRID grid spanning the cloud's diameter, for the wave numbers of
+// TURBULENCE_K_RANGE (1 is one wavelength across the diameter; the largest is 8 cells a wavelength, which the bilinear
+// sampling keeps to within 8 % of the amplitude).
+export const PROTOSTAR_TURBULENCE_GRID = 64;
+export const PROTOSTAR_TURBULENCE_SLOPE = 3;
+export const PROTOSTAR_TURBULENCE_K_RANGE: Range = [1, 8];
 // Temperature unit, T0 = FUSION_T_REF * (L/s)^2, which stands for T0_KELVIN (the core of the Sun);
 // densities in rho0, the initial mean density of the cloud. A reaction's rate per particle is
 // lambda * (rho/rho0)^n * (T/T_ref)^alpha, capped at FUSION_RATE_MAX (1/s): the cap is above 1 / dt, so

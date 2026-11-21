@@ -17,3 +17,9 @@ export function shuffle<T>(items: T[], random: () => number = Math.random): T[] 
     }
     return items;
 }
+
+/** A standard normal variate (Box-Muller; two draws of `random`). */
+export function gaussian(random: () => number): number {
+    const u = Math.max(random(), Number.MIN_VALUE);
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * random());
+}
