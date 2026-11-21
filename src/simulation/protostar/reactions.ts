@@ -118,6 +118,7 @@ export interface FusionLaw {
 /**
  * Expected fusions per second of one particle: lambda rho^n (T / T_ref)^alpha, capped, divided by the bias that the noise of
  * T causes when it is estimated from `particles` independent particles (noiseBias.ts; no correction for infinitely many).
+ * T is the temperature of the gas (A1: the velocity dispersion times mu / mu_H, composition.ts), not the dispersion.
  * Computed from logarithms, like fusionRateOf in protostar-common.glsl: T^40 overflows a 32-bit float.
  */
 export function fusionRate(law: FusionLaw, density: number, temperature: number, particles = Infinity): number {

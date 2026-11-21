@@ -2,9 +2,9 @@
 // Defines: MAX_SPECIES, GRID_RES, FUSION_RATE_MAX, NOISE_N_MIN, and GAS_THERMO (0 or 1: whether gasAt() reads the
 // temperature that feeds the fusion rate; only the shaders that compute a rate need it). Included after drawing.glsl (drawingAccel).
 uniform sampler2D gridForce;            // gravitational acceleration at the cell centers (px/s^2)
-uniform sampler2D gridGas;              // (rho / rho0, T px^2/s^2, mean vx, mean vy) of the 3x3 neighborhood
-uniform sampler2D gridHeat;             // fusion heating per unit mass of the 3x3 neighborhood, T0 per s
-uniform sampler2D gridThermo;           // (T averaged over time px^2/s^2, effective number of particles, 0, 0) of the 3x3 neighborhood
+uniform sampler2D gridGas;              // (rho / rho0, dispersion px^2/s^2, mean vx, mean vy) of the 3x3 neighborhood
+uniform sampler2D gridHeat;             // (fusion heating per unit mass T0 per s, mu / mu_H, 0, 0) of the 3x3 neighborhood
+uniform sampler2D gridThermo;           // (T averaged over time px^2/s^2, effective number of particles, mu / mu_H, 0) of the 3x3 neighborhood
 uniform float gridCell;                 // cell size, px
 uniform float fusionTRef;               // T0, px^2/s^2
 uniform float noiseCorrection;          // 1: the fusion rate is divided by the bias that the noise of T causes; 0: it is not (lab)
@@ -43,12 +43,19 @@ vec2 forceAt(vec2 x) {
     return a + drawingAccel(x);
 }
 
+/**
+ * Two temperatures (A1). The dispersion t = <|v - u|^2> is the kinetic energy of the disordered motion (energy per unit
+ * mass t / 2): the heating and the cooling work on it, and anything that bookkeeps energy must. The temperature, as a
+ * thermometer would read it, is T = mu * t with mu = mu_mean / mu_H (1 for hydrogen, 2.65 for helium) and T0 the temperature
+ * of a hydrogen gas of dispersion T0: the fusion rate (tRate), the glow and the stats read that one.
+ */
 struct Gas {
     float rho;      // rho / rho0
-    float t;        // velocity dispersion, px^2/s^2: the heating and the glow use this one
+    float t;        // velocity dispersion, px^2/s^2: the heating uses this one
     vec2 v;         // mean velocity, px/s
     float heat;     // fusion heating per unit mass, T0 per s
-    float tRate;    // the dispersion averaged over time, px^2/s^2: the fusion rate uses this one (GAS_THERMO)
+    float mu;       // mu_mean / mu_H: the temperature is mu * t (the glow reads it)
+    float tRate;    // the temperature mu * t averaged over time, px^2/s^2: the fusion rate uses this one (GAS_THERMO)
     float particles;    // effective number of particles behind the temperature (GAS_THERMO)
 };
 
@@ -56,14 +63,16 @@ struct Gas {
 Gas gasAt(vec2 x) {
     ivec2 c[4]; float w[4];
     gridCorners(x, c, w);
-    Gas g = Gas(0.0, 0.0, vec2(0.0), 0.0, 0.0, 0.0);
+    Gas g = Gas(0.0, 0.0, vec2(0.0), 0.0, 0.0, 0.0, 0.0);
     for (int k = 0; k < 4; k++) {
         vec4 s = texelFetch(gridGas, c[k], 0);
+        vec4 heat = texelFetch(gridHeat, c[k], 0);
         float m = w[k] * s.x;
         g.rho += m;
         g.t += m * s.y;
         g.v += m * s.zw;
-        g.heat += m * texelFetch(gridHeat, c[k], 0).x;
+        g.heat += m * heat.x;
+        g.mu += m * heat.y;
 #if GAS_THERMO
         vec4 thermo = texelFetch(gridThermo, c[k], 0);
         g.tRate += m * thermo.x;
@@ -74,6 +83,7 @@ Gas gasAt(vec2 x) {
         g.t /= g.rho;
         g.v /= g.rho;
         g.heat /= g.rho;
+        g.mu /= g.rho;
         g.tRate /= g.rho;
         g.particles /= g.rho;
     }
@@ -111,8 +121,8 @@ float logNoiseBias(float particles, float alpha) {
 
 /**
  * Expected fusions per second of one particle of type `k`: lambda * rho^n * (T / T_ref)^alpha,
- * capped, with T the temperature averaged over time and the rate divided by the bias that the noise
- * of T causes (logNoiseBias). Computed from logarithms: the powers alone would overflow (T^40).
+ * capped, with T the temperature (the dispersion times mu / mu_H) averaged over time and the rate divided by the bias that
+ * the noise of T causes (logNoiseBias). Computed from logarithms: the powers alone would overflow (T^40).
  * Needs GAS_THERMO. Twin: fusionRate() in reactions.ts.
  */
 float fusionRateOf(int k, Gas g) {

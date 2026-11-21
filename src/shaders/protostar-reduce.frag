@@ -11,7 +11,8 @@
 // stats always did), so ties keep the earliest and the position goes with the density.
 
 #if REDUCE_STAGE == REDUCE_FIRST
-uniform sampler2D gridGas;              // (rho / rho0, T px^2/s^2, mean velocity px/s)
+uniform sampler2D gridGas;              // (rho / rho0, dispersion px^2/s^2, mean velocity px/s)
+uniform sampler2D gridThermo;           // (T averaged, effective particles, mu / mu_H, 0): the temperature is mu / mu_H times the dispersion
 uniform sampler2D gridMoments;          // (m, m v, m |v|^2) in deposit units
 uniform sampler2D gridComposition;      // (m / mu, count, m^2, 0): m^2 in z
 uniform sampler2D gridForce;            // (ax, ay, phi, 0): px/s^2, px^2/s^2
@@ -40,10 +41,10 @@ void main() {
             rate += texelFetch(gridPower, c, 0).y;
             if (gas.x > peakDensity) {
                 peakDensity = gas.x;
-                peakTemperature = gas.y / fusionTRef;
+                peakTemperature = gas.y * texelFetch(gridThermo, c, 0).z / fusionTRef;   // the temperature, not the dispersion
                 peak = center;
             }
-            // Speed bound of a cell: its mean velocity plus the rms dispersion around it.
+            // Speed bound of a cell: its mean velocity plus the rms dispersion around it (the dispersion: a speed, not a temperature).
             if (gas.x > 0.0) maxSpeed = max(maxSpeed, length(gas.zw) + sqrt(gas.y));
             if (s.x > 0.0) maxAcceleration = max(maxAcceleration, length(force.xy));
             mass += s.x;

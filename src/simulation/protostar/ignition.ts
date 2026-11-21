@@ -6,8 +6,10 @@
 //     rate = lambda * rho^n * (T / T_ref)^alpha        (capped at PROTOSTAR_FUSION_RATE_MAX)
 //
 // Keep the three in step: a change of the law in the shader changes fusionRate() and this file.
-// The lab (src/lab) reports the ratio He / H of these temperatures: the real value is about
-// 100 MK / 15 MK = 6.7, the current model gives a much smaller one (see docs/lab-baseline.md).
+// T is the temperature of the gas, the velocity dispersion times mu / mu_H (A1, composition.ts): these are the
+// temperatures a thermometer reads, not dispersions. The dispersion at which a pure gas ignites is that divided by its
+// factor (2.65 for helium): see kineticIgnitionRatio(). The lab (src/lab) reports the ratio He / H of these temperatures:
+// the real value is about 100 MK / 15 MK = 6.7, whereas the rate laws as they are give a much smaller one (see docs/lab-baseline.md).
 
 import { PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_T0_KELVIN } from '../../config';
 import type { ParamValues } from '../algorithm';
@@ -57,3 +59,11 @@ export function ignitionRatio(reactions: readonly FusionReaction[], params: Para
     const [low, high] = [lighter, heavier].map(i => ignitionTemperature(fusionLawOf(reactions[i], params), density, targetRate));
     return Number.isFinite(low) && Number.isFinite(high) && low > 0 ? high / low : NaN;
 }
+
+/**
+ * The ratio of the velocity dispersions at which two pure gases ignite, from the ratio of their ignition temperatures and the
+ * factors mu / mu_H of the two gases (molecularWeightFactors()): a gas of larger molecular weight reads hotter at the same
+ * dispersion, so it ignites at a lower one. 2.65 for helium over hydrogen.
+ */
+export const kineticIgnitionRatio = (temperatureRatio: number, lighterFactor: number, heavierFactor: number): number =>
+    temperatureRatio * lighterFactor / heavierFactor;

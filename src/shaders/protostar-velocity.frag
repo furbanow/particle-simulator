@@ -32,7 +32,9 @@ void main() {
 
     // Radiative cooling: only the disordered part of the motion (around the local mean
     // velocity) is damped; rotation and infall are kept. Dense gas is opaque: it radiates
-    // less and keeps the heat of its compression.
+    // less and keeps the heat of its compression. The cooling and the heating below work on
+    // the kinetic dispersion gas.t, the energy of the disordered motion, not on the temperature
+    // (which has the molecular weight in it): the energy bookkeeping does not depend on what the gas is made of.
     Gas gas = gasAt(pos.xy);
     float cooling = coolingRate / (1.0 + gas.rho / opacityDensity);
     float damping = exp(-cooling * dt);
@@ -63,8 +65,9 @@ void main() {
     if ((next.x < 0.0 && v.x < 0.0) || (next.x > screenSize.x && v.x > 0.0)) v.x = -v.x * restitution;
     if ((next.y < 0.0 && v.y < 0.0) || (next.y > screenSize.y && v.y > 0.0)) v.y = -v.y * restitution;
 
-    // Glow read by the particle layer: hot gas shines, fusing gas flares.
-    float glow = GLOW_TEMPERATURE * smoothstep(GLOW_T_MIN, GLOW_T_MAX, gas.t / fusionTRef)
+    // Glow read by the particle layer: hot gas shines, fusing gas flares. Hot is the temperature
+    // (the dispersion times mu / mu_H: a helium gas shines at a lower dispersion than a hydrogen one).
+    float glow = GLOW_TEMPERATURE * smoothstep(GLOW_T_MIN, GLOW_T_MAX, gas.mu * gas.t / fusionTRef)
                + GLOW_FUSION * smoothstep(0.0, GLOW_HEATING_REF, gas.heat);
     gl_FragColor = vec4(v, 0.0, min(glow, GLOW_MAX));
 }

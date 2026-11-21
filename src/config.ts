@@ -208,6 +208,11 @@ export const CARBON_12_MASS = 12;
 // For a type whose symbol is not an element of the table, Z is taken as A * this ratio (the valley of
 // stability: about as many neutrons as protons in the light nuclei).
 export const PROTONS_PER_NUCLEON = 0.5;
+// The protostar's temperature is the velocity dispersion times the mean molecular weight of the gas (A1), normalised to pure
+// hydrogen: T = (mu / mu_H) <|v - u|^2>, so that T0 (15 MK) still stands for a hydrogen gas of that dispersion. This is
+// 1 / mu_H, (1 + Z) / A of hydrogen 1 (1.984 per u, mu_H = 0.504): the reference does not follow the edited mass of the
+// hydrogen type, which changes its own mu and so its temperature at a given dispersion, as a heavier ion would.
+export const PROTOSTAR_REFERENCE_INVERSE_MU = (1 + 1) / HYDROGEN_1_MASS;
 
 // ---- Drawings: static attractors and repellers (common to every algorithm) ----
 // Two kinds, each drawn as an opacity mask the size of the simulation area: a pixel of opacity 1 holds a unit of
