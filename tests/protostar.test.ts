@@ -13,6 +13,7 @@ import {
     atomicNumber, inverseMeanMolecularWeight, inverseMolecularWeights,
 } from '../src/simulation/protostar/composition';
 import { centerOfMass, driftCorrection } from '../src/simulation/protostar/drift';
+import { noiseBias } from '../src/simulation/protostar/noiseBias';
 import {
     circularSpeed, enclosedMassFractions, fillCloud, softenedPull,
 } from '../src/simulation/protostar/initialConditions';
@@ -209,6 +210,20 @@ describe('fusion reactions', () => {
         const t = heliumLaw.reference;
         expect(fusionRate(heliumLaw, 100, 1.1 * t) / fusionRate(heliumLaw, 100, t)).toBeCloseTo(1.1 ** 40, 3);
         expect(fusionRate(heliumLaw, 100, 0.5 * t)).toBeLessThan(1e-9);
+    });
+
+    it('divides the rate by the bias that the noise of the temperature causes, when the number of particles is given', () => {
+        const t = heliumLaw.reference;
+        const plain = fusionRate(heliumLaw, 100, t);
+        expect(fusionRate(heliumLaw, 100, t, Infinity)).toBe(plain);
+        expect(fusionRate(heliumLaw, 100, t, 400)).toBeCloseTo(plain / noiseBias(400, heliumLaw.exponent), 12);
+        expect(fusionRate(heliumLaw, 100, t, 400)).toBeLessThan(plain / 3);
+        expect(fusionRate(heliumLaw, 100, t, 6400)).toBeGreaterThan(plain / 1.2);
+        // a neighborhood with next to no particles tells nothing of T: its rate is nearly zero, not infinite or NaN
+        expect(fusionRate(heliumLaw, 100, t, 1)).toBeLessThan(1e-20);
+        expect(fusionRate(heliumLaw, 100, t, 1)).toBeGreaterThan(0);
+        // the cap holds
+        expect(fusionRate(heliumLaw, 1e4, 1e30, 400)).toBe(PROTOSTAR_FUSION_RATE_MAX);
     });
 
     it('the rate is capped and finite far above the reference temperature', () => {

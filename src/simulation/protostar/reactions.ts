@@ -6,6 +6,7 @@
 import { PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_T0_KELVIN } from '../../config';
 import { t } from '../../i18n';
 import type { ParamValues, ParticleType, TypeTransition } from '../algorithm';
+import { logNoiseBias } from './noiseBias';
 
 export interface FusionReaction {
     /** Rank of the type that fuses. A type fuses in at most one reaction. */
@@ -115,13 +116,14 @@ export interface FusionLaw {
 }
 
 /**
- * Expected fusions per second of one particle: lambda rho^n (T / T_ref)^alpha, capped. Computed
- * from logarithms, like fusionRateOf in protostar-common.glsl: T^40 overflows a 32-bit float.
+ * Expected fusions per second of one particle: lambda rho^n (T / T_ref)^alpha, capped, divided by the bias that the noise of
+ * T causes when it is estimated from `particles` independent particles (noiseBias.ts; no correction for infinitely many).
+ * Computed from logarithms, like fusionRateOf in protostar-common.glsl: T^40 overflows a 32-bit float.
  */
-export function fusionRate(law: FusionLaw, density: number, temperature: number): number {
+export function fusionRate(law: FusionLaw, density: number, temperature: number, particles = Infinity): number {
     if (law.rate <= 0 || density <= 0 || temperature <= 0) return 0;
     const log = Math.log(law.rate) + law.densityExponent * Math.log(density)
-        + law.exponent * Math.log(temperature / law.reference);
+        + law.exponent * Math.log(temperature / law.reference) - logNoiseBias(particles, law.exponent);
     return Math.min(Math.exp(log), PROTOSTAR_FUSION_RATE_MAX);
 }
 

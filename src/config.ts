@@ -126,6 +126,23 @@ export const PROTOSTAR_HE_IGNITION_KELVIN = 1e8;   // triple alpha
 export const PROTOSTAR_FUSION_RATE_MAX = 100;
 // Specific energy released by a fusion: (mass defect / fused mass) * c^2, with c^2 = FUSION_C2 * T0.
 export const PROTOSTAR_FUSION_C2 = 2000;
+// Fusion heating (A5): a cell whose velocity dispersion is below HEATING_T_FLOOR (in T0) is too cold to be heated by
+// scaling its velocities around the mean (the energy added is proportional to the dispersion): its particles get a kick
+// in a random direction instead, of the same mean energy.
+export const PROTOSTAR_HEATING_T_FLOOR = 1e-3;
+// Noise of the temperature (A3). The temperature of a neighborhood is estimated from a few particles, with a relative
+// noise of 1 / sqrt(N); a rate that grows as T^alpha is then too high on average, by about exp(alpha (alpha - 3) / 2N)
+// for large N (noiseBias.ts). Two remedies: the rate is divided by that bias, with N the effective number of particles
+// of the neighborhood, and the temperature that feeds the rate is averaged over time.
+// NOISE_N_SHAPE: the effective number of particles of the temperature a particle sees over the (sum m)^2 / sum m^2 of
+// its 3 x 3 neighborhood: the cloud-in-cell weights, the sum over 3 x 3 cells and the bilinear interpolation spread the
+// particles' weights, 1.27 for a particle at a cell center and up to 1.65 between four cells; 1.5 is what the lab measures
+// (the bias of a thermal gas at alpha = 40, protostar.temperature-noise).
+// NOISE_N_MIN: the smallest shape of the temperature's Gamma law (below it the temperature carries no information).
+// TEMPERATURE_TAU: time constant (s) of the exponential average of the temperature, well below the cooling time.
+export const PROTOSTAR_NOISE_N_SHAPE = 1.5;
+export const PROTOSTAR_NOISE_N_MIN = 1;
+export const PROTOSTAR_TEMPERATURE_TAU = 0.1;
 export const PROTOSTAR_RESTITUTION = 0.5;          // walls
 export const PROTOSTAR_MAX_SPEED = 2;              // L/s
 export const PROTOSTAR_DRIFT_GAIN = 0.5;           // fraction of the measured drift of the star taken off at each read-back
