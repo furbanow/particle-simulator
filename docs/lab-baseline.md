@@ -436,14 +436,70 @@ GTX 1060, the build before (`11a7a7a`) and after alternated, 6 pairs, medians (t
 
 The blast, homology and infall scenarios (`dust.supernova.blast`, `.infall`) give the numbers of phase P6b to the digit.
 
+## After phase P3b-1: the molecular weight in the temperature
+
+P3b-1 (proposal A1, [the spike](spikes/a1-mean-molecular-weight.md)) **changes the physics** and the defaults of the protostar. The
+temperature the fusion rate, the glow and the stats read is the velocity dispersion times mu / mu_H (1 for hydrogen, 2.65 for
+helium, 3.40 for carbon); the heating, the cooling and the energy keep the dispersion. Pure hydrogen is unchanged. G 13.85 -> 9 and
+lambda_0 1.5e-4 -> 4e-3 are a minimal recalibration so that the default cloud still burns hydrogen at about 15 MK and helium at
+about 100 MK; the fine recalibration is left to the Gamow rates (A2). Same GPU, seeds 20240611 to 20240613, 1200 frames
+(`baseline.protostar.default-cloud-tuning`); "A1 off" is the same build with the factor forced to 1, which reproduces the P3a
+table above to the printed digit for the seed of the baseline.
+
+| 34 s, three seeds | P3a physics (A1 off), old defaults | A1 on, old defaults | **A1 on, new defaults** |
+|---|---|---|---|
+| core T while H burns, median (MK) | 58.3, 52.3, 53.6 | 22.1, 45.4, 30.5 | **14.5, 15.7, 15.8** |
+| highest core T (MK) | 119, 88, 101 | 300, 209, 213 | 247, 269, 170 |
+| core T in the last quarter (MK) | 78.8, 52.1, 54.8 | 259, 171, 172 | 101, 155, 47.5 |
+| hydrogen left of 400 000 | 20 153, 121 539, 99 669 | 3 921, 47 926, 41 089 | 3 257, 60, 430 |
+| helium / carbon at the end | 92 948 / 544, 69 815 / 0, 75 628 / 4 | 486 / 32 567, 3 059 / 28 366, 1 892 / 29 348 | 25 997 / 24 499, 2 510 / 32 664, 26 812 / 24 165 |
+| peak fusions per second | 66 000, 35 000, 36 000 | 107 000, 100 000, 115 000 | 637 000, 615 000, 683 000 |
+
+The seed of the baseline (20240611), new defaults, at the rows of the first table (readings of 10 frames, the nearest to each row):
+
+| t (s) | frame | core T (MK) | peak density (rho0) | fusions / s | H, He, C |
+|---|---|---|---|---|---|
+| 0.28 | 10 | 1.9 | 1.1 | 6 | 400 000, 0, 0 |
+| 1.4 | 50 | 1.9 | 2.6 | 4 | 399 999, 0, 0 |
+| 2.0 | 70 | 5.1 | 8.4 | 160 | 399 996, 2, 0 |
+| 4.25 | 150 | 5.1 | 12.9 | 93 | 281 244, 25 552, 1 431 |
+| 8.2 | 290 | 15.7 | 31.7 | 11 280 | 261 181, 30 546, 1 431 |
+| 11.6 | 410 | 16.1 | 29.9 | 20 411 | 219 315, 40 854, 1 431 |
+| 14.5 | 510 | 95.4 | 41.6 | 167 970 | 171 400, 52 915, 1 431 |
+| 20.4 | 720 | 31.5 | 33.7 | 9 948 | 52 810, 82 598, 1 441 |
+| 25.5 | 900 | 51.9 | 47.1 | 2 075 | 8 358, 92 832, 1 720 |
+| 34 | 1200 | 138.9 | 99.8 | 824 | 3 257, 25 997, 24 499 |
+
+What changed against P3a, honestly:
+
+- **Hydrogen burns at 15 MK, not 55**: the first collapse is colder (5 MK at 2 s against 24), hydrogen burns on a plateau of 15 to 16 MK
+  (8 to 12 s) and the cloud has burnt 99 % of its hydrogen at 34 s (against 70 to 95 %).
+- **The star is no longer a stable burner to the end**: its hydrogen is gone in 20 s and the helium core contracts and ignites in a
+  flash (the fusion rate of the whole cloud peaks at 600 000 to 700 000 per second, against 35 000 to 66 000), converting most of its
+  helium to carbon (33 000 carbons would be all of it: 32 700 at 34 s in one seed, 24 200 and 24 500 in the two others). The helium burns at 59 to
+  114 MK (weighted median over the carbon made) and its flash peaks at 170 to 270 MK, carbon ash included (it reads 3.4 times its
+  dispersion and does not burn here). With the carbon formed the cloud ends at 140 to 160 MK, a reading and not a runaway.
+- **The burn history is as chaotic as before**: one seed of three keeps 26 000 helium at 34 s, the three go to carbon within 56 s.
+- The default recalibration is not a calibration: see the spike for what was and was not touched.
+- **Cost**, `perf.protostar.400k` simulation at 400 000 particles, the build before (`9109727`) and this one alternated, 6 pairs: 8.51 ms
+  (8.32 to 9.46) against **7.21 ms** (7.00 to 7.73) with each build's own defaults (the new cloud is colder and less crushed in the
+  probe's window), whole frame 9.33 against 7.34 ms; on the same physics (the new build set to the old defaults and the factor off,
+  18 pairs, the GPU at low clocks that day: 25 ms) the paired difference is **-0.25 ms** (-8.9 to +7.0), not measurable.
+
+Acceptance checks of the phase (numbers and method in the spike): at equal dispersion the helium gas reads 2.6477 times the hydrogen gas
+(error 3e-8), a mixture's factor is that of a CPU deposit of its particles to 1e-6; the mean fusion rate of pure gases of
+20 rho0 equals the law's twin to 0.26 % and the ignition ratio He/H at 0.5 per second is 4.3 on them, 5.57 at the lab's reference
+point (0.5 per second, 60 rho0) with the new defaults against 1.72 with the old ones. A1 alone (laws unchanged) leaves the
+ratio of temperatures where it was and lowers the ratio of dispersions 2.65 times.
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a and is a
   documented known failure (K + U +39.5 % over 100 orbits, against a target of 1 %): it turns to `pass`
   when phase P5 (adaptive time step) brings the secular drift down. The omega.dt column above is its
   precursor. Re-record its table, with the commit, whenever the integration or the gravity change.
-- The ignition ratio is the number to move in P3b; the reference point (0.5 per second, 60 rho0)
-  is a lab convention, to be revisited with the new rate laws, and the table above is the
-  evidence that it matters.
+- The ignition ratio is 5.57 at the reference point (0.5 per second, 60 rho0) since P3b-1 (1.72 before); the target of 6.7 and
+  the steepnesses are for the Gamow rates (P3b-2). The reference point is a lab convention, to be revisited with the new rate
+  laws, and the table at the top of this section is the evidence that it matters.
 - Re-record this baseline, with the commit it comes from, whenever a phase recalibrates G,
   lambda, alpha or the feedback (the plan's recalibration steps).

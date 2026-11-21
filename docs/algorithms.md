@@ -139,7 +139,8 @@ A hydrogen cloud contracts under its own gravity while it cools, and hydrogen fu
 Lengths are expressed relative to L, the short side of the simulation area, fixed at restart: the behavior does not depend on the screen size. The total mass of the cloud is `TOTAL_MASS`; times are in seconds.
 
 - **ρ₀**: the initial mean density of the cloud. Densities (statistic, fusion law, opacity) are in ρ₀.
-- **T₀** = `PROTOSTAR_FUSION_T_REF` · (L/s)²: the temperature unit, which stands for **15 MK** (`PROTOSTAR_T0_KELVIN`, the core of the Sun). Displayed temperatures are in MK.
+- **T₀** = `PROTOSTAR_FUSION_T_REF` · (L/s)²: the temperature unit, which stands for **15 MK** (`PROTOSTAR_T0_KELVIN`, the core of the Sun): the temperature of a **hydrogen** gas whose velocity dispersion is T₀. Displayed temperatures are in MK.
+- **Two temperatures**. The *dispersion* t = ⟨|v − v̄|²⟩ of a neighborhood is what the motion holds: the energy per unit mass of the disordered motion is t / 2, and the heating and the cooling work on it. The *temperature* T = (μ / μ_H) · t, with μ the mean molecular weight of the neighborhood's gas and μ_H that of pure hydrogen, is what a thermometer reads at that dispersion (proposal A1): at the same dispersion a helium gas (μ = 1.334, fully ionised, one nucleus and two electrons for 4.0026 u) is μ_He / μ_H = 2.65 times hotter than a hydrogen one (μ = 0.504), a carbon one 3.40 times, and a mixture is in between. Pure hydrogen has T = t, so T₀ keeps meaning what it did. The fusion rate, the glow and the core temperature of the statistics read T; the heating, the cooling and the energy bookkeeping read t.
 - **G** (slider): G_eff = G · `PROTOSTAR_GRAVITY_UNIT` · L³ / `TOTAL_MASS`.
 - **ε** (slider): in % of L.
 
@@ -147,14 +148,14 @@ Lengths are expressed relative to L, the short side of the simulation area, fixe
 
 Grid of `PROTOSTAR_GRID_RES`² = 128² square cells over max(width, height) (`grids.ts`):
 
-1. **Moments**: *cloud-in-cell* deposit of each living particle, (m, m·v, m·|v|²). 32-bit float targets if `EXT_float_blend` is available, 16-bit otherwise (masses as mean particle mass, velocities in L/s, to stay within range). The same pass writes a second attachment, the *composition*, (m·(1+Z)/A, 1, m²): the mass over the mean molecular weight of a fully ionised element, the particle count and the sum of squared masses, with the same weights. The gas pass reads its m² (the effective number of particles behind the temperature, see [The noise of the temperature](#the-noise-of-the-temperature)); the rest is for the mean molecular weight (proposal A1, see [the spike](spikes/a1-second-deposit.md)).
-2. **Gas**: for each cell, sums over its 3 × 3 neighbors → density ρ = mass / area, mean velocity v̄ = Σm·v / Σm, temperature T = Σm·|v|² / Σm − |v̄|². This is the **velocity dispersion around the local mean flow**, not the absolute velocity: overall rotation and coherent infall do not count as heat (at the scale of the neighborhood, about 3 cells). A second attachment holds what the fusion rate needs: the temperature averaged over time and the effective number of particles N behind it. The pass draws into one of two targets in turn, the other one holding the average of the previous substep; the shared references (`gridGas`, `gridThermo`) follow.
+1. **Moments**: *cloud-in-cell* deposit of each living particle, (m, m·v, m·|v|²). 32-bit float targets if `EXT_float_blend` is available, 16-bit otherwise (masses as mean particle mass, velocities in L/s, to stay within range). The same pass writes a second attachment, the *composition*, (m·(1+Z)/A, 1, m²): the mass over the mean molecular weight of a fully ionised element, the particle count and the sum of squared masses, with the same weights. The gas pass reads its first channel (the mean molecular weight of the neighborhood, so the temperature: proposal A1, see [the spike](spikes/a1-mean-molecular-weight.md)) and its m² (the effective number of particles behind the temperature, see [The noise of the temperature](#the-noise-of-the-temperature)). The deposit itself is described in [its spike](spikes/a1-second-deposit.md).
+2. **Gas**: for each cell, sums over its 3 × 3 neighbors → density ρ = mass / area, mean velocity v̄ = Σm·v / Σm, dispersion t = Σm·|v|² / Σm − |v̄|². This is the **velocity dispersion around the local mean flow**, not the absolute velocity: overall rotation and coherent infall do not count as heat (at the scale of the neighborhood, about 3 cells). The mean 1/μ of the neighborhood is the ratio of two sums of the deposits, Σ m·(1+Z)/A over Σ m (the mass-weighted mean of (1+Z)/A, that is Σ_k X_k (1+Z_k)/A_k), and the factor μ / μ_H = (1/μ_H) / (1/μ) multiplies t into the temperature T; a neighborhood with mass but no composition (types of mass 0) has a factor of 1. A second attachment holds what the fusion rate needs: the temperature T averaged over time, the effective number of particles N behind it and the factor μ / μ_H. The pass draws into one of two targets in turn, the other one holding the average of the previous substep; the shared references (`gridGas`, `gridThermo`) follow.
 3. **Power**: each particle that can fuse deposits its *expected* fusion power (rate × energy per unit mass × mass) and its rate.
-4. **Heating**: power of the 3 × 3 neighbors / their mass → heating per unit mass q.
+4. **Heating**: power of the 3 × 3 neighbors / their mass → heating per unit mass q; its second channel carries the factor μ / μ_H to the velocity pass (which already samples this grid; it has no sampler to spare).
 5. **Gravity**, at two levels (see below): coarse grid (mass and center of mass of 4 × 4 cell blocks), then acceleration at the center of each cell, and in the same loops the Plummer potential (third channel, see [Energy diagnostics](#energy-diagnostics)).
-6. **GPGPU pass** (`GpuPipeline`), three state textures: velocity (`protostar-velocity.frag`), position (`protostar-position.frag`) and the variable `textureAccel` (`protostar-accel.frag`). Particles read gravity by bilinear interpolation (consistent with the *cloud-in-cell* deposit: no self-force), and density, temperature, v̄ and q by mass-weighted interpolation (as well as, for the fusion rate, the averaged temperature and N).
+6. **GPGPU pass** (`GpuPipeline`), three state textures: velocity (`protostar-velocity.frag`), position (`protostar-position.frag`) and the variable `textureAccel` (`protostar-accel.frag`). Particles read gravity by bilinear interpolation (consistent with the *cloud-in-cell* deposit: no self-force), and density, dispersion, v̄, q and μ / μ_H by mass-weighted interpolation (as well as, for the fusion rate, the averaged temperature and N).
 
-Every `PROTOSTAR_STATS_INTERVAL` frames, a two-stage reduction (128² → 16² → 4 × 1 texels, `protostar-reduce.frag`) gives the maximum density, the temperature of the densest cell (the core) and the total expected number of fusions per second, together with the diagnostics of the next section; the four texels are read back in one `readRenderTargetPixelsAsync`. Particle counts per type come from the common position readback (`countTypes`).
+Every `PROTOSTAR_STATS_INTERVAL` frames, a two-stage reduction (128² → 16² → 4 × 1 texels, `protostar-reduce.frag`) gives the maximum density, the temperature T of the densest cell (the core: the dispersion times its μ / μ_H) and the total expected number of fusions per second, together with the diagnostics of the next section; the four texels are read back in one `readRenderTargetPixelsAsync`. Particle counts per type come from the common position readback (`countTypes`).
 
 ### Softened gravity, retained approximation
 
@@ -211,7 +212,7 @@ One two-stage reduction (128² cells → 16² blocks of 8 × 8 → 4 × 1 texels
 
 Texel 0 keeps the layout the statistics always read (ρ, T, rate first; the constant 1 in w became the mass). The densest cell is the first one, in reading order, with a strictly greater density; the position goes with the density. What the numbers are:
 
-- **Speed bound**: the maximum, over the cells that hold gas, of |mean velocity| + √T, the mean velocity and T (dispersion) being those of the cell's 3 × 3 neighborhood. It follows bulk flow and thermal spread and misses the far tail of a distribution; in the lab (100 000 particles, core formed) it is 1.12 times the fastest particle, with no particle above it. A proxy for the time-step criterion, not a bound in the strict sense.
+- **Speed bound**: the maximum, over the cells that hold gas, of |mean velocity| + √t, the mean velocity and t (the dispersion, a speed, not the temperature) being those of the cell's 3 × 3 neighborhood. It follows bulk flow and thermal spread and misses the far tail of a distribution; in the lab (100 000 particles, core formed) it is 1.12 times the fastest particle, with no particle above it. A proxy for the time-step criterion, not a bound in the strict sense.
 - **Acceleration bound**: the maximum of |a| of the gravity grid over the cells that hold mass (the force on a particle is the bilinear interpolation of four cells, so it never exceeds it); the drawings' force is not in it.
 - **Center of mass and momentum**: first moments of the cloud-in-cell deposit. The weights reproduce a particle's position exactly, so these are the particles' own sums (to 4·10⁻⁵ px and 10⁻⁸ in the lab), not a grid approximation, except for the footprints clipped at the edge.
 
@@ -255,14 +256,14 @@ r = min(λ · ρⁿ · (T / T_ref)^α, `PROTOSTAR_FUSION_RATE_MAX`), ρ in ρ₀
 
 These n and α are the real values around T_ref: the energy production goes as ρX²T⁴ and ρ²Y³T⁴⁰, so per fusing particle as ρXT⁴ and ρ²Y²T⁴⁰. The composition terms X and Y are left out: the law uses the total density.
 
-With α = 40, 10 % hotter is about 45 times faster: ignition is almost a threshold, and changing λ moves the ignition temperature very little. The rate is computed from logarithms, as the powers alone would overflow a 32-bit float, and capped above 1 / Δt. The T it uses is the temperature averaged over time, and the rate is divided by the bias that the noise of T puts on a power of T: see below. The draw is made in the position pass (PCG generator per particle and per substep), which rewrites the type.
+With α = 40, 10 % hotter is about 45 times faster: ignition is almost a threshold, and changing λ moves the ignition temperature very little. The rate is computed from logarithms, as the powers alone would overflow a 32-bit float, and capped above 1 / Δt. The T it uses is the temperature of the gas (the dispersion times μ / μ_H, see [Units](#units)) averaged over time, and the rate is divided by the bias that the noise of T puts on a power of T: see below. The laws' T_ref are therefore temperatures a thermometer would read: a hydrogen gas fuses at 15 MK whatever its dispersion is made of, and a helium gas at 100 MK, 2.65 times less dispersed (38 MK worth of dispersion) than the same temperature in hydrogen. The draw is made in the position pass (PCG generator per particle and per substep), which rewrites the type.
 
 ### The noise of the temperature
 
 Proposal A3. The temperature of a neighborhood is estimated from N particles, with a relative noise of 1 / √N, and a rate that goes as T^α is convex in T: its mean over that noise is larger than the rate at the true temperature, by a factor that grows quickly with α. For Maxwellian particles, each |v − u|² is exponential, T follows a Gamma law and the factor is Γ(N + α) / (Γ(N)·N^α) ≈ exp(α(α − 1) / 2N): 6.6 for N = 400 and α = 40, and for the real exponents (about 4 at 15 MK for the proton-proton chain, 40 at 100 MK for the triple alpha) the noise is no longer something the sliders' small exponents hide. Two remedies, both on:
 
 - **Bias correction** (`noiseBias.ts`, twin of `logNoiseBias` in `protostar-common.glsl`). The rate is divided by the bias, computed in logarithms from Stirling's series (the terms in ln N cancel, see the file). The temperature is a dispersion around the mean of the same particles, which costs one degree of freedom (T is low by 1 / N on average): the estimate is a Gamma law of shape N − 1, and the code uses that (a factor (1 − 1/N)^α on the rate). N is the effective number of particles of the neighborhood, the effective sample size of a mass-weighted mean, (Σm)² / Σm², from the m² channel of the composition deposit (`protostar-gas.frag`), times `PROTOSTAR_NOISE_N_SHAPE` = 1.5: the cloud-in-cell weights, the sum over 3 × 3 cells and the bilinear interpolation at the particle spread the weights of the particles, which makes the estimate less noisy than N independent particles (the shape factor was measured in the lab). Where a type with a larger mass dominates (hydrogen with a little helium), (Σm)² / Σm² is the number of particles that carry the noise, not their count. The exponent is the one of the reaction's law (`alpha` in `fusionRateOf`; with the Gamow rates of proposal A2 it will be the local exponent). A cell with two particles or fewer carries no information: its bias is the huge one of N = 2 and its rate nearly zero.
-- **Averaging over time** (`PROTOSTAR_TEMPERATURE_TAU`, 0.1 s). The temperature that feeds the rate is averaged cell by cell, exponentially, with a weight 1 − e^(−Δt/τ) per step (in seconds, never per step: the substeps are ⌈speed⌉ per frame and their duration varies). A cell that held no gas at the previous step starts afresh, and so does a restart. The heating, the cooling and the glow use the instantaneous temperature: the heating adds exactly the energy it announces only if it scales the dispersion that is there. The average removes noise only as fast as a neighborhood renews its particles (a few tenths of a second at 4 MK, a tenth at 50 MK): the lab measures a gain of 1.3 in variance at τ = 0.1 s for a gas at 4 MK. The bias correction does not credit it (the rate is then a little low where the average works): conservative, and the delay it adds to the thermostat is τ, well below the cooling time.
+- **Averaging over time** (`PROTOSTAR_TEMPERATURE_TAU`, 0.1 s). The temperature that feeds the rate is averaged cell by cell, exponentially, with a weight 1 − e^(−Δt/τ) per step (in seconds, never per step: the substeps are ⌈speed⌉ per frame and their duration varies). A cell that held no gas at the previous step starts afresh, and so does a restart. The heating and the cooling use the instantaneous dispersion, and the glow the instantaneous temperature: the heating adds exactly the energy it announces only if it scales the dispersion that is there. The average removes noise only as fast as a neighborhood renews its particles (a few tenths of a second at 4 MK, a tenth at 50 MK): the lab measures a gain of 1.3 in variance at τ = 0.1 s for a gas at 4 MK. The bias correction does not credit it (the rate is then a little low where the average works): conservative, and the delay it adds to the thermostat is τ, well below the cooling time.
 
 Validation: [spike A5 and A3](spikes/a5-a3-heating-and-t-noise.md).
 
@@ -294,25 +295,29 @@ The color comes from the type (editor). The model declares `glow: 'state'`: each
 
 | Parameter | Key | Default | Applied |
 |---|---|---|---|
-| Number of particles | `count` | 30,000 | restart |
-| Initial rotation (× v_circ) | `rotation` | 0.2 | restart |
-| Initial agitation (× v_circ(R)) | `agitation` | 0.7 | restart |
-| Gravity constant G | `gravity` | 12 | live |
-| Softening ε (% of L) | `softening` | 1% | live |
-| Cooling k (/s) | `cooling` | 0.1 | live |
-| Opacity density ρ_opq (ρ₀, log) | `opacity` | 15 | live |
-| H → He rate λ₀ (/s, log) | `fusionRate` | 1.5e-4 | live |
-| H → He temperature exponent α | `fusionExponent` | 4 | live |
-| He → C rate λ (/s, log) | `heFusionRate` | 3e-6 | live |
-| He → C temperature exponent α | `heFusionExponent` | 40 | live |
-| Feedback (log) | `feedback` | 1 | live |
+| Number of particles | `count` | 400,000 | restart |
+| Initial rotation (× v_circ) | `rotation` | 0.44 | restart |
+| Initial agitation (× v_circ(R)) | `agitation` | 0.26 | restart |
+| Gravity constant G | `gravity` | 9 | live |
+| Softening ε (% of L) | `softening` | 1.6% | live |
+| Cooling k (/s) | `cooling` | 0.51 | live |
+| Opacity density ρ_opq (ρ₀, log) | `opacity` | 5.32 | live |
+| H → He rate λ₀ (/s, log) | `fusionRate` | 4e-3 | live |
+| H → He temperature exponent α | `fusionExponent` | 2.8 | live |
+| He → C rate λ (/s, log) | `heFusionRate` | 3.75e-5 | live |
+| He → C temperature exponent α | `heFusionExponent` | 16 | live |
+| Feedback (log) | `feedback` | 0.146 | live |
 | Energy diagnostics | `diagnostics` | on | live (Features tab) |
 
 Types: hydrogen (1.00783 u, cool blue-white, the entire initial population), helium (4.0026 u, yellow) and carbon (12 u, grey), none at the start; a share can be given to them. Statistics: particles per type, core temperature (densest cell, in MK), maximum density (in ρ₀), fusions per second, of both reactions together (expected, smoothed), and, with the diagnostics on, the energy drift and the virial ratio.
 
-### Calibration (headless Chrome, GTX 1060, 1180 × 726 px area, 30,000 particles)
+### Calibration for the molecular weight (headless Chrome, GTX 1060, 1024 × 768 px area, 400,000 particles)
 
-With default values. Times are simulated; they do not depend on the speed slider.
+With the temperature of proposal A1 (the dispersion times μ / μ_H), G = 9 and λ₀ = 4e-3 are a *minimal* recalibration of the defaults: the core of a hydrogen star settles at about 1.6 MK per unit of G, and λ₀ only has to let hydrogen burn there. The default cloud then burns hydrogen at a core temperature of 14.5 to 15.8 MK for about 15 s, uses it all up within 34 s, and its helium core ignites in a flash at 60 to 120 MK (the carbon it leaves reads 3.4 times its dispersion: 140 to 160 MK at the end); the figures, three seeds, with the old defaults and with the factor off for comparison, are in [the spike](spikes/a1-mean-molecular-weight.md) and [lab-baseline.md](lab-baseline.md). The fine recalibration (G, λ, α, feedback, glow ranges) belongs to the Gamow rates of proposal A2.
+
+### Calibration before the grids (headless Chrome, GTX 1060, 1180 × 726 px area, 30,000 particles)
+
+Historical: the calibration of the earlier model (other defaults, temperature as a dispersion alone), kept for what it says of the roles of the parameters. Times are simulated; they do not depend on the speed slider.
 
 | t | H | He | C | T core | ρ max | Fusions / s | What we see |
 |---|---|---|---|---|---|---|---|
@@ -356,7 +361,7 @@ Effect of settings, from the runs that led to these defaults. Unless stated othe
 - Feedback is isotropic (heat), without explicit radial push: pressure comes from agitation.
 - There is no thermal pressure of a fluid: without agitation, nothing resists compression.
 - The correction of the noise of T assumes independent particles with Maxwellian velocities, hence a Gamma law for T, with an effective number of particles calibrated on a uniform gas ([the lab measures it](spikes/a5-a3-heating-and-t-noise.md)); it knows nothing of correlations between neighborhoods or of collective motion. The average of T over time adds a delay of τ = 0.1 s to the thermostat and is not credited in the correction.
-- **Hydrogen burns at about 50 MK, not 15 MK.** The law keeps its real reference, but the star cannot settle at 15 MK. To reach 100 MK at the end of the contraction, gravity must be so strong that the cloud itself is already at about 20 MK at the start. Real hydrogen burning spans about 4 to 40 MK depending on the mass of the star, so this is above the range of the most massive stars. The ratio of the two temperatures, 2 to 2.5 instead of 6.7, is the main approximation: a finer grid would be needed to widen it. As a consequence, there is no longer a cold collapse phase: fusion starts within seconds.
+- **The ratio of the two ignition temperatures is still short of 6.7.** Hydrogen used to burn at about 55 MK in the model and helium at 105 to 117, a ratio of 2 to 2.5, because the temperature was a dispersion without a molecular weight and the star could not be hot enough for helium and cool enough for hydrogen. With the molecular weight in the temperature (a helium core reads 2.65 times a hydrogen one at the same dispersion) and the minimal recalibration of G and λ₀, the default cloud burns hydrogen at about 15 MK and helium at 60 to 120 MK as a thermometer would read them, and the laws' ratio at the lab's reference point (0.5 fusions per second per particle, 60 ρ₀) is 5.6 (1.7 before); it depends on the point (4.3 to 13.7 on the gases of the lab at 20 ρ₀), because the two laws differ in steepness (α = 2.8 and 16, against about 4 and 40) and in density exponent. The real exponents come with the Gamow rates (proposal A2).
 - The proton-proton law is kept at all temperatures; at 50 MK, a real star would burn hydrogen through the CNO cycle (around T¹⁷).
 - The fusion laws use the total density, without the local fractions of hydrogen or helium. The sensitivity of triple alpha is kept at α = 40 at all temperatures, while it really falls with temperature (about 19 at 200 MK).
 - Only ¹²C is formed: no C + He → O, no electron degeneracy, hence no helium flash.

@@ -246,6 +246,7 @@ export const ignitionRatioBaseline: Scenario = {
         const kelvins = ignitionKelvins(temperatures);
         const ratio = ratioAt(IGNITION_REFERENCE_RATE, IGNITION_REFERENCE_DENSITY);
         const factors = molecularWeightFactors(PROTOSTAR_TYPES, 'mass', MAX_SPECIES);
+        const kineticRatio = kineticIgnitionRatio(ratio, factors[HYDROGEN], factors[HELIUM]);
         const law = (i: number): JsonValue => {
             const l = fusionLawOf(PROTOSTAR_REACTIONS[i], params);
             return { lambda: l.rate, alpha: l.exponent, densityExponent: l.densityExponent, referenceMK: significant(l.reference * PROTOSTAR_T0_KELVIN / MEGA, SIGNIFICANT_DIGITS) };
@@ -260,13 +261,13 @@ export const ignitionRatioBaseline: Scenario = {
                 hydrogenIgnitionMK: significant(kelvins[h] / MEGA, SIGNIFICANT_DIGITS),
                 heliumIgnitionMK: significant(kelvins[he] / MEGA, SIGNIFICANT_DIGITS),
                 ratioHeOverH: significant(ratio, 4),
-                kineticRatioHeOverH: significant(kineticIgnitionRatio(ratio, factors[HYDROGEN], factors[HELIUM]), 4),
+                kineticRatioHeOverH: significant(kineticRatio, 4),
                 realRatio: significant(REAL_IGNITION_RATIO, 3),
                 meetsRealRatio: ratio >= REAL_IGNITION_RATIO,
                 laws: { hydrogen: law(h), helium: law(he) },
                 sensitivity,
             },
-            details: `He/H = ${ratio.toFixed(2)} at ${IGNITION_REFERENCE_RATE}/s and ${IGNITION_REFERENCE_DENSITY} rho0 (real physics: ${REAL_IGNITION_RATIO.toFixed(1)}); baseline only, the target is for P3b`,
+            details: `He/H = ${ratio.toFixed(2)} at ${IGNITION_REFERENCE_RATE}/s and ${IGNITION_REFERENCE_DENSITY} rho0 (real physics: ${REAL_IGNITION_RATIO.toFixed(1)}); the ratio of the rate laws as they are (in velocity dispersion: ${kineticRatio.toFixed(2)}), whatever the gas is made of`,
         };
     },
 };
