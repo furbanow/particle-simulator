@@ -44,7 +44,7 @@ describe('ignition temperature', () => {
         const law = fusionLawOf(PROTOSTAR_REACTIONS[H], params);
         const expected = (0.1 / (law.rate * 100)) ** (1 / law.exponent);
         expect(ignitionTemperature(law, 100, 0.1)).toBeCloseTo(expected, 12);
-        expect(expected).toBeCloseTo(1.969, 3);
+        expect(expected).toBeCloseTo(0.6095, 3);
     });
 
     it('rises when the density falls and falls when the law is steeper', () => {
@@ -70,12 +70,16 @@ describe('ignition temperature', () => {
         expect(ignitionKelvins(t0)[H]).toBeCloseTo(t0[H] * PROTOSTAR_T0_KELVIN, 3);
     });
 
-    it('the current model ignites helium at only about 3 times the hydrogen temperature, not 6.7', () => {
-        const ratio = ignitionRatio(PROTOSTAR_REACTIONS, params, 100, 0.1, H, HE);
-        const [hydrogen, helium] = ignitionTemperatures(PROTOSTAR_REACTIONS, params, 100, 0.1);
+    it('the defaults ignite helium at 5.6 times the hydrogen temperature at the lab\'s reference point, not yet 6.7', () => {
+        // 0.5 fusions per second per particle at 60 rho0: about what the core of the default cloud has once it burns. The ratio
+        // depends on the point (the laws have different steepnesses and density exponents); the temperatures are those of the gas.
+        const ratio = ignitionRatio(PROTOSTAR_REACTIONS, params, 60, 0.5, H, HE);
+        const [hydrogen, helium] = ignitionTemperatures(PROTOSTAR_REACTIONS, params, 60, 0.5);
         expect(ratio).toBeCloseTo(helium / hydrogen, 12);
-        expect(ratio).toBeCloseTo(3.12, 2);
+        expect(ratio).toBeCloseTo(5.57, 2);
         expect(ratio).toBeLessThan(100e6 / 15e6);
+        expect(hydrogen * PROTOSTAR_T0_KELVIN / 1e6).toBeCloseTo(19.5, 1);
+        expect(helium * PROTOSTAR_T0_KELVIN / 1e6).toBeCloseTo(108.5, 1);
     });
 
     it('the ratio is NaN when a temperature is not finite', () => {

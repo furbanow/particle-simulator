@@ -183,14 +183,18 @@ export const PROTOSTAR_GLOW_HEATING_REF = 0.3;
 export const PROTOSTAR_GLOW_FUSION = 1.3;
 export const PROTOSTAR_GLOW_MAX = 2;
 // Panel parameters (slider min, max, step, default).
+// G and lambda_0 were recalibrated for the mean molecular weight in the temperature (A1: docs/spikes/a1-mean-molecular-weight.md):
+// the default cloud burns hydrogen at about 15 MK (T0) and helium at about 100 MK, as read by a thermometer. G 13.85 -> 9 (the core
+// of a hydrogen star settles at about 1.6 MK per unit of G), lambda_0 1.5e-4 -> 4e-3 (so that hydrogen burns at 15 MK and not at 55).
+// A minimal change: the fine recalibration (G, lambda, alpha, feedback, glow ranges) belongs to the Gamow rates of A2.
 export const PROTOSTAR_COUNT_SLIDER: SliderSpec = { min: 1000, max: 2000000, step: 1000, default: 400000 };
 export const PROTOSTAR_ROTATION_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.01, default: 0.44 };       // x v_circ
 export const PROTOSTAR_AGITATION_SLIDER: SliderSpec = { min: 0, max: 1.5, step: 0.01, default: 0.26 };    // x v_circ(R)
-export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 20, step: 0.05, default: 13.85 };
+export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 20, step: 0.05, default: 9 };
 export const PROTOSTAR_SOFTENING_SLIDER: SliderSpec = { min: 0.2, max: 5, step: 0.1, default: 1.6 };       // % of L
 export const PROTOSTAR_COOLING_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.51 };        // 1/s
 export const PROTOSTAR_OPACITY_SLIDER: SliderSpec = { min: 1, max: 1000, step: 0, default: 5.32 };         // rho0, log
-export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 1.5e-4 };     // 1/s, log
+export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 4e-3 };       // 1/s, log
 export const PROTOSTAR_ALPHA_SLIDER: SliderSpec = { min: 1, max: 6, step: 0.1, default: 2.8 };            // real value: about 4 at 15 MK
 export const PROTOSTAR_HE_LAMBDA_SLIDER: SliderSpec = { min: 1e-10, max: 1e-2, step: 0, default: 3.75e-5 };  // 1/s at 100 MK and rho0, log
 export const PROTOSTAR_HE_ALPHA_SLIDER: SliderSpec = { min: 1, max: 45, step: 0.5, default: 16 };        // real value: about 40 at 100 MK
