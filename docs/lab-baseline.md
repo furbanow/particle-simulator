@@ -208,10 +208,139 @@ than the one that recorded the performance table above, so compare these with ea
 The protostar in the same hour, 4 runs: 6.85 (simulation) and 7.34 (whole frame) at 400 000 particles,
 13.31 and 16.40 at 1 000 000.
 
+## After phase P1a: the energy of the protostar
+
+P1a (proposal A7 and the multichannel reduction, [algorithms.md](algorithms.md#energy-diagnostics))
+made the energy of the cloud measurable. It changed no physics: `baseline.protostar.default-cloud` and
+`lab.selftest` were run on the branch of P1a and on the code it comes from (`f722262`, the same GPU, two
+development servers): the two results are identical on all 426 values, the 120 readings of the four
+series, the peaks, the final composition and the self-test's checks included.
+
+| | |
+|---|---|
+| Date | 2026-11-21 |
+| Code | branch `feat/energy-diagnostics` on `f722262` |
+| Renderer string | `ANGLE (NVIDIA Corporation, NVIDIA GeForce GTX 1060 6GB/PCIe/SSE2, OpenGL 4.5.0)` |
+| Browser | HeadlessChrome, ANGLE OpenGL backend, `EXT_float_blend` available |
+| Area, seed | 1024 x 768 px, seed 20240611; speed 1.7 (two substeps of 14.17 ms per frame) |
+
+Energies are in simulation units (mass x px^2/s^2); a specific energy is divided by `TOTAL_MASS` = 20 000.
+
+### The diagnostics against CPU references
+
+`protostar.energy-reference`, a cloud of 5 000 particles after 6 frames (smooth) and after 110 frames
+(core formed, 4 690 live particles), the positions and velocities read back and summed on the CPU in
+double precision:
+
+| | 6 frames | 110 frames | Tolerance |
+|---|---|---|---|
+| K, reduction against the direct sum | 1.4e-7 | 1.7e-7 | 1e-5 (float32 accumulation) |
+| U, reduction against the CPU twin of the grid scheme (same deposit, same two-level sums) | 3.0e-8 | 2.1e-7 | 1e-4 |
+| U, reduction against the direct O(N^2) Plummer sum | 0.15 % | 0.33 % | 1 % |
+| the same without removing the particles' self-interaction | 0.14 % | 0.10 % | |
+| Self-interaction, share of U | 0.29 % | 0.23 % | |
+| Grid gravity (ax, ay, potential) against the twin, relative to its maximum | 9e-7, 1.0e-6, 1.8e-6 | 8.7e-7, 6.3e-7, 1.0e-6 | 1e-4 |
+| Virial ratio 2K / \|U\| | 0.31 | 0.70 | |
+
+The tolerance of U against the direct sum is the grid's own approximation of the force law (see
+`src/lab/config.ts`: up to 3.5 % for the pairs closer than the softening, which carry a small part of
+the energy, below 1 % for the far pairs); the measured error is a third of the tolerance. Removing the
+self-interaction is exact for the diagonal, but the grid's other approximations (the smoothing of the
+kernel by the cloud-in-cell spread, which weakens close pairs) are of the same size and of the opposite
+sign at this number of particles, so the corrected figure is not better than the uncorrected one here; at
+400 000 particles the self-interaction is 6e-5 of U and the question disappears. The potential of the
+previous substep, which the model keeps to pair with the velocities, comes back exactly (8.5e-10).
+
+`protostar.reduction-channels`, 100 000 particles after 110 frames (core formed, 392 deposit units in
+the busiest cell): every channel against the CPU sum of the grids read back, 1.4e-7 at worst (tolerance
+1e-5); mass, kinetic energy, center of mass and momentum against sums over the particles themselves, 3.7e-8,
+8.8e-8, 4.4e-5 px and 8e-9 to 4e-8 of the momentum scale. The speed bound
+(max of |mean velocity| + sqrt(T) over the cells) is 1.12 times the speed of the fastest particle, with no
+particle above it.
+
+### The energy of a conservative run
+
+`baseline.protostar.energy-drift`: 100 000 particles, cooling, feedback and both fusion rates set to 0
+below the sliders' minima, walls elastic, 100 orbits; an orbit is the period of a circular orbit at the
+initial half-mass radius, 10.54 s (372 frames, 37 216 frames for 100 orbits). The energy is read every
+10 frames. Initial state of the default cloud: K = 5.66e7, U = -3.48e8, E = -2.91e8 (specific:
+2 829, -17 380 and -14 552 px^2/s^2), **virial ratio 0.33** (the cloud falls in). The cold cloud on
+circular orbits starts at K = 1.42e8, virial ratio 0.82.
+
+| Drift of K + U (%) after | 1 orbit | 3 | 10 | 30 | 100 |
+|---|---|---|---|---|---|
+| default cloud, elastic walls | -0.05 | +0.21 | +1.31 | +5.50 | **+39.5** |
+| cold cloud on circular orbits, elastic walls | +0.46 | +3.07 | +6.62 | +19.2 | +71.4 after 75 orbits |
+| default cloud, the application's walls (restitution 0.5) | -5.2 | -8.6 | -13.2 | -17.8 | -19.8 after 63 orbits |
+
+- **The criterion of the plan, K + U within 1 % over 100 orbits, is missed**: +39.5 % at 100 orbits (the
+  runs were cut by their wall-clock budget at 75 and 63 orbits for the other two). The scenario
+  is a `known-failure`, fixed by phase P5 (adaptive time step) if the dependence on the step below
+  holds. The virial ratio goes from 0.33 to about 1 within 3 orbits, then rises to 1.40: the cloud heats
+  and expands.
+- **The oscillation of the energy about its trend is small**: ±0.016 % (default cloud, running median over 2
+  orbits taken off, one reading per 10 frames, that is 37 per orbit). The professor's figure of 2 to
+  19 % oscillation of the energy with a fixed step is not seen in the energy of the whole cloud with this
+  sampling; the core oscillates faster (about 0.9 s per period in the baseline's cloud) than the readings are spaced (0.28 s), so faster
+  oscillations of a part of the energy would be aliased, not resolved. What the measure shows is a
+  secular drift.
+- The lag of the velocity texture behind the positions is real and corrected (the model pairs the new
+  kinetic energy with the potential of the previous substep): the sum without the correction differs by less
+  than 0.1 percentage point of drift and oscillates by ±0.033 % against ±0.016 %.
+- The application's walls return half of the speed and take **14 %** within 12 orbits (the particles that
+  the collapse throws out): that is a loss of the boundary, not of the scheme.
+
+`baseline.protostar.energy-drift-attribution`, elastic walls, 12 orbits, the time step divided by 1, 2
+and 4:
+
+| Time step | 14.17 ms | 7.08 ms | 3.54 ms | 14.17 ms, the application's walls |
+|---|---|---|---|---|
+| drift after 3 orbits | +0.21 % | +0.03 % | -0.04 % | -8.6 % |
+| drift after 6 orbits | +0.65 % | +0.25 % | +0.06 % | -11.0 % |
+| drift after 12 orbits | +1.65 % | +0.72 % | +0.28 % | -14.0 % |
+| drift rate after settling (% per orbit) | 0.162 | 0.077 | 0.036 | -0.51 |
+| largest drift over the 12 orbits | 1.65 % | 0.72 % | 0.69 % | 14.0 % |
+
+The rate of the secular drift is proportional to the time step (a factor 2.1 for each halving), which
+makes the fixed step the main suspect and the first power of the step, not the second, its law; the cause
+is not isolated (the grid force is not the gradient of the grid potential either, and it does not depend on
+the step). If the proportionality held at 100 orbits, the 0.40 % per orbit the default cloud reaches would
+need a step 40 times shorter to stay inside 1 %: an adaptive step (P5) is the way, not a fixed one.
+
+### Cost of the diagnostics
+
+`cost.protostar.diagnostics`, 400 000 particles, 7 fresh pages of 12 rounds, three modes alternated chunk
+after chunk (30 frames) in the six orders: "plain" (the gravity pass without its potential channel, flag
+off: the pass as it was), "flag off" (potential channel, flag off), "on" (the default). Paired differences
+over 84 pairs; simulation only, ms per frame:
+
+| | Median | Quartiles | Extremes |
+|---|---|---|---|
+| plain, absolute | 6.04 (runs 5.76 to 6.34) | | |
+| potential channel (flag off - plain) | -0.03 | -0.25 to +0.14 | -1.52 and +1.96 |
+| flag on - flag off | +0.04 | -0.15 to +0.18 | -1.08 and +1.14 |
+| on - plain, all of it | -0.02 | -0.15 to +0.19 | -1.47 and +1.02 |
+
+- The potential channel costs nothing measurable: on the grid passes alone, frozen early cloud (frame 55)
+  +0.005 ms per substep of 2.94 (0.2 %), late cloud (frame 1 315) 0.000 of 1.59. The near-field loops
+  are limited by their texture reads, and a multiply-add per term hides behind them.
+- One call of the reduction (two passes) costs 0.28 ms (0.19 to 0.37), one of the potential stash (two
+  passes) 0.25 ms (0.18 to 0.33): the reduction runs every 10 frames in both modes (the stats need it), the
+  stash in the substeps of the frames that are read, which makes the flag about 0.05 ms per frame, 1 %.
+- Across builds, `perf.protostar.400k` (simulation only) of the code before P1a (`f722262`) and of the
+  branch, alternated in 14 pairs of fresh pages (8 with the old build first, 6 with it second): 8.19
+  (7.73 to 8.77) against 8.28 ms (8.00 to 9.10); paired difference +0.20 ms median (-0.47 to +1.04; the sign
+  follows the order of the pair: -0.06 with the old build first, +0.25 second), whole frame +0.24 ms (-1.09
+  to +1.79). That is within the noise of a run, and 2 % at most.
+
+All of it is far below the 10 % of a frame that the plan sets: **`diagnostics` is on by default**.
+
 ## Open points for later phases
 
-- The energy-drift scenario (`baseline.protostar.energy-drift`) is registered and skipped: it
-  needs the potential energy of A7 (phase P1a). The omega.dt column above is its precursor.
+- The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a and is a
+  documented known failure (K + U +39.5 % over 100 orbits, against a target of 1 %): it turns to `pass`
+  when phase P5 (adaptive time step) brings the secular drift down. The omega.dt column above is its
+  precursor. Re-record its table, with the commit, whenever the integration or the gravity change.
 - The ignition ratio is the number to move in P3b; the reference point (0.5 per second, 60 rho0)
   is a lab convention, to be revisited with the new rate laws, and the table above is the
   evidence that it matters.
