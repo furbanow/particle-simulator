@@ -8,6 +8,13 @@ export function sumChannel(rgba: ArrayLike<number>, channel: number): number {
     return sum;
 }
 
+/** Channel `channel` (0..3) of an RGBA array as an array of its own. */
+export function extractChannel(rgba: ArrayLike<number>, channel: number): Float64Array {
+    const out = new Float64Array(Math.floor(rgba.length / 4));
+    for (let i = 0; i < out.length; i++) out[i] = rgba[i * 4 + channel];
+    return out;
+}
+
 /** Largest value of channel `channel` of an RGBA array (-Infinity when empty). */
 export function maxChannel(rgba: ArrayLike<number>, channel: number): number {
     let max = -Infinity;
@@ -58,3 +65,16 @@ export function decimate<T>(series: readonly T[], points: number): T[] {
 /** `value` rounded to `digits` significant digits (non-finite values are returned as they are). */
 export const significant = (value: number, digits: number): number =>
     Number.isFinite(value) && value !== 0 ? Number(value.toPrecision(digits)) : value;
+
+/**
+ * The orders in which to measure `items` in each of `rounds` rounds of an alternating comparison:
+ * the permutations of `items` in turn (2 items: ab, ba, ab...; 3 items: six orders), so that a
+ * steady drift of the machine does not favor one item. Pure.
+ */
+export function alternatingOrders<T>(items: readonly T[], rounds: number): T[][] {
+    const permutations = (rest: readonly T[]): T[][] => rest.length <= 1 ? [[...rest]]
+        : rest.flatMap((item, i) => permutations([...rest.slice(0, i), ...rest.slice(i + 1)]).map(tail => [item, ...tail]));
+    const all = permutations(items);
+    // A step of 5 through the listing (coprime with 2 and with 6) visits every order once per cycle.
+    return Array.from({ length: rounds }, (_, r) => [...all[(r * 5) % all.length]]);
+}

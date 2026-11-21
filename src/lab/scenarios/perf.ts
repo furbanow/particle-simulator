@@ -26,7 +26,7 @@ function renderStack(context: LabContext): RenderStack {
 }
 
 /** ms per frame of each chunk of `chunkFrames` frames, the GPU being waited for at the end of each. */
-async function timeChunks(context: LabContext, frame: () => void, chunkFrames: number, chunks: number): Promise<number[]> {
+export async function timeChunks(context: LabContext, frame: () => void, chunkFrames: number, chunks: number): Promise<number[]> {
     const texture = () => context.simulation.positionTexture;
     const out: number[] = [];
     for (let c = 0; c < chunks; c++) {
@@ -39,7 +39,7 @@ async function timeChunks(context: LabContext, frame: () => void, chunkFrames: n
 }
 
 /** Runs `frame` for at least `frames` frames and `minMs` (in synchronized chunks), untimed. */
-async function warmUp(context: LabContext, frame: () => void, chunkFrames: number, frames: number, minMs: number): Promise<void> {
+export async function warmUp(context: LabContext, frame: () => void, chunkFrames: number, frames: number, minMs: number): Promise<void> {
     const start = performance.now();
     for (let done = 0; done < frames || performance.now() - start < minMs; done += chunkFrames) {
         await timeChunks(context, frame, chunkFrames, 1);

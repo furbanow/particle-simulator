@@ -5,7 +5,7 @@ import { BASE_DT } from '../config';
 import { defaultTypeCount, PARTICLE_COUNT_PARAM, type ParamValues } from '../simulation/algorithm';
 import { ALGORITHMS, type AlgorithmId } from '../simulation/algorithms';
 import { defaultParams } from '../simulation/params';
-import { PROTOSTAR_STAT } from '../simulation/protostar/declaration';
+import { PROTOSTAR_PROPERTY, PROTOSTAR_STAT } from '../simulation/protostar/declaration';
 import { ProtostarModel } from '../simulation/protostar/gpuModel';
 import type { ProtostarGridTargets } from '../simulation/protostar/grids';
 import { LAB_SEED, LAB_SYNC_EVERY } from './config';
@@ -37,6 +37,11 @@ export interface RunOptions {
     overrides?: ParamValues;
     /** Seed of Math.random for the restart (the cloud); LAB_SEED by default. */
     seed?: number;
+    /**
+     * Protostar population weights of the first types for this restart only (the cloud's composition: hydrogen, helium,
+     * carbon...); the edited types get their weights back afterwards.
+     */
+    weights?: readonly number[];
 }
 
 /**
@@ -55,7 +60,14 @@ export async function restart(context: LabContext, options: RunOptions): Promise
     const overrides = options.overrides ?? {};
     const direct = id === 'protostar' && Object.keys(overrides).length > 0;
     if (direct) applyDirect(context, overrides);
-    await withSeededRandom(options.seed ?? LAB_SEED, () => simulation.reset(defaultTypeCount(algorithm.particleTypes)));
+    const weightKey = PROTOSTAR_PROPERTY.weight;
+    const previousWeights = simulation.species.map(type => type.values[weightKey]);
+    options.weights?.forEach((weight, k) => { if (k < simulation.species.length) simulation.species[k].values[weightKey] = weight; });
+    try {
+        await withSeededRandom(options.seed ?? LAB_SEED, () => simulation.reset(defaultTypeCount(algorithm.particleTypes)));
+    } finally {
+        if (options.weights) simulation.species.forEach((type, k) => { type.values[weightKey] = previousWeights[k]; });
+    }
     if (direct) applyDirect(context, overrides);
 }
 

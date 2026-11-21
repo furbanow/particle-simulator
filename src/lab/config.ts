@@ -65,3 +65,48 @@ export const PERF_FRAMES_SOFTWARE = 2;
  * reflect the GPU load (the browser lets frames pile up, as headless Chrome does at its fixed rate).
  */
 export const PERF_ANIMATION_FRAME_TRUST = 0.95;
+
+// ---- Second deposit (composition grid, spike P0c) ----
+export const SECOND_DEPOSIT_PARTICLES = 20000;
+export const SECOND_DEPOSIT_FRAMES = 6;
+/** Population weights (H, He, C) of the validation cloud: every type is present, so the per-type factor is exercised. */
+export const SECOND_DEPOSIT_WEIGHTS = [0.6, 0.3, 0.1] as const;
+/**
+ * Error model of a deposit path (see DepositTolerance): the unit roundoff of a float32 and of a
+ * half float (2^-24 and 2^-11), the roundings each contribution suffers (the product with the
+ * weight, the weight itself, the rounded output, the addition), and the error of the cloud-in-cell
+ * weight, 2 x 128 x 2^-24 rounded up: the position divided by the cell size in single precision is
+ * off by 128 x 2^-24 cells at the far edge of the 128-cell grid, in each of the two axes.
+ */
+export const DEPOSIT_ROUNDOFF_FLOAT32 = 2 ** -24;
+export const DEPOSIT_ROUNDOFF_HALF = 2 ** -11;
+export const DEPOSIT_ROUNDINGS = 4;
+export const DEPOSIT_WEIGHT_ERROR = 2 ** -15;
+/** The same limit as a margin on the footprint of a cloud, to count the cells it may reach. */
+export const DEPOSIT_WEIGHT_MARGIN = DEPOSIT_WEIGHT_ERROR;
+/** Cells holding less mass than this (in mean particle masses) are left out of the 1 / mu ratio check: there the weights' own error dominates. */
+export const RATIO_MIN_MASS = 1;
+/** At least this many particles must overlap in the busiest cell for the accumulation to count as tested. */
+export const SECOND_DEPOSIT_MIN_OVERLAP = 8;
+/** The collapsed cloud of the load test: restarted at the baseline's size, stepped until its core has formed. */
+export const SECOND_DEPOSIT_LOAD_PARTICLES = 400000;
+export const SECOND_DEPOSIT_LOAD_FRAMES = 100;
+
+// ---- Cost of the second deposit ----
+/** Cloud of the cost comparison: the baseline's. */
+export const COST_PARTICLES = 400000;
+/** The frame at which the early grid-passes comparison is made: its core has not formed yet (it collapses at about frame 80). */
+export const COST_EARLY_FRAMES = 55;
+/**
+ * Whole-frame comparison: rounds of two chunks, with and without the second deposit, the order
+ * swapped every round so that the slow change of the cloud (the core forming, the clocks
+ * settling) cancels; each chunk is COST_CHUNK_FRAMES frames, the GPU waited for at its end.
+ */
+export const COST_ROUNDS = 12;
+export const COST_CHUNK_FRAMES = 30;
+/**
+ * Grid-passes-only comparison on a frozen state: rounds of COST_FROZEN_SUBSTEPS repetitions of the
+ * grid update (the deposits, gas, heat, gravity), the same alternation.
+ */
+export const COST_FROZEN_ROUNDS = 12;
+export const COST_FROZEN_SUBSTEPS = 40;

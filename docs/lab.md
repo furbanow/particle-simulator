@@ -55,10 +55,13 @@ not run. Set `LAB_NO_SANDBOX=1` where Chrome refuses to start without `--no-sand
 |---|---|
 | `lab.selftest` | The infrastructure: seeded random numbers, slider bypass, grid read-back, bit-for-bit replay of a run. |
 | `protostar.half-float-deposit` | The deposit grids in half floats (the path of the GPUs without `EXT_float_blend`) against float32. |
+| `protostar.second-deposit` | The composition deposit (second attachment of the moments pass: m/mu, count, m^2) against a CPU reference computed from the position texture, in float32 and in the forced half-float path ([spike](spikes/a1-second-deposit.md)). |
+| `protostar.second-deposit-load` | The same on the 400 000-particle cloud once its core has formed (thousands of particles in a cell); the half-float path is measured, not judged. |
 | `baseline.protostar.ignition-ratio` | Ignition temperatures of H and He from the current rate laws, and their ratio (pure TypeScript). |
 | `baseline.protostar.default-cloud` | The default cloud: core temperature, peak density, fusion rate and omega.dt in the core over time. |
 | `baseline.protostar.energy-drift` | `skip`: needs A7 (phase P1a). |
 | `perf.<algorithm>.<count>` | ms per frame of protostar and sticky dust at 400 000 and 1 000 000 particles. |
+| `cost.protostar.second-deposit` | Simulation ms/frame at 400 000 particles with and without the composition on the moments pass, the two alternated chunk after chunk in one run, and the grid passes alone on a frozen early and late cloud. One run is not a measurement: repeat it (see the spike). |
 
 The recorded numbers are in [lab-baseline.md](lab-baseline.md).
 
@@ -81,12 +84,19 @@ The tools a scenario gets (`src/lab/driver.ts`, `readback.ts`):
   sliders' minima (gravity 0.1, feedback 0.01...): `{ gravity: 0, feedback: 0 }` for a
   conservative run. `Simulation.reset()` hands the model the slider-validated values back, so
   `restart` sets them before (the initial cloud reads the gravity) and after the reset.
+  `weights: [0.6, 0.3, 0.1]` sets the population weights of the first types for that restart (a
+  cloud of hydrogen, helium and carbon instead of hydrogen alone).
 - **Half-float deposit.** `forceHalfFloatDeposit(true)` (`src/simulation/protostar/grids.ts`)
   makes the grids created from then on deposit in half floats; `rebuildPipeline(context)` creates
   them again, and `restart` must follow. The runner switches it off after every scenario.
 - **Grids.** `protostarGrids(context)` gives the render targets of the grid passes (`moments`,
   `gas`, `power`, `heat`, `coarse`, `gravity`, `reduce1`, `reduce2`), `readTarget(renderer,
   target)` reads one back as RGBA floats (half floats decoded), row by row from the bottom.
+  `moments` has two attachments: `readTarget` reads attachment 0 (m, m v, m |v|^2), `readAttachment(
+  renderer, target, 1)` the composition. `readPositions()` reads the first particles of the position
+  texture, and `referenceDeposit()` (`depositReference.ts`) deposits them again on the CPU.
+  `protostarModel(context).debugGrids.compositionEnabled = false` makes the moments pass deposit the
+  moments alone, as it did before the composition (for the cost comparison only).
 - `runFrames(context, n, { endFrame, onFrame, step })` steps the simulation and synchronizes with
   the GPU every few frames; `GpuSync` (`context.sync`) waits for the GPU on demand.
 
@@ -109,7 +119,8 @@ The tools a scenario gets (`src/lab/driver.ts`, `readback.ts`):
   frame at which the asynchronous position read-back lands, and results can differ at the last
   bits from one GPU or driver to another. The scenarios that compare runs bit for bit step without
   `endFrame()`.
-- **Read-back.** Only the first color attachment of a render target can be read. The protostar
+- **Read-back.** Only the first color attachment of a render target can be read directly (three r169
+  has no attachment index in `readRenderTargetPixels`): `readAttachment()` copies the others by a pass. The protostar
   grids are overwritten at every substep: step, then read right away, before stepping again; what
   is read is the grid of the last substep's beginning. A read-back waits for the GPU, so the
   timed loops of the performance probe never read inside their measured part.

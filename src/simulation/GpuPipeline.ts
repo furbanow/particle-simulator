@@ -147,6 +147,11 @@ export class GpuPipeline {
         return this.model;
     }
 
+    /** Dev-only, read-only: the render target holding the positions now, for the lab page (src/lab). Not used by the app. */
+    get debugPositionTarget(): THREE.WebGLRenderTarget {
+        return this.gpu.getCurrentRenderTarget(this.posVar);
+    }
+
     setParam(key: string, value: ParamValue): void {
         this.model.setParam(key, value);
     }
