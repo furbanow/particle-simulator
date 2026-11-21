@@ -4,8 +4,10 @@
 import { defaultCloud, defaultCloudVariants, ignitionRatioBaseline } from './scenarios/baseline';
 import { diagnosticsCost } from './scenarios/diagnosticsCost';
 import { dustCloudScenarios } from './scenarios/dustCloud';
+import { dustConcentrationScenarios } from './scenarios/dustConcentration';
 import { dustGranularScenarios } from './scenarios/dustGranular';
 import { dustGravityScenarios } from './scenarios/dustGravity';
+import { dustHitchScenarios } from './scenarios/dustHitches';
 import { dustSupernovaScenarios } from './scenarios/dustSupernova';
 import { dustSupernovaHistoryScenarios } from './scenarios/dustSupernovaHistory';
 import { energyDrift, energyDriftAttribution, energyReference, reductionChannels } from './scenarios/energy';
@@ -38,10 +40,12 @@ export const SCENARIOS: readonly Scenario[] = [
     ...dustGravityScenarios,
     ...dustCloudScenarios,
     ...dustGranularScenarios,
+    ...dustConcentrationScenarios,
     ...dustSupernovaScenarios,
     ...dustSupernovaHistoryScenarios,
     ...perfScenarios,
     ...perfPhaseScenarios,
+    ...dustHitchScenarios,
     secondDepositCost,
     diagnosticsCost,
 ];

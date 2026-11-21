@@ -427,3 +427,27 @@ export const SUPERNOVA_HISTORY_PROFILE = [5, 10, 20, 40] as const;
 export const SUPERNOVA_SWEEP_SPEEDS = [294, 588, 735] as const;
 /** Clouds (seeds from SUPERNOVA_SEED up) run per speed: the history is chaotic, one run says little. */
 export const SUPERNOVA_SWEEP_SEEDS = 3;
+
+/**
+ * The GPU search of the densest disk against its CPU reference (dust.concentration.parity, docs/spikes/b4-gpu-concentration.md): the particles
+ * of the comparisons, the snapshots of the default cloud's collapse (frames after the restart), the radii (px; the slider goes from 10 to 400),
+ * and the share of the total mass, in percentage points, the two may differ by (the center may differ by one cell of the coarse grid).
+ */
+export const CONCENTRATION_PARITY_PARTICLES = 400000;
+export const CONCENTRATION_PARITY_HEAVY_PARTICLES = 3000000;
+export const CONCENTRATION_PARITY_SNAPSHOTS = [0, 60, 120, 180, 300] as const;
+export const CONCENTRATION_PARITY_RADII = [10, 30, 150, 400] as const;
+export const CONCENTRATION_PARITY_SHARE_POINTS = 2;
+
+/**
+ * The hitches of the periodic concentration read (perf.dustHitch.<count>): frames of the default cloud with no supernova (the read repeats every
+ * CLUSTER_CHECK_INTERVAL frames), each followed by a wait for the GPU; the frames from a request up to HITCH_WINDOW_FRAMES - 1 later are "the read-back
+ * frames", the others "the quiet frames".
+ */
+export const HITCH_COUNTS = [400000, 1000000, 3000000] as const;
+export const HITCH_WARMUP_FRAMES = 30;
+export const HITCH_FRAMES = 360;
+export const HITCH_WINDOW_FRAMES = 4;
+
+/** The default cloud's supernova history at the default power over several seeds (dust.supernova.seeds): the clouds, from SUPERNOVA_SEED up. */
+export const SUPERNOVA_SEEDS_RUNS = 3;

@@ -7,9 +7,9 @@ import { STICKY_DUST_STAT } from '../../simulation/stickyDust/declaration';
 import { clumpStats } from '../clumpStats';
 import {
     DUST_CLOUD_CLUMP_MIN_TEXELS, SUPERNOVA_HISTORY_FOLLOW_SECONDS, SUPERNOVA_HISTORY_FRAMES, SUPERNOVA_HISTORY_MARKS,
-    SUPERNOVA_HISTORY_PROFILE, SUPERNOVA_HISTORY_SAMPLE, SUPERNOVA_SEED, SUPERNOVA_SWEEP_SEEDS, SUPERNOVA_SWEEP_SPEEDS,
+    SUPERNOVA_HISTORY_PROFILE, SUPERNOVA_HISTORY_SAMPLE, SUPERNOVA_SEED, SUPERNOVA_SEEDS_RUNS, SUPERNOVA_SWEEP_SEEDS, SUPERNOVA_SWEEP_SPEEDS,
 } from '../config';
-import { frameSeconds, restart, runFrames, stickyDustModel } from '../driver';
+import { frameSeconds, nextAnimationFrame, restart, runFrames, stickyDustModel } from '../driver';
 import { significant } from '../numbers';
 import { withSeededRandom } from '../random';
 import { readPositions, readTarget } from '../readback';
@@ -45,7 +45,7 @@ interface HistoryRun {
  * The default cloud for SUPERNOVA_HISTORY_FRAMES frames with its supernovae, the ejecta of each followed for SUPERNOVA_HISTORY_FOLLOW_SECONDS.
  * `edgeSpeed` (px/s), when given, replaces the ejection speed the power slider sets (the sweeps go beyond the slider's range).
  */
-async function runHistory(context: LabContext, edgeSpeed: number | null, seed = SUPERNOVA_SEED): Promise<HistoryRun> {
+async function runHistory(context: LabContext, edgeSpeed: number | null, seed = SUPERNOVA_SEED, paced = false): Promise<HistoryRun> {
     const { renderer, simulation } = context;
     await restart(context, { algorithm: 'stickyDust', count: 400000, seed });
     const model = stickyDustModel(context);
@@ -63,6 +63,10 @@ async function runHistory(context: LabContext, edgeSpeed: number | null, seed = 
     await withSeededRandom(seed, () => runFrames(context, SUPERNOVA_HISTORY_FRAMES, {
         endFrame: true,
         async onFrame(frame) {
+            // Paced: one animation frame per frame, as the application runs, so that the asynchronous read-backs land within a frame or
+            // two instead of at the next synchronization of the loop (every LAB_SYNC_EVERY frames, which delays the 6 MB read of the
+            // old trigger more than the two texels of the GPU's).
+            if (paced) await nextAnimationFrame();
             const fired = supernovaCount(context);
             const sampling = frame % SUPERNOVA_HISTORY_SAMPLE === 0;
             if (fired === seen && !sampling) return;
@@ -177,4 +181,41 @@ export const dustSupernovaSweep: Scenario = {
     },
 };
 
-export const dustSupernovaHistoryScenarios: Scenario[] = [dustSupernovaHistory, dustSupernovaSweep];
+/** The history at the default power for SUPERNOVA_SEEDS_RUNS clouds: the data that says whether a change of the trigger left the default cloud's supernovae where they were (B4). */
+export const dustSupernovaSeeds: Scenario = {
+    id: 'dust.supernova.seeds',
+    title: 'Sticky dust: the default cloud\'s supernovae over 30 s for several clouds (times and counts, the check that the trigger did not change)',
+    tags: ['dust', 'slow'],
+    async run(context): Promise<ScenarioOutcome> {
+        const arms: Record<string, JsonValue> = {};
+        const lines: string[] = [];
+        for (let k = 0; k < SUPERNOVA_SEEDS_RUNS; k++) {
+            const run = await runHistory(context, null, SUPERNOVA_SEED + k);
+            arms[`seed${k}`] = historyMetrics(run);
+            lines.push(`seed ${k}: ${run.events.length} at ${timesOf(run)}`);
+        }
+        return { status: 'pass', metrics: arms, details: lines.join(' | ') };
+    },
+};
+
+/**
+ * The same at the application's pace: a frame per animation frame (20 s of wall time for each cloud). The trigger's read-back lands within a frame
+ * or two, as it does in the application, whatever the size of what is read.
+ */
+export const dustSupernovaPaced: Scenario = {
+    id: 'dust.supernova.paced',
+    title: 'Sticky dust: the default cloud\'s supernovae over 30 s for several clouds, one frame per animation frame (the application\'s pace)',
+    tags: ['dust', 'slow'],
+    async run(context): Promise<ScenarioOutcome> {
+        const arms: Record<string, JsonValue> = {};
+        const lines: string[] = [];
+        for (let k = 0; k < SUPERNOVA_SEEDS_RUNS; k++) {
+            const run = await runHistory(context, null, SUPERNOVA_SEED + k, true);
+            arms[`seed${k}`] = historyMetrics(run);
+            lines.push(`seed ${k}: ${run.events.length} at ${timesOf(run)}`);
+        }
+        return { status: 'pass', metrics: arms, details: lines.join(' | ') };
+    },
+};
+
+export const dustSupernovaHistoryScenarios: Scenario[] = [dustSupernovaHistory, dustSupernovaSweep, dustSupernovaSeeds, dustSupernovaPaced];
