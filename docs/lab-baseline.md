@@ -189,6 +189,23 @@ ms, against 20.2, 24.1, 39.6 and 50.2 ms here; the extra cost of the composition
 the 8 (see the spike). Compare a phase with a run of the previous code taken the same day on the
 same machine, not with the table.
 
+## After phase P2
+
+P2 (the sticky dust's [gravity per density texel](spikes/b1-dust-gravity.md) with an isotropic stencil) does
+not touch the protostar. It changes the dust: the force is the old one to 0.2 % with the old stencil, and
+84 % of it in RMS on a clumped cloud with the new one. Simulation and whole-frame times of the dust, runs
+of the code before (`a83a556`) and after alternated, 5 pairs, the same hour (the GPU was in another state
+than the one that recorded the performance table above, so compare these with each other only), median ms:
+
+| Particles | Simulation before | Simulation after | Whole frame before | Whole frame after |
+|---|---|---|---|---|
+| 400 000 | 3.24 | 2.61 | 5.52 | 4.73 |
+| 1 000 000 | 5.75 | 4.67 | 9.85 | 9.37 |
+| 3 000 000 | 12.19 | 11.70 | 31.62 | 30.91 |
+
+The protostar in the same hour, 4 runs: 6.85 (simulation) and 7.34 (whole frame) at 400 000 particles,
+13.31 and 16.40 at 1 000 000.
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) is registered and skipped: it
