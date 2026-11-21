@@ -35,12 +35,12 @@ export class GridPass {
 }
 
 /**
- * A square grid of `size` x `size` cells of two half floats (R, G), read with bilinear filtering (half floats
- * are filterable and renderable everywhere WebGL 2 runs the simulation; float32 ones are not).
+ * A square grid of `size` x `size` cells of half floats (two, R and G, unless `format` is RGBAFormat), read with
+ * bilinear filtering (half floats are filterable and renderable everywhere WebGL 2 runs the simulation; float32 ones are not).
  */
-export function filteredGridTarget(size: number): THREE.WebGLRenderTarget {
+export function filteredGridTarget(size: number, format: THREE.PixelFormat = THREE.RGFormat): THREE.WebGLRenderTarget {
     return new THREE.WebGLRenderTarget(size, size, {
-        type: THREE.HalfFloatType, format: THREE.RGFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+        type: THREE.HalfFloatType, format, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
         generateMipmaps: false, depthBuffer: false,
     });
 }

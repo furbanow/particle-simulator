@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import {
-    CONCENTRATION_RADIUS_SLIDER, DENSITY_RES, EJECT_SCALE_RANGE, EJECT_TIME, GLOBAL_DRAG, GRAVITY_WINDOW_MARGIN, INV_REL_DENSITY_RANGE,
-    DUST_GRAVITY_GAIN, GRAVITY_SLIDER, K_PRESSURE, MAX_PARTICLES, MAX_SPECIES, MAX_SPEED, REST_DENSITY, RESTITUTION, SHOCK_STRENGTH, SUPERNOVA_COOLDOWN,
-    SUPERNOVA_SPEED, SUPERNOVA_THRESHOLD_SLIDER, TEX_SIZE, VISCOSITY_RATE,
+    COLLISION_SPEED_SLIDER, CONCENTRATION_RADIUS_SLIDER, CONTACT_RANGE, DENSITY_RES, DUST_GRAVITY_GAIN, EJECT_SCALE_RANGE, EJECT_TIME,
+    GLOBAL_DRAG, GLOW_AGITATION_RANGE, GRAVITY_SLIDER, GRAVITY_WINDOW_MARGIN, INV_REL_DENSITY_RANGE, K_PRESSURE, KINETIC_PRESSURE,
+    MAX_PARTICLES, MAX_SPECIES, MAX_SPEED, PRESSURE_CFL, REST_DENSITY, RESTITUTION, SHOCK_STRENGTH, STICK_RATE, STICKINESS_SLIDER,
+    SUPERNOVA_COOLDOWN, SUPERNOVA_SPEED, SUPERNOVA_THRESHOLD_SLIDER, TEX_SIZE,
 } from '../../config';
-import { withDefines } from '../../gl/withDefines';
+import { glslFloat, withDefines } from '../../gl/withDefines';
 import { clamp } from '../../util/math';
 import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
 import { analyzeConcentration } from '../concentration';
@@ -15,25 +16,32 @@ import { ShockWave } from '../shockWave';
 import { STICKY_DUST_PARAM, STICKY_DUST_PROPERTY, STICKY_DUST_STAT, stickyDustDensity } from './declaration';
 import { DustGravityField } from './gravityField';
 import { gravityWindow } from './gravityWindow';
+import referenceGlsl from '../../shaders/density-reference.glsl?raw';
 import latticeGlsl from '../../shaders/dust-gravity-lattice.glsl?raw';
 import stickyDustFrag from '../../shaders/velocity-sticky-dust.frag?raw';
 
 const P = STICKY_DUST_PARAM;
 
 /**
- * GPU side of "sticky dust": multi-scale gravity, threshold pressure and viscosity in the velocity
+ * GPU side of "sticky dust": multi-scale gravity, pressure (threshold and kinetic) and sticking in the velocity
  * pass, plus the supernovae. Every few frames the positions are read back to find the densest
  * disk; above the threshold it goes supernova (ejection, then a shock wave).
  */
 export class StickyDustModel implements GpuModel {
-    readonly velocityShader = withDefines(`${drawingGlsl}\n${latticeGlsl}\n${stickyDustFrag}`, {
+    readonly velocityShader = withDefines(`${drawingGlsl}\n${latticeGlsl}\n${referenceGlsl}\n${stickyDustFrag}`, {
         MAX_SPECIES, DENSITY_RES, ...DRAWING_DEFINES,
+        CONTACT_LO: glslFloat(CONTACT_RANGE[0]), CONTACT_HI: glslFloat(CONTACT_RANGE[1]), PRESSURE_CFL: glslFloat(PRESSURE_CFL),
+        GLOW_LO: glslFloat(GLOW_AGITATION_RANGE[0]), GLOW_HI: glslFloat(GLOW_AGITATION_RANGE[1]),
     });
+    /** The particle layer glows with the agitation the velocity pass writes in w, not with the speed. */
+    readonly glow = 'state';
     readonly velocityUniforms = {
         kGravity: { value: GRAVITY_SLIDER.default * DUST_GRAVITY_GAIN },
         kPressure: { value: K_PRESSURE },
         restDensity: { value: REST_DENSITY },
-        viscosityRate: { value: VISCOSITY_RATE },
+        stickRate: { value: STICK_RATE * STICKINESS_SLIDER.default / 100 },
+        collisionSpeed: { value: COLLISION_SPEED_SLIDER.default },
+        kineticPressure: { value: KINETIC_PRESSURE },
         globalDrag: { value: GLOBAL_DRAG },
         maxSpeed: { value: MAX_SPEED },
         restitution: { value: RESTITUTION },
@@ -114,6 +122,8 @@ export class StickyDustModel implements GpuModel {
         if (typeof value !== 'number') return;
         switch (key) {
             case P.gravity: this.velocityUniforms.kGravity.value = value * DUST_GRAVITY_GAIN; break;
+            case P.stickiness: this.velocityUniforms.stickRate.value = STICK_RATE * value / 100; break;
+            case P.collisionSpeed: this.velocityUniforms.collisionSpeed.value = value; break;
             case P.supernovaThreshold: this.supernovaThreshold = value / 100; break;
             case P.concentrationRadius: this.concentrationRadius = value; break;
             // Ejection power, 0..100 % of SUPERNOVA_SPEED.

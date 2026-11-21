@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GPUComputationRenderer, type Variable } from 'three/addons/misc/GPUComputationRenderer.js';
 import {
-    BASE_DT, CLUSTER_CHECK_INTERVAL, DONUT_INNER, DONUT_OUTER, INITIAL_SPEED, MOMENTUM_SCALE, TEX_SIZE, TOTAL_MASS,
+    BASE_DT, CLUSTER_CHECK_INTERVAL, DONUT_INNER, DONUT_OUTER, ENERGY_SCALE, INITIAL_SPEED, MOMENTUM_SCALE, TEX_SIZE, TOTAL_MASS,
 } from '../config';
 import { hexToVector, type Uniform } from '../gl/common';
 import type { ParamValue, ParamValues, ParticleType } from './algorithm';
@@ -104,6 +104,8 @@ export class GpuPipeline {
             texturePosition: { value: null },
             textureVelocity: { value: null },
             textureDensity: { value: this.density.target.texture },
+            textureReference: this.density.referenceTexture,
+            referenceOffset: this.density.referenceOffset,
             screenSize: shared.screenSize,
             domainOffset: this.density.domainOffset,
             domainSize: this.density.domainSize,
@@ -112,6 +114,7 @@ export class GpuPipeline {
             dt: { value: BASE_DT },
             activeCount: { value: 0 },
             momentumScale: { value: MOMENTUM_SCALE },
+            energyScale: { value: ENERGY_SCALE },
         }, model.velocityUniforms);
         for (const variable of this.extraVars) this.velUniforms[variable.name] = { value: null };
         this.posUniforms = this.posVar.material.uniforms;
@@ -155,6 +158,22 @@ export class GpuPipeline {
     /** Dev-only, read-only: the render target holding the velocities now, for the lab page (src/lab). Not used by the app. */
     get debugVelocityTarget(): THREE.WebGLRenderTarget {
         return this.gpu.getCurrentRenderTarget(this.velVar);
+    }
+
+    /**
+     * Dev-only: overwrites the particles' state (the first `count` texels of each, RGBA per texel: positions x, y, type
+     * rank, w; velocities vx, vy, z, w) for the lab's scenarios that need a cloud of their own. A restart must have
+     * made the particle count, the types and the per-type uniforms first. Not used by the app.
+     */
+    debugSetState(positions: Float32Array, velocities: Float32Array): void {
+        const posTex = this.gpu.createTexture();
+        const velTex = this.gpu.createTexture();
+        (posTex.image.data as unknown as Float32Array).set(positions);
+        (velTex.image.data as unknown as Float32Array).set(velocities);
+        for (const rt of this.posVar.renderTargets) this.gpu.renderTexture(posTex, rt);
+        for (const rt of this.velVar.renderTargets) this.gpu.renderTexture(velTex, rt);
+        posTex.dispose();
+        velTex.dispose();
     }
 
     setParam(key: string, value: ParamValue): void {

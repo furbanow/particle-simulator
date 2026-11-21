@@ -44,7 +44,7 @@ export const GRAVITY_WINDOW_MARGIN = 2;
 export const DUST_GRADIENT_CORNER_WEIGHT = 0.21;
 /**
  * The pull of the sticky dust is the gravity slider's value times this gain. The isotropic stencil of the coarse
- * levels (above) weakens the pull of the small structures of a clumped cloud to 84 % of the central difference's
+ * levels (above) weakens the pull of the small structures of a clumped cloud to 84-85 % of the central difference's
  * (RMS); the gain restores the strength the sliders' values were tuned for: docs/spikes/a10-granular-dust.md.
  */
 export const DUST_GRAVITY_GAIN = 1.2;
@@ -53,7 +53,27 @@ export const DUST_GRAVITY_GAIN = 1.2;
 export const LONG_RANGE = 0.5;
 export const K_PRESSURE = 40;
 export const REST_DENSITY = 30;                    // mass per density texel above which clumps push back
-export const VISCOSITY_RATE = 6;                   // 1/s, damping of velocity relative to local flow
+
+// ---- Granular dust (sticking, agitation and pressure of the sticky dust) ----
+// The density grid's alpha channel holds the agitation energy: m |v - v_ref|^2 * ENERGY_SCALE (cloud-in-cell
+// weighted), v_ref the mean flow of a coarse level of the previous substep's density. The scale keeps the sums inside
+// half-float range (65 504): a texel of mass 128, about all the half floats let a cell hold at 400 000 particles, whose
+// grains all fly at 3000 px/s from the reference sums to 11 500. The reference keeps E / rho - |u|^2 free of cancellation.
+export const ENERGY_SCALE = 1e-5;
+/** Mip level of the density (DENSITY_RES >> level texels a side) whose mean flow is the deposit's reference velocity. */
+export const REFERENCE_LEVEL = 5;
+// T = <|v|^2> - |u|^2 (px^2/s^2) is the agitation of a texel. Haff's law: grains collide at a frequency
+// proportional to rho sqrt(T) and stick, so velocities relax toward the local mean flow at nu = STICK_RATE x
+// stickiness x rho x sqrt(T) (1/s, rho in mass per texel, T in px^2/s^2): T falls as 1 / (1 + t / t0)^2.
+export const STICK_RATE = 8e-3;
+/** Fractions of REST_DENSITY between which the grains are in contact (the pressure acts, from nothing to all of it). */
+export const CONTACT_RANGE: Range = [0.1, 0.6];
+// Kinetic pressure, P = rho T / 2 (two degrees of freedom), acts as -grad(P) / rho on the grains in contact. Its time
+// step is bounded: the sound speed sqrt(T / 2) cannot cross more than PRESSURE_CFL texels per substep.
+export const KINETIC_PRESSURE = 1;
+export const PRESSURE_CFL = 1;
+/** Speeds (px/s) of the agitation sqrt(T) between which a particle glows from nothing to full. */
+export const GLOW_AGITATION_RANGE: Range = [5, 60];
 export const GLOBAL_DRAG = 0.03;                   // 1/s
 export const MAX_SPEED = 1500;                     // px/s
 export const RESTITUTION = 0.8;
@@ -62,7 +82,7 @@ export const MOMENTUM_SCALE = 0.01;                // keeps splatted momentum in
 // ---- Supernova ----
 export const CLUSTER_CHECK_INTERVAL = 12;          // frames
 export const SUPERNOVA_SPEED = 420;                // px/s at 100 % power (scaled by the power slider)
-export const EJECT_TIME = 0.6;                     // s during which ejecta ignore gravity/viscosity (fading back in)
+export const EJECT_TIME = 0.6;                     // s during which ejecta ignore gravity/pressure (fading back in)
 export const SUPERNOVA_COOLDOWN = 120;             // frames
 // Shock wave: the front moves at the ejection speed; the outward kick it gives is
 // SHOCK_STRENGTH * ejection speed at the aggregate edge and falls off as 1/r beyond it.
@@ -75,6 +95,8 @@ export const GRAVITY_SLIDER: SliderSpec = { min: 0, max: 15, step: 0.1, default:
 export const SUPERNOVA_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 37 };  // % of the particles
 export const CONCENTRATION_RADIUS_SLIDER: SliderSpec = { min: 10, max: 400, step: 5, default: 65 }; // px
 export const SUPERNOVA_POWER_SLIDER: SliderSpec = { min: 5, max: 100, step: 5, default: 70 };      // % of SUPERNOVA_SPEED
+export const STICKINESS_SLIDER: SliderSpec = { min: 0, max: 400, step: 5, default: 100 };               // % of STICK_RATE
+export const COLLISION_SPEED_SLIDER: SliderSpec = { min: 20, max: 1500, step: 10, default: 600 };    // px/s, above it grains bounce
 
 // ---- Removed particles (common GPU contract) ----
 // A particle whose position w is negative has been removed (e.g. absorbed by a fusion): it is

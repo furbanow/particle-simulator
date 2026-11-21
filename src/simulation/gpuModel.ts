@@ -71,8 +71,9 @@ export interface GpuVariable {
  * read-back of the positions; the model brings its shaders, its uniforms and the hooks below.
  *
  * Common uniforms given to the velocity shader (it declares the ones it uses): texturePosition,
- * textureVelocity, textureDensity, screenSize, domainOffset, domainSize, densityRes, maxLod, dt,
- * activeCount, momentumScale. The position shader gets dt, screenSize and activeCount.
+ * textureVelocity, textureDensity, textureReference and referenceOffset (density-reference.glsl), screenSize,
+ * domainOffset, domainSize, densityRes, maxLod, dt, activeCount, momentumScale, energyScale. The position shader
+ * gets dt, screenSize and activeCount.
  */
 export interface GpuModel {
     /** Velocity pass (defines already injected). It declares its own state samplers. */

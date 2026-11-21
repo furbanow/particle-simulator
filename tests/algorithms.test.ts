@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-    CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MAX_PARTICLES, MAX_SPECIES,
-    PARTICLE_COUNT_SLIDER, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
+    COLLISION_SPEED_SLIDER, CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MAX_PARTICLES, MAX_SPECIES,
+    PARTICLE_COUNT_SLIDER, STICKINESS_SLIDER, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../src/config';
 import {
     appliesOnRestart, defaultTypeCount, numberProperties, PANEL_TABS, PARTICLE_COUNT_PARAM, populationProperty, populationWeights,
@@ -129,26 +129,28 @@ describe.each(algorithmList())('declaration of $id', algorithm => {
 describe('sticky dust keeps its defaults', () => {
     it('parameters', () => {
         expect(defaultParams(STICKY_DUST)).toEqual({
-            count: 400000, gravity: 2.5, supernovaThreshold: 37, concentrationRadius: 65, supernovaPower: 70,
+            count: 400000, gravity: 2.5, stickiness: 100, collisionSpeed: 600, supernovaThreshold: 37, concentrationRadius: 65, supernovaPower: 70,
         });
         const bounds = STICKY_DUST.params.map(p => p.kind === 'number' ? [p.key, p.min, p.max, p.step, p.tab] : []);
         expect(bounds).toEqual([
             ['count', 1000, 3000000, 1000, 'initial'],
             ['gravity', 0, 15, 0.1, 'physics'],
+            ['stickiness', 0, 400, 5, 'physics'],
+            ['collisionSpeed', 20, 1500, 10, 'physics'],
             ['supernovaThreshold', 0, 100, 1, 'supernova'],
             ['concentrationRadius', 10, 400, 5, 'supernova'],
             ['supernovaPower', 5, 100, 5, 'supernova'],
         ]);
-        expect([PARTICLE_COUNT_SLIDER, SUPERNOVA_THRESHOLD_SLIDER, CONCENTRATION_RADIUS_SLIDER, SUPERNOVA_POWER_SLIDER]
-            .map(s => s.default)).toEqual([400000, 37, 65, 70]);
+        expect([PARTICLE_COUNT_SLIDER, SUPERNOVA_THRESHOLD_SLIDER, CONCENTRATION_RADIUS_SLIDER, SUPERNOVA_POWER_SLIDER,
+            STICKINESS_SLIDER, COLLISION_SPEED_SLIDER].map(s => s.default)).toEqual([400000, 37, 65, 70, 100, 600]);
         expect(GRAVITY_SLIDER.default).toBe(2.5);
     });
 
     it('displays', () => {
         const display = Object.fromEntries(STICKY_DUST.params.map(p => [p.key, p.kind === 'number' ? p.format(p.default) : '']));
         expect(display).toEqual({
-            count: (400000).toLocaleString('en'), gravity: 'G = 2.5', supernovaThreshold: '37%',
-            concentrationRadius: '65 px', supernovaPower: '70%',
+            count: (400000).toLocaleString('en'), gravity: 'G = 2.5', stickiness: '100%', collisionSpeed: '600 px/s',
+            supernovaThreshold: '37%', concentrationRadius: '65 px', supernovaPower: '70%',
         });
         expect(tabsOf(STICKY_DUST.params).map(t => t.id)).toEqual(['initial', 'physics', 'supernova']);
     });

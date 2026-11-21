@@ -2,9 +2,9 @@
 // chemical elements) and live stats. Its GPU side is ./gpuModel.ts.
 
 import {
-    CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MASS_RANGE, MASS_SLIDER_STEPS,
+    COLLISION_SPEED_SLIDER, CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MASS_RANGE, MASS_SLIDER_STEPS,
     PARTICLE_COUNT_SLIDER, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP, SIZE_RANGE, SIZE_STEP,
-    STICKY_DUST_CAP_RATIO, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
+    STICKINESS_SLIDER, STICKY_DUST_CAP_RATIO, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../../config';
 import { formatNumber, t } from '../../i18n';
 import { randomPopulationWeights } from '../../population';
@@ -21,6 +21,8 @@ import {
 export const STICKY_DUST_PARAM = {
     count: PARTICLE_COUNT_PARAM,
     gravity: 'gravity',
+    stickiness: 'stickiness',
+    collisionSpeed: 'collisionSpeed',
     supernovaThreshold: 'supernovaThreshold',
     concentrationRadius: 'concentrationRadius',
     supernovaPower: 'supernovaPower',
@@ -39,6 +41,12 @@ const params: readonly ParamDef[] = [
     { ...sliderFields(GRAVITY_SLIDER), key: STICKY_DUST_PARAM.gravity, tab: 'physics', label: t('algo.stickyDust.param.gravity.label'),
         doc: t('algo.stickyDust.param.gravity.doc'),
         format: v => `G = ${formatNumber(v, 1)}` },
+    { ...sliderFields(STICKINESS_SLIDER), key: STICKY_DUST_PARAM.stickiness, tab: 'physics', label: t('algo.stickyDust.param.stickiness.label'),
+        doc: t('algo.stickyDust.param.stickiness.doc'),
+        format: percent },
+    { ...sliderFields(COLLISION_SPEED_SLIDER), key: STICKY_DUST_PARAM.collisionSpeed, tab: 'physics', label: t('algo.stickyDust.param.collisionSpeed.label'),
+        doc: t('algo.stickyDust.param.collisionSpeed.doc'),
+        format: v => `${formatNumber(v, 0)} px/s` },
     { ...sliderFields(SUPERNOVA_THRESHOLD_SLIDER), key: STICKY_DUST_PARAM.supernovaThreshold, tab: 'supernova', label: t('algo.stickyDust.param.supernovaThreshold.label'),
         doc: t('algo.stickyDust.param.supernovaThreshold.doc'),
         format: percent },
