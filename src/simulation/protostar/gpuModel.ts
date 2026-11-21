@@ -11,6 +11,7 @@ import type { GpuModel, GpuModelContext, GpuVariable, InitialState } from '../gp
 import { countTypes } from '../typeCounts';
 import { centerOfMass, driftCorrection, type Vec2 } from './drift';
 import { PROTOSTAR_PARAM, PROTOSTAR_PROPERTY, PROTOSTAR_REACTIONS, PROTOSTAR_STAT } from './declaration';
+import { inverseMolecularWeights } from './composition';
 import { ProtostarGrids, withProtostarCommon, type ProtostarGridTargets } from './grids';
 import { fillCloud } from './initialConditions';
 import { reactionArrays } from './reactions';
@@ -104,6 +105,11 @@ export class ProtostarModel implements GpuModel {
         return this.grids.targets;
     }
 
+    /** Dev-only: the grid passes themselves (their deposit inputs, the switch of the second deposit), for the lab page. */
+    get debugGrids(): ProtostarGrids {
+        return this.grids;
+    }
+
     /** Dev-only, read-only: the values the model holds, whatever their kind. */
     get debugParams(): Readonly<ParamValues> {
         return this.params;
@@ -163,6 +169,7 @@ export class ProtostarModel implements GpuModel {
 
     updateSpecies(types: readonly ParticleType[]): void {
         this.types = types;
+        this.grids.setInverseMolecularWeights(inverseMolecularWeights(types, PROTOSTAR_PROPERTY.mass, MAX_SPECIES));
         this.updateReactions();
     }
 

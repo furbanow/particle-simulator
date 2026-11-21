@@ -136,7 +136,7 @@ Lengths are expressed relative to L, the short side of the simulation area, fixe
 
 Grid of `PROTOSTAR_GRID_RES`² = 128² square cells over max(width, height) (`grids.ts`):
 
-1. **Moments**: *cloud-in-cell* deposit of each living particle, (m, m·v, m·|v|²). 32-bit float targets if `EXT_float_blend` is available, 16-bit otherwise (masses as mean particle mass, velocities in L/s, to stay within range).
+1. **Moments**: *cloud-in-cell* deposit of each living particle, (m, m·v, m·|v|²). 32-bit float targets if `EXT_float_blend` is available, 16-bit otherwise (masses as mean particle mass, velocities in L/s, to stay within range). The same pass writes a second attachment, the *composition*, (m·(1+Z)/A, 1, m²): the mass over the mean molecular weight of a fully ionised element, the particle count and the sum of squared masses, with the same weights. Nothing reads it yet (proposal A1); see [the spike](spikes/a1-second-deposit.md).
 2. **Gas**: for each cell, sums over its 3 × 3 neighbors → density ρ = mass / area, mean velocity v̄ = Σm·v / Σm, temperature T = Σm·|v|² / Σm − |v̄|². This is the **velocity dispersion around the local mean flow**, not the absolute velocity: overall rotation and coherent infall do not count as heat (at the scale of the neighborhood, about 3 cells).
 3. **Power**: each particle that can fuse deposits its *expected* fusion power (rate × energy per unit mass × mass) and its rate.
 4. **Heating**: power of the 3 × 3 neighbors / their mass → heating per unit mass q.
