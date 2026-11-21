@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-    COLLISION_SPEED_SLIDER, CONCENTRATION_RADIUS_SLIDER, CONTACT_RANGE, DENSITY_RES, DUST_GRAVITY_GAIN, EJECT_SCALE_RANGE, EJECT_TIME,
+    COLLISION_SPEED_SLIDER, CONCENTRATION_RADIUS_SLIDER, CONTACT_RANGE, DENSITY_RES, DUST_GRAVITY_GAIN, EJECT_TIME,
     GLOBAL_DRAG, GLOW_AGITATION_RANGE, GRAVITY_SLIDER, GRAVITY_WINDOW_MARGIN, INV_REL_DENSITY_RANGE, K_PRESSURE, KINETIC_PRESSURE,
     MAX_PARTICLES, MAX_SPECIES, MAX_SPEED, PRESSURE_CFL, REST_DENSITY, RESTITUTION, SHOCK_STRENGTH, STICK_RATE, STICKINESS_SLIDER,
     SUPERNOVA_COOLDOWN, SUPERNOVA_SPEED, SUPERNOVA_THRESHOLD_SLIDER, TEX_SIZE,
@@ -14,6 +14,7 @@ import type { DensityField } from '../densityField';
 import type { GpuModel, GpuModelContext } from '../gpuModel';
 import { ShockWave } from '../shockWave';
 import { STICKY_DUST_PARAM, STICKY_DUST_PROPERTY, STICKY_DUST_STAT, stickyDustDensity } from './declaration';
+import { ejectaRadius, ejectScale } from './ejecta';
 import { DustGravityField } from './gravityField';
 import { gravityWindow } from './gravityWindow';
 import referenceGlsl from '../../shaders/density-reference.glsl?raw';
@@ -24,8 +25,8 @@ const P = STICKY_DUST_PARAM;
 
 /**
  * GPU side of "sticky dust": multi-scale gravity, pressure (threshold and kinetic) and sticking in the velocity
- * pass, plus the supernovae. Every few frames the positions are read back to find the densest
- * disk; above the threshold it goes supernova (ejection, then a shock wave).
+ * pass, plus the supernovae. Every few frames the positions are read back to find the disk holding the most
+ * mass; above the threshold (a share of the total mass) it goes supernova (homologous ejection, then a shock wave).
  */
 export class StickyDustModel implements GpuModel {
     readonly velocityShader = withDefines(`${drawingGlsl}\n${latticeGlsl}\n${referenceGlsl}\n${stickyDustFrag}`, {
@@ -49,6 +50,7 @@ export class StickyDustModel implements GpuModel {
         textureGravity: { value: null as THREE.Texture | null },
         supernovaActive: { value: 0 },
         supernovaCenter: { value: new THREE.Vector2() },
+        ejectaRadius: { value: CONCENTRATION_RADIUS_SLIDER.default },
         supernovaSpeed: { value: SUPERNOVA_SPEED },
         ejectTime: { value: EJECT_TIME },
         shockActive: { value: 0 },
@@ -64,12 +66,14 @@ export class StickyDustModel implements GpuModel {
     /** Every value the model was given, by key: the booleans and choices (features) are read from here. */
     private readonly params: ParamValues = {};
     // Overwritten by setParam with the panel values when the model is created.
-    private supernovaThreshold = SUPERNOVA_THRESHOLD_SLIDER.default / 100; // fraction of the particles
+    private supernovaThreshold = SUPERNOVA_THRESHOLD_SLIDER.default / 100; // share of the total mass
     private concentrationRadius = CONCENTRATION_RADIUS_SLIDER.default;     // px
     private supernovaCount = 0;
     private concentration: number | null = null;
     private cooldown = 0;
     private supernovaPending = false;
+    /** Mass of each species (u), by species index: what the concentration weighs the particles by. */
+    private readonly speciesMass = new Array<number>(MAX_SPECIES).fill(1);
     private readonly supernovaMask = new Uint8Array(MAX_PARTICLES);
     private readonly supernovaTexture = new THREE.DataTexture(this.supernovaMask, TEX_SIZE, TEX_SIZE,
         THREE.RedFormat, THREE.UnsignedByteType);
@@ -154,7 +158,8 @@ export class StickyDustModel implements GpuModel {
         const u = this.velocityUniforms;
         types.forEach((t, k) => {
             u.speciesInvRelDensity.value[k] = clamp(meanDensity / stickyDustDensity(t), INV_REL_DENSITY_RANGE);
-            u.speciesEjectScale.value[k] = clamp(Math.sqrt(meanMass / this.typeMass(t)), EJECT_SCALE_RANGE);
+            u.speciesEjectScale.value[k] = ejectScale(this.typeMass(t), meanMass);
+            this.speciesMass[k] = this.typeMass(t);
         });
     }
 
@@ -192,12 +197,14 @@ export class StickyDustModel implements GpuModel {
 
     onReadback(positions: Float32Array, count: number): void {
         const size = this.context.screenSize.value;
-        const result = analyzeConcentration(positions, count, this.concentrationRadius, size.x, size.y, this.supernovaMask);
+        const result = analyzeConcentration(positions, count, this.concentrationRadius, size.x, size.y, this.supernovaMask,
+            this.speciesMass);
         this.concentration = result.fraction;
         if (result.members === 0 || result.fraction < this.supernovaThreshold) return;
 
         this.supernovaTexture.needsUpdate = true;
         this.velocityUniforms.supernovaCenter.value.set(result.centerX, result.centerY);
+        this.velocityUniforms.ejectaRadius.value = ejectaRadius(result.spread, this.concentrationRadius);
         this.supernovaPending = true;
     }
 

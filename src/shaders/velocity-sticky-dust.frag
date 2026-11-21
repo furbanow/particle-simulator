@@ -2,7 +2,7 @@
 // sticking toward the local flow, force of the static drawings (drawing.glsl, included before).
 // Defines: MAX_SPECIES, DRAWING_RES, DENSITY_RES (dust-gravity-lattice.glsl, included before), CONTACT_LO, CONTACT_HI,
 // PRESSURE_CFL, GLOW_LO, GLOW_HI. density-reference.glsl is included before as well. Provided by GPUComputationRenderer: resolution.
-// The TypeScript twin of the granular formulas is stickyDust/granular.ts.
+// The TypeScript twins are stickyDust/granular.ts (the granular formulas) and stickyDust/ejecta.ts (the supernova's ejection and kick).
 // The state samplers are bound by GpuPipeline (the velocity pass declares no dependencies).
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
@@ -28,6 +28,7 @@ uniform float restitution;
 uniform float momentumScale;
 uniform float supernovaActive;
 uniform vec2 supernovaCenter;
+uniform float ejectaRadius;             // rms distance of the ejecta to the centre: they move at supernovaSpeed (rms) at this distance
 uniform float supernovaSpeed;
 uniform float ejectTime;
 uniform float shockActive;
@@ -37,7 +38,7 @@ uniform float shockOuter;               // front radius now
 uniform float shockRef;                 // aggregate radius (kick reference distance)
 uniform float shockStrength;
 uniform float speciesInvRelDensity[MAX_SPECIES];  // mean density / species density
-uniform float speciesEjectScale[MAX_SPECIES];     // sqrt(mean mass / species mass)
+uniform float speciesEjectScale[MAX_SPECIES];     // sqrt(mean mass / species mass): heavy elements are ejected slower
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
@@ -69,19 +70,25 @@ void main() {
 
     if (supernovaActive > 0.5 && texture2D(textureSupernova, uv).r > 0.5) {
         vec2 d = pos - supernovaCenter;
-        float angle = length(d) > 0.001 ? atan(d.y, d.x) : hash(uv) * 6.2831853;
+        float r = length(d);
+        float angle = r > 0.001 ? atan(d.y, d.x) : hash(uv) * 6.2831853;
         angle += (hash(uv + 0.37) - 0.5) * 0.25;
-        // Same kinetic energy for every species: light ones fly faster.
-        float speed = supernovaSpeed * ejectScale * (0.8 + 0.4 * hash(uv + 1.71));
+        // Homologous expansion, v = H r: the speed grows with the distance to the centre (supernovaSpeed at the rms distance
+        // of the ejecta, so their rms speed is supernovaSpeed), the layers keep their order, and each species is scaled by
+        // sqrt(mean mass / mass), the same kinetic energy for all: heavy elements, which sit in the core, move slower than
+        // the light ones.
+        float speed = min(supernovaSpeed * ejectScale * r / ejectaRadius, maxSpeed);
         gl_FragColor = vec4(cos(angle) * speed, sin(angle) * speed, ejectTime, 0.0);
         return;
     }
 
-    // vel.z = remaining ejection time after a supernova
+    // vel.z = remaining ejection time after a supernova. While it runs the ejecta are in free flight: only the contact
+    // physics, the pressure and the sticking, waits for it (see `contact` below). Gravity does not.
     float eject = max(vel.z - dt, 0.0);
 
     // Shock wave: when the front sweeps over a particle, its outward radial velocity is
-    // raised to at least the local kick (1/r falloff). Faster ejecta are left untouched.
+    // raised to at least the local kick, the front's own speed (K / R, so 1/r falloff) times the strength of the wave.
+    // Faster ejecta are left untouched.
     if (shockActive > 0.5) {
         vec2 d = pos - shockCenter;
         float r = length(d);
@@ -97,7 +104,10 @@ void main() {
         }
     }
 
-    float bound = 1.0 - clamp(eject / ejectTime, 0.0, 1.0);
+    // 0 just after an ejection or a kick, back to 1 when the timer has run out: the share of the contact physics (pressure,
+    // sticking) the particle feels. Gravity and the drawings' pull ignore it: what falls does not depend on what it is
+    // doing (equivalence principle), so ejecta that do not escape come back, and the pull of an attractor applies as ever.
+    float contact = 1.0 - clamp(eject / ejectTime, 0.0, 1.0);
     vec2 duv = (pos + domainOffset) / domainSize;
 
     // The reference of the deposit, then the four density texels around the particle (their moments, not only the
@@ -129,20 +139,20 @@ void main() {
 
     // Buoyancy: the pressure push is divided by the species' relative density, so species
     // denser than the mean sink to the core of clumps and lighter ones float to the rim.
-    vec2 v = vel.xy + bound * (kGravity * gravity + drawingAccel(pos)
-                               + speciesInvRelDensity[species] * (gas - kPressure * pressure)) * dt;
+    vec2 v = vel.xy + (kGravity * gravity + drawingAccel(pos)
+                       + contact * speciesInvRelDensity[species] * (gas - kPressure * pressure)) * dt;
 
     // Sticking (Haff): grains collide at a frequency proportional to rho sqrt(T) and stick, so their velocity relaxes
     // toward the local mean flow at that rate and the agitation T falls as 1 / (1 + t / t0)^2. Grains that meet
     // faster than the collision speed bounce instead: the sticking fades out between half of it and all of it, which
-    // also keeps fast ejecta from sticking to the flow they leave.
+    // keeps fast ejecta from sticking to the flow they leave; the slow ones are kept free by the ejection timer.
     float agitation = 0.0;
     if (local.r > 1e-4) {
         vec2 meanV = local.gb / (local.r * momentumScale);
         agitation = peculiarEnergy(local, ref) / local.r;
         float frequency = stickRate * local.r * sqrt(agitation);
         float sticks = 1.0 - smoothstep(0.5 * collisionSpeed, collisionSpeed, length(v - meanV));
-        v = mix(v, meanV, sticks * (1.0 - exp(-frequency * dt)));
+        v = mix(v, meanV, contact * sticks * (1.0 - exp(-frequency * dt)));
     }
 
     v *= exp(-globalDrag * dt);

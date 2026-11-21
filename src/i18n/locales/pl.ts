@@ -162,11 +162,11 @@ export const pl: Record<MessageKey, string> = {
     'algo.stickyDust.param.collisionSpeed.label': 'Prędkość zderzenia',
     'algo.stickyDust.param.collisionSpeed.doc': 'Prędkość względna, powyżej której ziarna nie przyklejają się już do otaczającego przepływu, lecz odbijają się. Ziarna spadające lub wyrzucone szybciej przechodzą przez pył bez sklejania.',
     'algo.stickyDust.param.supernovaThreshold.label': 'Próg wyzwolenia',
-    'algo.stickyDust.param.supernovaThreshold.doc': 'Część wszystkich cząstek, która musi znaleźć się w strefie detekcji, aby wywołać supernową. Im jest niższy, tym częstsze są wybuchy.',
+    'algo.stickyDust.param.supernovaThreshold.doc': 'Część całkowitej masy, która musi znaleźć się w strefie detekcji, aby wywołać supernową (ciężkie pierwiastki liczą się bardziej niż lekkie). Im jest niższy, tym częstsze są wybuchy.',
     'algo.stickyDust.param.concentrationRadius.label': 'Promień strefy detekcji',
-    'algo.stickyDust.param.concentrationRadius.doc': 'Promień dysku umieszczonego w najgęstszym miejscu, w którym liczone są cząstki. To cząstki z tego dysku są wyrzucane przez supernową.',
+    'algo.stickyDust.param.concentrationRadius.doc': 'Promień dysku umieszczonego w najgęstszym miejscu, w którym liczona jest masa. To cząstki z tego dysku są wyrzucane przez supernową.',
     'algo.stickyDust.param.supernovaPower.label': 'Siła wyrzutu',
-    'algo.stickyDust.param.supernovaPower.doc': 'Prędkość nadawana wyrzucanym cząstkom i następującej po nich fali uderzeniowej, w procentach maksymalnej prędkości wyrzutu.',
+    'algo.stickyDust.param.supernovaPower.doc': 'Prędkość wyrzucanych cząstek na brzegu strefy detekcji oraz początkowa prędkość następującej po nich fali uderzeniowej, w procentach maksymalnej prędkości wyrzutu. Wewnątrz strefy prędkość maleje proporcjonalnie do odległości od środka, a ciężkie pierwiastki są wolniejsze od lekkich.',
     'algo.stickyDust.prop.weight.label': 'Rozkład',
     'algo.stickyDust.prop.weight.resetLabel': 'Równomierny',
     'algo.stickyDust.prop.weight.resetTitle': 'Taka sama liczebność każdego pierwiastka',
@@ -181,7 +181,7 @@ export const pl: Record<MessageKey, string> = {
     'algo.stickyDust.builtin': 'Pierwiastki chemiczne',
     'algo.stickyDust.stat.supernovae': 'Supernowe',
     'algo.stickyDust.stat.concentration': 'Maks. koncentracja',
-    'algo.stickyDust.stat.concentration.title': 'Znacznik pokazuje próg supernowej',
+    'algo.stickyDust.stat.concentration.title': 'Część całkowitej masy w najgęstszej strefie detekcji. Znacznik pokazuje próg supernowej',
     'algo.stickyDust.stat.concentration.marker': 'próg {value}%',
 
     // ---- Protostar ----

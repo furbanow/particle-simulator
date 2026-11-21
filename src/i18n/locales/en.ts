@@ -178,11 +178,11 @@ export const en = {
     'algo.stickyDust.param.collisionSpeed.label': 'Collision speed',
     'algo.stickyDust.param.collisionSpeed.doc': 'Relative speed above which grains no longer stick to the flow around them but bounce off. Grains falling in or ejected faster than this pass through the dust without sticking.',
     'algo.stickyDust.param.supernovaThreshold.label': 'Trigger threshold',
-    'algo.stickyDust.param.supernovaThreshold.doc': 'Share of all particles that must be inside the detection zone to trigger a supernova. The lower it is, the more frequent the explosions.',
+    'algo.stickyDust.param.supernovaThreshold.doc': 'Share of the total mass that must be inside the detection zone to trigger a supernova (heavy elements count for more than light ones). The lower it is, the more frequent the explosions.',
     'algo.stickyDust.param.concentrationRadius.label': 'Detection zone radius',
-    'algo.stickyDust.param.concentrationRadius.doc': 'Radius of the disc placed on the densest spot, where particles are counted. The particles of this disc are the ones ejected by the supernova.',
+    'algo.stickyDust.param.concentrationRadius.doc': 'Radius of the disc placed on the densest spot, where the mass is counted. The particles of this disc are the ones ejected by the supernova.',
     'algo.stickyDust.param.supernovaPower.label': 'Ejection power',
-    'algo.stickyDust.param.supernovaPower.doc': 'Speed given to the ejected particles and to the shock wave that follows, as a percentage of the maximum ejection speed.',
+    'algo.stickyDust.param.supernovaPower.doc': 'Speed of the ejected particles at the edge of the detection zone, and initial speed of the shock wave that follows, as a percentage of the maximum ejection speed. Inside the zone the speed falls in proportion to the distance from the centre, and heavy elements are slower than light ones.',
     'algo.stickyDust.prop.weight.label': 'Distribution',
     'algo.stickyDust.prop.weight.resetLabel': 'Uniform',
     'algo.stickyDust.prop.weight.resetTitle': 'Same population for each element',
@@ -197,7 +197,7 @@ export const en = {
     'algo.stickyDust.builtin': 'Chemical elements',
     'algo.stickyDust.stat.supernovae': 'Supernovae',
     'algo.stickyDust.stat.concentration': 'Max concentration',
-    'algo.stickyDust.stat.concentration.title': 'The marker shows the supernova threshold',
+    'algo.stickyDust.stat.concentration.title': 'Share of the total mass in the densest detection zone. The marker shows the supernova threshold',
     'algo.stickyDust.stat.concentration.marker': 'threshold {value}%',
 
     // ---- Protostar ----

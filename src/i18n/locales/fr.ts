@@ -162,11 +162,11 @@ export const fr: Record<MessageKey, string> = {
     'algo.stickyDust.param.collisionSpeed.label': 'Vitesse de collision',
     'algo.stickyDust.param.collisionSpeed.doc': 'Vitesse relative au-delà de laquelle les grains ne collent plus à l\'écoulement qui les entoure mais rebondissent. Les grains qui tombent ou sont éjectés plus vite traversent la poussière sans coller.',
     'algo.stickyDust.param.supernovaThreshold.label': 'Seuil de déclenchement',
-    'algo.stickyDust.param.supernovaThreshold.doc': 'Part de toutes les particules qui doit se trouver dans la zone de détection pour déclencher une supernova. Plus il est bas, plus les explosions sont fréquentes.',
+    'algo.stickyDust.param.supernovaThreshold.doc': 'Part de la masse totale qui doit se trouver dans la zone de détection pour déclencher une supernova (les éléments lourds comptent plus que les légers). Plus il est bas, plus les explosions sont fréquentes.',
     'algo.stickyDust.param.concentrationRadius.label': 'Rayon de la zone de détection',
-    'algo.stickyDust.param.concentrationRadius.doc': 'Rayon du disque placé sur l\'endroit le plus dense, où l\'on compte les particules. Ce sont les particules de ce disque qui sont éjectées par la supernova.',
+    'algo.stickyDust.param.concentrationRadius.doc': 'Rayon du disque placé sur l\'endroit le plus dense, où l\'on compte la masse. Ce sont les particules de ce disque qui sont éjectées par la supernova.',
     'algo.stickyDust.param.supernovaPower.label': 'Puissance d\'éjection',
-    'algo.stickyDust.param.supernovaPower.doc': 'Vitesse donnée aux particules éjectées et à l\'onde de choc qui suit, en pourcentage de la vitesse d\'éjection maximale.',
+    'algo.stickyDust.param.supernovaPower.doc': 'Vitesse des particules éjectées au bord de la zone de détection, et vitesse initiale de l\'onde de choc qui suit, en pourcentage de la vitesse d\'éjection maximale. Dans la zone, la vitesse diminue proportionnellement à la distance au centre, et les éléments lourds sont plus lents que les légers.',
     'algo.stickyDust.prop.weight.label': 'Répartition',
     'algo.stickyDust.prop.weight.resetLabel': 'Uniforme',
     'algo.stickyDust.prop.weight.resetTitle': 'Même population pour chaque élément',
@@ -181,7 +181,7 @@ export const fr: Record<MessageKey, string> = {
     'algo.stickyDust.builtin': 'Éléments chimiques',
     'algo.stickyDust.stat.supernovae': 'Supernovae',
     'algo.stickyDust.stat.concentration': 'Concentration max',
-    'algo.stickyDust.stat.concentration.title': 'Le repère indique le seuil de supernova',
+    'algo.stickyDust.stat.concentration.title': 'Part de la masse totale dans la zone de détection la plus dense. Le repère indique le seuil de supernova',
     'algo.stickyDust.stat.concentration.marker': 'seuil {value} %',
 
     // ---- Protostar ----

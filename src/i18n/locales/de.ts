@@ -162,11 +162,11 @@ export const de: Record<MessageKey, string> = {
     'algo.stickyDust.param.collisionSpeed.label': 'Kollisionsgeschwindigkeit',
     'algo.stickyDust.param.collisionSpeed.doc': 'Relative Geschwindigkeit, ab der Körner nicht mehr an der Strömung um sie herum haften, sondern abprallen. Schnellere einfallende oder ausgeworfene Körner durchqueren den Staub, ohne zu haften.',
     'algo.stickyDust.param.supernovaThreshold.label': 'Auslöseschwelle',
-    'algo.stickyDust.param.supernovaThreshold.doc': 'Anteil aller Teilchen, der sich in der Erkennungszone befinden muss, um eine Supernova auszulösen. Je niedriger er ist, desto häufiger sind die Explosionen.',
+    'algo.stickyDust.param.supernovaThreshold.doc': 'Anteil der Gesamtmasse, der sich in der Erkennungszone befinden muss, um eine Supernova auszulösen (schwere Elemente zählen mehr als leichte). Je niedriger er ist, desto häufiger sind die Explosionen.',
     'algo.stickyDust.param.concentrationRadius.label': 'Radius der Erkennungszone',
-    'algo.stickyDust.param.concentrationRadius.doc': 'Radius der Scheibe an der dichtesten Stelle, in der die Teilchen gezählt werden. Die Teilchen dieser Scheibe werden von der Supernova ausgestoßen.',
+    'algo.stickyDust.param.concentrationRadius.doc': 'Radius der Scheibe an der dichtesten Stelle, in der die Masse gezählt wird. Die Teilchen dieser Scheibe werden von der Supernova ausgestoßen.',
     'algo.stickyDust.param.supernovaPower.label': 'Ausstoßkraft',
-    'algo.stickyDust.param.supernovaPower.doc': 'Geschwindigkeit der ausgestoßenen Teilchen und der nachfolgenden Stoßwelle, in Prozent der maximalen Ausstoßgeschwindigkeit.',
+    'algo.stickyDust.param.supernovaPower.doc': 'Geschwindigkeit der ausgestoßenen Teilchen am Rand der Erkennungszone und Anfangsgeschwindigkeit der nachfolgenden Stoßwelle, in Prozent der maximalen Ausstoßgeschwindigkeit. Innerhalb der Zone nimmt die Geschwindigkeit proportional zum Abstand vom Zentrum ab, und schwere Elemente sind langsamer als leichte.',
     'algo.stickyDust.prop.weight.label': 'Verteilung',
     'algo.stickyDust.prop.weight.resetLabel': 'Gleichmäßig',
     'algo.stickyDust.prop.weight.resetTitle': 'Gleiche Anzahl für jedes Element',
@@ -181,7 +181,7 @@ export const de: Record<MessageKey, string> = {
     'algo.stickyDust.builtin': 'Chemische Elemente',
     'algo.stickyDust.stat.supernovae': 'Supernovae',
     'algo.stickyDust.stat.concentration': 'Max. Konzentration',
-    'algo.stickyDust.stat.concentration.title': 'Die Markierung zeigt die Supernova-Schwelle',
+    'algo.stickyDust.stat.concentration.title': 'Anteil der Gesamtmasse in der dichtesten Erkennungszone. Die Markierung zeigt die Supernova-Schwelle',
     'algo.stickyDust.stat.concentration.marker': 'Schwelle {value} %',
 
     // ---- Protostar ----

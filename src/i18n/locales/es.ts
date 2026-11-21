@@ -162,11 +162,11 @@ export const es: Record<MessageKey, string> = {
     'algo.stickyDust.param.collisionSpeed.label': 'Velocidad de colisión',
     'algo.stickyDust.param.collisionSpeed.doc': 'Velocidad relativa a partir de la cual los granos dejan de pegarse al flujo que los rodea y rebotan. Los granos que caen o son expulsados más rápido atraviesan el polvo sin pegarse.',
     'algo.stickyDust.param.supernovaThreshold.label': 'Umbral de activación',
-    'algo.stickyDust.param.supernovaThreshold.doc': 'Parte de todas las partículas que debe encontrarse en la zona de detección para provocar una supernova. Cuanto más bajo es, más frecuentes son las explosiones.',
+    'algo.stickyDust.param.supernovaThreshold.doc': 'Parte de la masa total que debe encontrarse en la zona de detección para provocar una supernova (los elementos pesados cuentan más que los ligeros). Cuanto más bajo es, más frecuentes son las explosiones.',
     'algo.stickyDust.param.concentrationRadius.label': 'Radio de la zona de detección',
-    'algo.stickyDust.param.concentrationRadius.doc': 'Radio del disco colocado en el punto más denso, donde se cuentan las partículas. Las partículas de este disco son las que expulsa la supernova.',
+    'algo.stickyDust.param.concentrationRadius.doc': 'Radio del disco colocado en el punto más denso, donde se cuenta la masa. Las partículas de este disco son las que expulsa la supernova.',
     'algo.stickyDust.param.supernovaPower.label': 'Potencia de expulsión',
-    'algo.stickyDust.param.supernovaPower.doc': 'Velocidad dada a las partículas expulsadas y a la onda de choque que las sigue, como porcentaje de la velocidad máxima de expulsión.',
+    'algo.stickyDust.param.supernovaPower.doc': 'Velocidad de las partículas expulsadas en el borde de la zona de detección y velocidad inicial de la onda de choque que las sigue, como porcentaje de la velocidad máxima de expulsión. Dentro de la zona la velocidad disminuye en proporción a la distancia al centro, y los elementos pesados son más lentos que los ligeros.',
     'algo.stickyDust.prop.weight.label': 'Distribución',
     'algo.stickyDust.prop.weight.resetLabel': 'Uniforme',
     'algo.stickyDust.prop.weight.resetTitle': 'La misma población para cada elemento',
@@ -181,7 +181,7 @@ export const es: Record<MessageKey, string> = {
     'algo.stickyDust.builtin': 'Elementos químicos',
     'algo.stickyDust.stat.supernovae': 'Supernovas',
     'algo.stickyDust.stat.concentration': 'Concentración máx.',
-    'algo.stickyDust.stat.concentration.title': 'La marca indica el umbral de supernova',
+    'algo.stickyDust.stat.concentration.title': 'Parte de la masa total en la zona de detección más densa. La marca indica el umbral de supernova',
     'algo.stickyDust.stat.concentration.marker': 'umbral {value} %',
 
     // ---- Protostar ----
