@@ -68,6 +68,9 @@ not run. Set `LAB_NO_SANDBOX=1` where Chrome refuses to start without `--no-sand
 | `dust.gravity.point-mass` | The pull of a point mass on rings around it against the angle: anisotropy of the central difference, of Scharr's stencil and of the stencil in use ([spikes/b1-dust-gravity.md](spikes/b1-dust-gravity.md)). |
 | `dust.default-cloud` | The default sticky dust cloud forming its clumps: every 10 frames the density grid is read and the share of the mass in dense texels (at or above `REST_DENSITY`), the peak density, the number of clumps and the heaviest one are recorded; the time to reach a few shares and the time of the first supernova summarize it. The scenario that compares the builds before and after a change of the dust's physics. |
 | `dust.recalibration` | The same cloud under the original stencil of the coarse gravity and under the isotropic one with a few gains on the pull (`DUST_GRAVITY_GAIN`): which gain restores the timeline of the original ([spikes/a10-granular-dust.md](spikes/a10-granular-dust.md)). |
+| `dust.deposit` | The sticky dust's density grid (mass, momentum, agitation energy in the alpha channel) against a CPU reference computed from the positions and velocities read back: judged on a sparse cloud against the tolerance model of a half-float deposit, measured on the default cloud once its clumps have formed; the agitation T the velocity pass derives from the grid against the exact variance of the particles in each texel, with the energy deposited about a reference velocity and about zero ([spikes/a10-granular-dust.md](spikes/a10-granular-dust.md)). |
+| `dust.haff` | Free cooling of a uniform cloud of grains (no gravity, no pressure, no drag, elastic walls): `T^(-1/2)` must grow linearly with time, `T = T0 / (1 + t / t0)^2` (Haff's law); fit on the density grid and on the particles read back, slope against the sticking rate times the density the particles feel. |
+| `dust.granular-sweep` | The default cloud under other stickiness, kinetic pressure and collision speed (tuning of the defaults). |
 | `perf.<algorithm>.<count>` | ms per frame of protostar (400 000 and 1 000 000 particles) and sticky dust (400 000, 1 000 000 and 3 000 000). |
 | `cost.protostar.second-deposit` | Simulation ms/frame at 400 000 particles with and without the composition on the moments pass, the two alternated chunk after chunk in one run, and the grid passes alone on a frozen early (frame 55) and late (about frame 970) cloud; the frame numbers are in the metrics. One run is not a measurement: repeat it (see the spike). |
 | `cost.protostar.diagnostics` | Simulation ms/frame at 400 000 particles with the gravity pass without its potential channel (as before the energy diagnostics), with it and the flag off, and with the flag on (the default), alternated chunk after chunk in all six orders; the gravity and the other grid passes alone on a frozen early and late cloud; and the cost of one call of the reduction and of the potential stash. The data that decides the default of `diagnostics`. |
@@ -119,6 +122,14 @@ The tools a scenario gets (`src/lab/driver.ts`, `readback.ts`):
   scales that turn the raw sums into simulation units, and `debugGrids.reduceStats()` /
   `stashPotential()` run the passes by hand (`unpackReduction()`, `src/simulation/protostar/reduction.ts`,
   reads the texels back).
+- **The sticky dust.** `stickyDustModel(context)` gives the model, `.debugDensity` its density field (`target`,
+  `debugReferenceTarget`, `referenceEnabled = false` deposits the energy about zero, `render()` deposits the
+  state as it now stands), `.velocityUniforms` the uniforms of its velocity pass (set `kGravity`, `kPressure`,
+  `kineticPressure`, `globalDrag`, `restitution`, `stickRate`, `collisionSpeed` directly, below the sliders'
+  ranges; restore the ones the sliders do not own afterwards), `.debugUseCornerWeight()` the stencil of the
+  coarse gravity. `simulation.debugPipeline.debugSetState(positions, velocities)` overwrites the state of the
+  particles (after a `restart()` that made their count and types), `debugVelocityTarget` reads them back with
+  `readPositions()`. `dustDeposit.ts` is the CPU reference of the dust's deposit, `haffFit.ts` the fit of Haff's law.
 - `runFrames(context, n, { endFrame, onFrame, step })` steps the simulation and synchronizes with
   the GPU every few frames; `GpuSync` (`context.sync`) waits for the GPU on demand.
 

@@ -244,3 +244,61 @@ export const DUST_RECALIBRATION_ARMS: readonly { name: string; cornerWeight: num
     { name: 'stencil, gain 1.3', cornerWeight: DUST_GRADIENT_CORNER_WEIGHT, gain: 1.3 },
     { name: 'shipped', cornerWeight: DUST_GRADIENT_CORNER_WEIGHT, gain: DUST_GRAVITY_GAIN },
 ];
+// ---- Granular dust: the deposit of the agitation energy, Haff's law ----
+export const DUST_DEPOSIT_SEED = 7778;
+/** A sparse cloud (a few particles a texel, the donut barely collapsed): the deposit must equal its CPU reference within the tolerance model. */
+export const DUST_DEPOSIT_SPARSE_PARTICLES = 20000;
+export const DUST_DEPOSIT_SPARSE_FRAMES = 10;
+/** The default cloud once its clumps have formed (it collapses at about frame 85): the deposit is measured, not judged. */
+export const DUST_DEPOSIT_CLUMPED_PARTICLES = 400000;
+export const DUST_DEPOSIT_CLUMPED_FRAMES = 110;
+/**
+ * A cold flow: a block of the area filled with grains whose agitation is DUST_COLD_SIGMA (px/s per axis) in a bulk flow far faster than
+ * it. Half floats lose the energy about zero (the speed's square is 600 times the agitation's); the reference velocity keeps it.
+ */
+export const DUST_COLD_PARTICLES = 400000;
+export const DUST_COLD_SIGMA = 12;
+export const DUST_COLD_BULK = [700, -400] as const;
+/** Fractional bits of the weights of the hardware's bilinear filter (NVIDIA, AMD and Intel use 8). */
+export const REFERENCE_WEIGHT_BITS = 8;
+/** The agitation of a texel is judged where at least this many particle clouds reach it (fewer: the variance of a handful of particles). */
+export const AGITATION_MIN_CONTRIBUTIONS = 30;
+/** Lower bounds of the classes of density (mass a texel) the agitation error is reported by. */
+export const AGITATION_DENSITY_CLASSES = [1, 10, 30, 100] as const;
+/** Largest median relative error of the agitation of the sparse cloud, grid against CPU. */
+export const AGITATION_MEDIAN_LIMIT = 0.05;
+
+/**
+ * Haff's law: a cloud of equal grains filling the area uniformly, with Gaussian velocities of standard deviation HAFF_SIGMA
+ * (px/s, per axis) and no net momentum, cooling by sticking alone (no gravity, no pressure, no drag, elastic walls). The sticking
+ * rate is raised to HAFF_STICK_RATE (the cloud is thin: a texel holds less than one unit of mass) so that the agitation falls
+ * by a factor 100 within HAFF_FRAMES frames. The series is read every HAFF_SAMPLE_EVERY frames.
+ */
+export const HAFF_PARTICLES = 1000000;
+export const HAFF_SIGMA = 60;
+export const HAFF_FRAMES = 700;
+export const HAFF_SAMPLE_EVERY = 20;
+export const HAFF_STICK_RATE = 0.015;
+/** Texels lighter than this are left out of the grid's mean agitation. */
+export const HAFF_MIN_MASS = 0.05;
+/** The fit is judged where the agitation is at least this fraction of the initial one (below, the fluctuations of the local mean flows show). */
+export const HAFF_FIT_FLOOR = 0.05;
+/** Haff's exponent is -2: the fit must find it within this much, with this coefficient of determination of T^(-1/2) against t. */
+export const HAFF_EXPONENT_TOLERANCE = 0.1;
+export const HAFF_MIN_R2 = 0.99;
+
+/**
+ * Arms of the granular sweep (the default cloud under other settings of the sticky dust's grains): stickiness (% of the default),
+ * kinetic pressure (1 is the pressure of an ideal gas) and collision speed (px/s).
+ */
+export const DUST_SWEEP_ARMS: readonly { name: string; stickiness: number; kinetic: number; collisionSpeed: number }[] = [
+    { name: 'default', stickiness: 100, kinetic: 1, collisionSpeed: 600 },
+    { name: 'no kinetic pressure', stickiness: 100, kinetic: 0, collisionSpeed: 600 },
+    { name: 'stickiness 50 %', stickiness: 50, kinetic: 1, collisionSpeed: 600 },
+    { name: 'stickiness 125 %', stickiness: 125, kinetic: 1, collisionSpeed: 600 },
+    { name: 'stickiness 150 %', stickiness: 150, kinetic: 1, collisionSpeed: 600 },
+    { name: 'stickiness 175 %', stickiness: 175, kinetic: 1, collisionSpeed: 600 },
+    { name: 'stickiness 200 %', stickiness: 200, kinetic: 1, collisionSpeed: 600 },
+    { name: 'collision speed 200', stickiness: 100, kinetic: 1, collisionSpeed: 200 },
+    { name: 'collision speed 1000', stickiness: 100, kinetic: 1, collisionSpeed: 1000 },
+];

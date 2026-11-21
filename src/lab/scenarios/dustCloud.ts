@@ -3,12 +3,15 @@
 // here depends on how the dust computes its pressure or its sticking: the same scenarios run on the
 // builds before and after a change of the physics, which is how the two are compared.
 
-import { DENSITY_RES, DUST_GRADIENT_CORNER_WEIGHT, GRAVITY_SLIDER, REST_DENSITY } from '../../config';
+import { DENSITY_RES, DUST_GRADIENT_CORNER_WEIGHT, GRAVITY_SLIDER, MOMENTUM_SCALE, REST_DENSITY, STICK_RATE } from '../../config';
+import { REFERENCE_RES } from '../../simulation/densityField';
 import { STICKY_DUST_STAT } from '../../simulation/stickyDust/declaration';
+import { DEFAULT_SCALES, stickingFrequency } from '../../simulation/stickyDust/granular';
 import { clumpStats, firstCrossing, type ClumpStats } from '../clumpStats';
+import { agitationOfGrid, referenceFromGrid } from '../dustDeposit';
 import {
     DUST_CLOUD_CLUMP_MIN_TEXELS, DUST_CLOUD_FRAMES, DUST_CLOUD_LEVELS, DUST_CLOUD_PARTICLES, DUST_CLOUD_SAMPLE_EVERY, DUST_CLOUD_SEED,
-    DUST_RECALIBRATION_ARMS,
+    DUST_RECALIBRATION_ARMS, DUST_SWEEP_ARMS,
 } from '../config';
 import { frameSeconds, restart, runFrames, stickyDustModel } from '../driver';
 import { significant } from '../numbers';
@@ -19,7 +22,19 @@ import type { JsonValue, LabContext, Scenario, ScenarioOutcome } from '../types'
 const DIGITS = 4;
 const round = (v: number): number => significant(v, DIGITS);
 
-interface CloudSample extends ClumpStats {
+/** How agitated the dust is, in px/s (sqrt of the agitation T), mass-weighted, and how often its grains stick, 1/s. */
+export interface AgitationStats {
+    /** Texels at or above REST_DENSITY. */
+    dense: number;
+    /** Texels from a mass of 1 up to REST_DENSITY. */
+    loose: number;
+    /** The hottest texel from a mass of 3. */
+    hottest: number;
+    /** Mean sticking frequency of the dense texels. */
+    stickingDense: number;
+}
+
+interface CloudSample extends ClumpStats, AgitationStats {
     frame: number;
     /** Simulated seconds. */
     time: number;
@@ -35,6 +50,32 @@ export interface CloudRun {
     firstSupernova: number | null;
 }
 
+/** The agitation of a density grid read back, and the reference velocity it was deposited about (both read back by the caller). */
+export function agitationStats(grid: Float32Array, referenceGrid: Float32Array, offset: readonly [number, number],
+                               referenceOffset: readonly [number, number], domainSize: number, stickRate: number): AgitationStats {
+    const texel = domainSize / DENSITY_RES;
+    const temperature = agitationOfGrid(grid, DENSITY_RES, DEFAULT_SCALES, (x, y) => referenceFromGrid(
+        referenceGrid, REFERENCE_RES, referenceOffset, domainSize, MOMENTUM_SCALE, (x + 0.5) * texel - offset[0], (y + 0.5) * texel - offset[1]));
+    let denseSum = 0, denseMass = 0, looseSum = 0, looseMass = 0, hottest = 0, frequency = 0;
+    for (let i = 0; i < temperature.length; i++) {
+        const rho = grid[i * 4];
+        const speed = Math.sqrt(temperature[i]);
+        if (rho >= REST_DENSITY) {
+            denseSum += rho * speed;
+            denseMass += rho;
+            frequency += rho * stickingFrequency(stickRate, rho, temperature[i]);
+        } else if (rho >= 1) {
+            looseSum += rho * speed;
+            looseMass += rho;
+        }
+        if (rho >= 3 && speed > hottest) hottest = speed;
+    }
+    return {
+        dense: denseMass > 0 ? denseSum / denseMass : 0, loose: looseMass > 0 ? looseSum / looseMass : 0, hottest,
+        stickingDense: denseMass > 0 ? frequency / denseMass : 0,
+    };
+}
+
 /**
  * Restarts the default dust cloud and steps it `frames` frames, reading the density grid every
  * DUST_CLOUD_SAMPLE_EVERY frames. `prepare` runs after the restart (to change the pull, ...). The frames
@@ -45,7 +86,8 @@ export async function runDefaultCloud(context: LabContext, frames: number, prepa
     const { simulation, renderer } = context;
     await restart(context, { algorithm: 'stickyDust', count: DUST_CLOUD_PARTICLES, seed: DUST_CLOUD_SEED });
     prepare?.();
-    const density = stickyDustModel(context).debugDensity;
+    const model = stickyDustModel(context);
+    const density = model.debugDensity;
     const seconds = frameSeconds(context);
     const samples: CloudSample[] = [];
     let firstSupernova: number | null = null;
@@ -56,8 +98,11 @@ export async function runDefaultCloud(context: LabContext, frames: number, prepa
             if (supernovae > 0 && firstSupernova === null) firstSupernova = frame * seconds;
             if (frame % DUST_CLOUD_SAMPLE_EVERY !== 0) return;
             const grid = await readTarget(renderer, density.target);
+            const referenceGrid = await readTarget(renderer, density.debugReferenceTarget);
+            const agitation = agitationStats(grid, referenceGrid, [density.domainOffset.value.x, density.domainOffset.value.y],
+                [density.referenceOffset.value.x, density.referenceOffset.value.y], density.domainSize.value, model.velocityUniforms.stickRate.value);
             samples.push({
-                ...clumpStats(grid, DENSITY_RES, REST_DENSITY, DUST_CLOUD_CLUMP_MIN_TEXELS),
+                ...clumpStats(grid, DENSITY_RES, REST_DENSITY, DUST_CLOUD_CLUMP_MIN_TEXELS), ...agitation,
                 frame, time: frame * seconds, concentration: simulation.stat(STICKY_DUST_STAT.concentration), supernovae,
             });
         },
@@ -69,7 +114,8 @@ export async function runDefaultCloud(context: LabContext, frames: number, prepa
 const sampleMetrics = (s: CloudSample): Record<string, JsonValue> => ({
     frame: s.frame, time: round(s.time), peakDensity: round(s.peak), denseMassFraction: round(s.denseMassFraction), denseTexels: s.denseTexels,
     clumps: s.clumps, largestClumpMass: round(s.largestClumpMass), concentration: s.concentration === null ? null : round(s.concentration),
-    supernovae: s.supernovae,
+    supernovae: s.supernovae, agitationDense: round(s.dense), agitationLoose: round(s.loose), hottest: round(s.hottest),
+    stickingDense: round(s.stickingDense),
 });
 
 const arrivalMetrics = (run: CloudRun): Record<string, JsonValue> => Object.fromEntries(
@@ -142,4 +188,33 @@ const recalibration: Scenario = {
     },
 };
 
-export const dustCloudScenarios: Scenario[] = [defaultCloud, recalibration];
+/** The default cloud under other settings of the grains: how the stickiness, the kinetic pressure and the collision speed shape the clumps. */
+const granularSweep: Scenario = {
+    id: 'dust.granular-sweep',
+    title: 'Sticky dust: the default cloud under other stickiness, kinetic pressure and collision speed',
+    tags: ['dust', 'tuning', 'slow'],
+    async run(context): Promise<ScenarioOutcome> {
+        context.simulation.useAlgorithm('stickyDust');
+        const model = stickyDustModel(context);
+        const arms: Record<string, JsonValue> = {};
+        const lines: string[] = [];
+        for (const arm of DUST_SWEEP_ARMS) {
+            const run = await runDefaultCloud(context, DUST_CLOUD_FRAMES, () => {
+                model.velocityUniforms.stickRate.value = STICK_RATE * arm.stickiness / 100;
+                model.velocityUniforms.kineticPressure.value = arm.kinetic;
+                model.velocityUniforms.collisionSpeed.value = arm.collisionSpeed;
+            });
+            const last = run.samples[run.samples.length - 1];
+            const tenPercent = run.arrival[2];
+            arms[arm.name] = {
+                ...arm, ...arrivalMetrics(run), firstSupernova: run.firstSupernova === null ? null : round(run.firstSupernova),
+                final: sampleMetrics(last), series: run.samples.filter((_, i) => i % 3 === 0).map(sampleMetrics),
+            };
+            lines.push(`${arm.name}: 10 % at ${tenPercent === null ? '-' : tenPercent.toFixed(2)} s, supernova ${run.firstSupernova === null ? '-' : run.firstSupernova.toFixed(2)} s, `
+                + `end: ${(100 * last.denseMassFraction).toFixed(0)} % dense, ${last.clumps} clumps, peak ${last.peak.toFixed(0)}`);
+        }
+        return { status: 'pass', metrics: { particles: DUST_CLOUD_PARTICLES, frames: DUST_CLOUD_FRAMES, arms }, details: lines.join('; ') };
+    },
+};
+
+export const dustCloudScenarios: Scenario[] = [defaultCloud, recalibration, granularSweep];

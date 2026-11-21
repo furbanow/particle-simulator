@@ -4,6 +4,7 @@
 import { defaultCloud, ignitionRatioBaseline } from './scenarios/baseline';
 import { diagnosticsCost } from './scenarios/diagnosticsCost';
 import { dustCloudScenarios } from './scenarios/dustCloud';
+import { dustGranularScenarios } from './scenarios/dustGranular';
 import { dustGravityScenarios } from './scenarios/dustGravity';
 import { energyDrift, energyDriftAttribution, energyReference, reductionChannels } from './scenarios/energy';
 import { halfFloatDeposit } from './scenarios/halfFloat';
@@ -26,6 +27,7 @@ export const SCENARIOS: readonly Scenario[] = [
     energyDriftAttribution,
     ...dustGravityScenarios,
     ...dustCloudScenarios,
+    ...dustGranularScenarios,
     ...perfScenarios,
     secondDepositCost,
     diagnosticsCost,
