@@ -451,3 +451,8 @@ export const HITCH_WINDOW_FRAMES = 4;
 
 /** The default cloud's supernova history at the default power over several seeds (dust.supernova.seeds): the clouds, from SUPERNOVA_SEED up. */
 export const SUPERNOVA_SEEDS_RUNS = 3;
+
+/** The cost of one GPU search of the densest disk (perf.dustConcentration.<count>): the counts, the frames of the default cloud's collapse before it is timed, the batches timed. */
+export const CONCENTRATION_COST_COUNTS = [400000, 1000000, 3000000] as const;
+export const CONCENTRATION_COST_FRAMES = 150;
+export const CONCENTRATION_COST_REPEATS = 5;

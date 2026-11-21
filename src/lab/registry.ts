@@ -5,6 +5,7 @@ import { defaultCloud, defaultCloudVariants, ignitionRatioBaseline } from './sce
 import { diagnosticsCost } from './scenarios/diagnosticsCost';
 import { dustCloudScenarios } from './scenarios/dustCloud';
 import { dustConcentrationScenarios } from './scenarios/dustConcentration';
+import { dustConcentrationCostScenarios } from './scenarios/dustConcentrationCost';
 import { dustGranularScenarios } from './scenarios/dustGranular';
 import { dustGravityScenarios } from './scenarios/dustGravity';
 import { dustHitchScenarios } from './scenarios/dustHitches';
@@ -46,6 +47,7 @@ export const SCENARIOS: readonly Scenario[] = [
     ...perfScenarios,
     ...perfPhaseScenarios,
     ...dustHitchScenarios,
+    ...dustConcentrationCostScenarios,
     secondDepositCost,
     diagnosticsCost,
 ];
