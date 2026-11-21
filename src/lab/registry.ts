@@ -6,6 +6,8 @@ import { diagnosticsCost } from './scenarios/diagnosticsCost';
 import { dustCloudScenarios } from './scenarios/dustCloud';
 import { dustGranularScenarios } from './scenarios/dustGranular';
 import { dustGravityScenarios } from './scenarios/dustGravity';
+import { dustSupernovaScenarios } from './scenarios/dustSupernova';
+import { dustSupernovaHistoryScenarios } from './scenarios/dustSupernovaHistory';
 import { energyDrift, energyDriftAttribution, energyReference, reductionChannels } from './scenarios/energy';
 import { halfFloatDeposit } from './scenarios/halfFloat';
 import { heating } from './scenarios/heating';
@@ -36,6 +38,8 @@ export const SCENARIOS: readonly Scenario[] = [
     ...dustGravityScenarios,
     ...dustCloudScenarios,
     ...dustGranularScenarios,
+    ...dustSupernovaScenarios,
+    ...dustSupernovaHistoryScenarios,
     ...perfScenarios,
     ...perfPhaseScenarios,
     secondDepositCost,

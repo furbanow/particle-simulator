@@ -382,3 +382,48 @@ export const SMOOTHING_TAUS = [0, 0.05, 0.1, 0.2, 0.4] as const;
 export const SMOOTHING_MARGIN = 120;
 /** Lags (frames) of the autocorrelation of the temperature. */
 export const SMOOTHING_LAGS = [1, 2, 4, 8, 16, 32] as const;
+
+// ---- The coherent supernova (docs/spikes/a9-coherent-supernova.md) ----
+export const SUPERNOVA_SEED = 20240613;
+/** The blast: a disc of the detection zone's radius holding this share of the particles at the center of the area, the rest uniform, nothing else acting (no gravity, pressure, sticking or drag). */
+export const SUPERNOVA_BLAST_PARTICLES = 300000;
+export const SUPERNOVA_DISC_SHARE = 0.5;
+/** Particles within this many px of the zone's edge are left out of both groups (the center the supernova uses is the disc's center of mass, a pixel or so off). */
+export const SUPERNOVA_EDGE_GUARD = 3;
+/** Frames the blast waits for the supernova to fire (the first read-back comes at frame 12). */
+export const SUPERNOVA_WAIT_FRAMES = 60;
+/** Simulated seconds of the front followed after the ejection (the nearest wall is 384 px from the center: the front reaches 550 px by 8 s), and the sample at which the kicks are compared to the formula. */
+export const SUPERNOVA_FRONT_SECONDS = 8;
+export const SUPERNOVA_KICK_SECONDS = 0.3;
+/** The speed of a particle is "kicked" above this (px/s): at rest, nothing acts on it. */
+export const SUPERNOVA_KICK_FLOOR = 1;
+/** Acceptance of the blast: R^2 of the speed against distance, intercept (share of the edge speed), slope against the formula, front radius error (px), exponent window. */
+export const SUPERNOVA_HOMOLOGY_MIN_R2 = 0.9999;
+export const SUPERNOVA_HOMOLOGY_MAX_INTERCEPT = 0.01;
+export const SUPERNOVA_SLOPE_TOLERANCE = 0.01;
+export const SUPERNOVA_FRONT_TOLERANCE = 2;
+export const SUPERNOVA_EXPONENT_WINDOW = [1.9, 2.1] as const;
+/** The infall test: the cloud of the blast, ejected at the highest and at the lowest power, with and without gravity from the instant of the ejection. */
+export const SUPERNOVA_GRAVITY_PARTICLES = 300000;
+export const SUPERNOVA_GRAVITY_SECONDS = 8;
+/** Largest drift of the mean radial speed of the arm without gravity during the ejection timer (the fastest ejecta reach a wall), and largest ratio between the species' decelerations in the same radial bin. */
+export const INFALL_DRIFT_LIMIT = 0.02;
+export const INFALL_EQUIVALENCE_LIMIT = 1.5;
+export const SUPERNOVA_POWERS = [70, 5] as const;
+/** Frames (after the ejection) at which the arms of the infall test are compared during the ejection timer, and every this many frames after. */
+export const SUPERNOVA_TIMER_FRAMES = [2, 8, 16, 24] as const;
+export const SUPERNOVA_SAMPLE_EVERY = 10;
+/** Radial bin (share of the zone's radius) the species' deceleration is compared in. */
+export const SUPERNOVA_BIN = [0.15, 0.6] as const;
+/** The history: the default cloud for this many frames (30 s of simulated time at the default speed), the density grid read every SUPERNOVA_HISTORY_SAMPLE frames, the ejecta followed this long. */
+export const SUPERNOVA_HISTORY_FRAMES = 1200;
+export const SUPERNOVA_HISTORY_SAMPLE = 20;
+export const SUPERNOVA_HISTORY_FOLLOW_SECONDS = 8;
+export const SUPERNOVA_HISTORY_MARKS = [0.5, 1, 2, 3, 4, 8] as const;
+/** Radii (px) within which the share of the mass is recorded at each event: how compact the cluster is. */
+export const SUPERNOVA_HISTORY_PROFILE = [5, 10, 20, 40] as const;
+
+/** Ejection speeds (rms, px/s) of the sweep that tunes SUPERNOVA_SPEED; 294 is the default before A9 (70 % of 420), 588 the one of this build (70 % of 840). */
+export const SUPERNOVA_SWEEP_SPEEDS = [294, 588, 735] as const;
+/** Clouds (seeds from SUPERNOVA_SEED up) run per speed: the history is chaotic, one run says little. */
+export const SUPERNOVA_SWEEP_SEEDS = 3;
