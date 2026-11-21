@@ -223,7 +223,7 @@ export const ENERGY_DRIFT_FRAMES_SOFTWARE = 40;
  * first with the application's walls, to measure what they take.
  */
 export const ENERGY_DRIFT_CLOUDS = [
-    { name: 'default', params: {}, budgetMs: 480_000, elasticWalls: true },
+    { name: 'default', params: {}, budgetMs: 600_000, elasticWalls: true },
     { name: 'circular', params: { rotation: 1, agitation: 0 }, budgetMs: 120_000, elasticWalls: true },
     { name: 'default, application walls', params: {}, budgetMs: 100_000, elasticWalls: false },
 ] as const;

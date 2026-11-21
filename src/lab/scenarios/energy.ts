@@ -477,7 +477,7 @@ const summary = (run: DriftRun): string => {
 
 export const energyDrift: Scenario = {
     id: 'baseline.protostar.energy-drift',
-    title: 'Energy drift of a conservative protostar run (K + U over 100 orbits, elastic walls), with the current fixed time step',
+    title: 'Energy drift of a conservative protostar run (K + U over 100 orbits, elastic walls, the default time step)',
     tags: ['baseline', 'protostar', 'energy', 'slow'],
     async run(context): Promise<ScenarioOutcome> {
         if (context.software) {
@@ -512,15 +512,14 @@ export const energyDrift: Scenario = {
             criterion: {
                 target: `K + U within ${ENERGY_DRIFT_TARGET * 100} % over ${ENERGY_DRIFT_ORBITS} orbits`,
                 judgedOn: judged.name, maxAbsDriftPercent: percent(maxDrift), orbitsRun: sig(judged.orbitsRun), meets,
-                fixedBy: meets ? null : 'P5 (adaptive time step, proposal B5)',
             },
             clouds: Object.fromEntries(runs.map(r => [r.name, runMetrics(r)])),
         };
         const description = runs.map(summary).join('; ');
         if (!meets) {
             return {
-                status: 'known-failure', metrics,
-                details: `KNOWN FAILURE (fix: time-step phase P5): K + U drifts by up to ${(maxDrift * 100).toFixed(2)} % (target < ${ENERGY_DRIFT_TARGET * 100} %) over ${judged.orbitsRun.toFixed(0)} orbits; ${description}`,
+                status: 'fail', metrics,
+                details: `K + U drifts by up to ${(maxDrift * 100).toFixed(2)} % (target < ${ENERGY_DRIFT_TARGET * 100} %) over ${judged.orbitsRun.toFixed(0)} orbits; ${description}`,
             };
         }
         if (!complete) {
