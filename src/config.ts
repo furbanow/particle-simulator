@@ -36,9 +36,12 @@ export const DENSITY_TOP_LEVEL = Math.log2(DENSITY_RES) - 1;
 export const GRAVITY_WINDOW_MARGIN = 2;
 /**
  * Stencil of the gradient of each coarse level in the sticky dust's gravity: the difference across a
- * texel is averaged over the three rows with the weights w, 1 - 2w, w. 0 is the plain central difference.
+ * texel is averaged over the three rows with the weights w, 1 - 2w, w. 0 is the plain central difference
+ * (a square kernel: the pull of a point mass varies by about 38 % with the angle), 3/16 the isotropic
+ * stencil of Scharr (about 9 % at its worst radius). 0.21 balances the median and the worst radius
+ * (3.9 % and 4.9 %): see docs/spikes/b1-dust-gravity.md.
  */
-export const DUST_GRADIENT_CORNER_WEIGHT = 0;
+export const DUST_GRADIENT_CORNER_WEIGHT = 0.21;
 export const K_GRAVITY = 3;
 // Weight of mip level L is 2^(L * LONG_RANGE): 0 gives a 1/r^2 pull, 1 gives 1/r (2D gravity).
 // In between, distant clumps still find each other and merge.
