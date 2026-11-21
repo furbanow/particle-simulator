@@ -2,7 +2,7 @@
 // frame counts and the thresholds of the sanity checks. The application's own constants stay in
 // src/config.ts.
 
-import { DUST_GRADIENT_CORNER_WEIGHT } from '../config';
+import { DUST_GRADIENT_CORNER_WEIGHT, DUST_GRAVITY_GAIN } from '../config';
 
 /** Simulation area of every scenario, in CSS px (the physics scales with min(width, height)). */
 export const LAB_AREA = { width: 1024, height: 768 } as const;
@@ -221,3 +221,26 @@ export const ENERGY_ATTRIBUTION_BUDGET_MS = 150_000;
 export const ELASTIC_WALLS = 1;
 /** Parameters of a conservative run: no cooling, no heat from fusion, no fusion at all (set below the sliders' minima). */
 export const CONSERVATIVE_OVERRIDES = { cooling: 0, feedback: 0, fusionRate: 0, heFusionRate: 0 } as const;
+
+// ---- Default cloud of the sticky dust (clump statistics, recalibration of the gravity) ----
+export const DUST_CLOUD_SEED = 20240612;
+export const DUST_CLOUD_PARTICLES = 400000;
+export const DUST_CLOUD_FRAMES = 600;
+/** Frames between two readings of the density grid. */
+export const DUST_CLOUD_SAMPLE_EVERY = 10;
+/** A clump is a group of at least this many touching dense texels. */
+export const DUST_CLOUD_CLUMP_MIN_TEXELS = 4;
+/** Shares of the mass in dense texels (at or above REST_DENSITY) whose time of arrival is reported. */
+export const DUST_CLOUD_LEVELS = [0.02, 0.05, 0.1, 0.2, 0.3] as const;
+/**
+ * Arms of the recalibration: the stencil of the coarse levels' gradient (0 is the central difference of
+ * the original loop) and the gain on the pull. The default build is the arm `shipped`.
+ */
+export const DUST_RECALIBRATION_ARMS: readonly { name: string; cornerWeight: number; gain: number }[] = [
+    { name: 'original', cornerWeight: 0, gain: 1 },
+    { name: 'stencil, gain 1', cornerWeight: DUST_GRADIENT_CORNER_WEIGHT, gain: 1 },
+    { name: 'stencil, gain 1.1', cornerWeight: DUST_GRADIENT_CORNER_WEIGHT, gain: 1.1 },
+    { name: 'stencil, gain 1.2', cornerWeight: DUST_GRADIENT_CORNER_WEIGHT, gain: 1.2 },
+    { name: 'stencil, gain 1.3', cornerWeight: DUST_GRADIENT_CORNER_WEIGHT, gain: 1.3 },
+    { name: 'shipped', cornerWeight: DUST_GRADIENT_CORNER_WEIGHT, gain: DUST_GRAVITY_GAIN },
+];

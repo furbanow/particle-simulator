@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { K_GRAVITY } from '../src/config';
+import { DUST_GRAVITY_GAIN, GRAVITY_SLIDER } from '../src/config';
 import type { GpuModelContext } from '../src/simulation/gpuModel';
 import { STICKY_DUST_PARAM } from '../src/simulation/stickyDust/declaration';
 import { StickyDustModel } from '../src/simulation/stickyDust/gpuModel';
@@ -15,7 +15,7 @@ describe('StickyDustModel.setParam', () => {
     it('applies numbers to the uniforms', () => {
         const model = newModel();
         model.setParam(STICKY_DUST_PARAM.gravity, 7);
-        expect(model.velocityUniforms.kGravity.value).toBe(7);
+        expect(model.velocityUniforms.kGravity.value).toBeCloseTo(7 * DUST_GRAVITY_GAIN, 12);
         model.setParam(STICKY_DUST_PARAM.supernovaPower, 50);
         expect(model.velocityUniforms.supernovaSpeed.value).toBeGreaterThan(0);
     });
@@ -34,7 +34,7 @@ describe('StickyDustModel.setParam', () => {
         const model = newModel();
         model.setParam(STICKY_DUST_PARAM.gravity, true);
         model.setParam(STICKY_DUST_PARAM.gravity, 'strong');
-        expect(model.velocityUniforms.kGravity.value).toBe(K_GRAVITY);
+        expect(model.velocityUniforms.kGravity.value).toBe(GRAVITY_SLIDER.default * DUST_GRAVITY_GAIN);
     });
 
     it('keeps the values it was given across a restart, and adds the restart ones', () => {

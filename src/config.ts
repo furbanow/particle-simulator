@@ -42,7 +42,12 @@ export const GRAVITY_WINDOW_MARGIN = 2;
  * (3.9 % and 4.9 %): see docs/spikes/b1-dust-gravity.md.
  */
 export const DUST_GRADIENT_CORNER_WEIGHT = 0.21;
-export const K_GRAVITY = 3;
+/**
+ * The pull of the sticky dust is the gravity slider's value times this gain. The isotropic stencil of the coarse
+ * levels (above) weakens the pull of the small structures of a clumped cloud to 84 % of the central difference's
+ * (RMS); the gain restores the strength the sliders' values were tuned for: docs/spikes/a10-granular-dust.md.
+ */
+export const DUST_GRAVITY_GAIN = 1.2;
 // Weight of mip level L is 2^(L * LONG_RANGE): 0 gives a 1/r^2 pull, 1 gives 1/r (2D gravity).
 // In between, distant clumps still find each other and merge.
 export const LONG_RANGE = 0.5;

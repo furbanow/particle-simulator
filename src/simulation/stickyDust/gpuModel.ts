@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
     CONCENTRATION_RADIUS_SLIDER, DENSITY_RES, EJECT_SCALE_RANGE, EJECT_TIME, GLOBAL_DRAG, GRAVITY_WINDOW_MARGIN, INV_REL_DENSITY_RANGE,
-    K_GRAVITY, K_PRESSURE, MAX_PARTICLES, MAX_SPECIES, MAX_SPEED, REST_DENSITY, RESTITUTION, SHOCK_STRENGTH, SUPERNOVA_COOLDOWN,
+    DUST_GRAVITY_GAIN, GRAVITY_SLIDER, K_PRESSURE, MAX_PARTICLES, MAX_SPECIES, MAX_SPEED, REST_DENSITY, RESTITUTION, SHOCK_STRENGTH, SUPERNOVA_COOLDOWN,
     SUPERNOVA_SPEED, SUPERNOVA_THRESHOLD_SLIDER, TEX_SIZE, VISCOSITY_RATE,
 } from '../../config';
 import { withDefines } from '../../gl/withDefines';
@@ -30,7 +30,7 @@ export class StickyDustModel implements GpuModel {
         MAX_SPECIES, DENSITY_RES, ...DRAWING_DEFINES,
     });
     readonly velocityUniforms = {
-        kGravity: { value: K_GRAVITY },
+        kGravity: { value: GRAVITY_SLIDER.default * DUST_GRAVITY_GAIN },
         kPressure: { value: K_PRESSURE },
         restDensity: { value: REST_DENSITY },
         viscosityRate: { value: VISCOSITY_RATE },
@@ -66,7 +66,7 @@ export class StickyDustModel implements GpuModel {
     private readonly supernovaTexture = new THREE.DataTexture(this.supernovaMask, TEX_SIZE, TEX_SIZE,
         THREE.RedFormat, THREE.UnsignedByteType);
     private readonly shock = new ShockWave(this.velocityUniforms);
-    private readonly gravity: DustGravityField;
+    private gravity: DustGravityField;
 
     constructor(private readonly context: GpuModelContext) {
         Object.assign(this.velocityUniforms, context.drawing.uniforms);   // by reference
@@ -79,6 +79,16 @@ export class StickyDustModel implements GpuModel {
     /** Dev-only: the per-texel gravity field, for the lab page (src/lab). Not used by the app. */
     get debugGravity(): DustGravityField {
         return this.gravity;
+    }
+
+    /**
+     * Dev-only: builds the gravity field again with another stencil of the coarse levels' gradient (0 is the central
+     * difference of the original loop), for the lab's comparison of whole runs. Not used by the app.
+     */
+    debugUseCornerWeight(cornerWeight: number): void {
+        this.gravity.dispose();
+        this.gravity = new DustGravityField(this.context.renderer, this.context.density.target.texture, cornerWeight);
+        this.velocityUniforms.textureGravity.value = this.gravity.target.texture;
     }
 
     /** Dev-only: the density field the gravity is computed from, for the lab page. Not used by the app. */
@@ -103,7 +113,7 @@ export class StickyDustModel implements GpuModel {
         this.params[key] = value;
         if (typeof value !== 'number') return;
         switch (key) {
-            case P.gravity: this.velocityUniforms.kGravity.value = value; break;
+            case P.gravity: this.velocityUniforms.kGravity.value = value * DUST_GRAVITY_GAIN; break;
             case P.supernovaThreshold: this.supernovaThreshold = value / 100; break;
             case P.concentrationRadius: this.concentrationRadius = value; break;
             // Ejection power, 0..100 % of SUPERNOVA_SPEED.
