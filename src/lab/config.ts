@@ -181,6 +181,21 @@ export const REDUCTION_SUM_TOLERANCE = 1e-5;
 /** The center of mass, the momentum and the kinetic energy against sums over the particles themselves. */
 export const REDUCTION_PARTICLE_TOLERANCE = 1e-5;
 
+// ---- The integration step (phase P5a) ----
+/**
+ * protostar.integration: a gas filling the whole area (so that a few percent of the particles reach a wall in every step), with
+ * Gaussian velocities of standard deviation INTEGRATION_SIGMA (px/s, per component, under the speed limit), stepped one substep at a time
+ * INTEGRATION_STEPS times; each step is compared with the twin of the integration (leapfrog.ts) fed with the acceleration the GPU stored.
+ */
+export const INTEGRATION_PARTICLES = 20000;
+export const INTEGRATION_STEPS = 4;
+export const INTEGRATION_SIGMA = 300;
+/** Float32 positions of about 1000 px have a unit in the last place of 6e-5 px, velocities of 1000 px/s of 6e-5 px/s: a few of them. */
+export const INTEGRATION_POSITION_TOLERANCE = 5e-4;
+export const INTEGRATION_VELOCITY_TOLERANCE = 5e-4;
+/** The check must have met this many bounces to count. */
+export const INTEGRATION_MIN_BOUNCES = 100;
+
 /** Energy drift: the cloud and its run (the plan's criterion is K + U within 1 % over 100 orbits). */
 export const ENERGY_DRIFT_PARTICLES = 100000;
 export const ENERGY_DRIFT_ORBITS = 100;

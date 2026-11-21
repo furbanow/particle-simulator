@@ -51,11 +51,11 @@ function gaussian(random: () => number): number {
 
 /**
  * Fills the positions (x, y, type, 1) and velocities (vx, vy, 0, 0) of a rotating cloud centered
- * on the area. Returns the initial gravitational accelerations (ax, ay per particle, 4 floats a
- * texel like the state textures), estimated from the enclosed mass, for the Verlet integrator.
- * The net momentum of the agitation is removed, so the cloud does not drift.
+ * on the area. The velocities are those at the positions, at time 0: the first substep of the integration
+ * owes no half kick (see leapfrog.ts), so no initial acceleration is needed. The net momentum of the
+ * agitation is removed, so the cloud does not drift.
  */
-export function fillCloud(state: InitialState, options: CloudOptions, random: () => number = Math.random): Float32Array {
+export function fillCloud(state: InitialState, options: CloudOptions, random: () => number = Math.random): void {
     const { positions: p, velocities: v, count, typeCounts, width, height } = state;
     const { radius, gravity, totalMass, softening, rotation, agitation } = options;
     const cx = width / 2, cy = height / 2;
@@ -74,7 +74,6 @@ export function fillCloud(state: InitialState, options: CloudOptions, random: ()
 
     const enclosed = enclosedMassFractions(radii);
     const sigma = agitation * circularSpeed(gravity, totalMass, radius, softening);
-    const accel = new Float32Array(count * 4);
     let meanX = 0, meanY = 0;
     for (let i = 0; i < count; i++) {
         const r = radii[i], m = enclosed[i] * totalMass;
@@ -84,13 +83,9 @@ export function fillCloud(state: InitialState, options: CloudOptions, random: ()
         meanX += nx; meanY += ny;
         v[i * 4] = -s * vt + nx;                                    // counterclockwise
         v[i * 4 + 1] = c * vt + ny;
-        const pull = softenedPull(gravity, m, r, softening);
-        accel[i * 4] = -c * pull;
-        accel[i * 4 + 1] = -s * pull;
     }
     if (count > 0) {
         meanX /= count; meanY /= count;
         for (let i = 0; i < count; i++) { v[i * 4] -= meanX; v[i * 4 + 1] -= meanY; }
     }
-    return accel;
 }

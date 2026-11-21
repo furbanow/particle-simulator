@@ -1,7 +1,9 @@
-// GPGPU velocity step of the protostar algorithm (velocity Verlet, second half kick), then the
-// local cooling and the fusion heating. Velocity: (vx, vy, 0, glow). The pass declares its own
-// state samplers (bound by GpuPipeline); textureAccel holds each particle's acceleration of the
-// previous step. Defines: MAX_SPECIES, GRID_RES, GLOW_*. Provided: resolution.
+// GPGPU velocity step of the protostar algorithm (velocity Verlet: the half kick of the previous step
+// and the first of this one), then the local cooling, the fusion heating and the walls. Velocity:
+// (vx, vy, 0, glow). The pass declares its own state samplers (bound by GpuPipeline); textureAccel
+// holds each particle's acceleration of the previous step (z = 1 on the first step of a run: see
+// below). The twin of the integration is leapfrog.ts. Defines: MAX_SPECIES, GRID_RES, GLOW_*.
+// Provided: resolution.
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
 uniform sampler2D textureAccel;
@@ -15,6 +17,25 @@ uniform float heatingTFloor;            // px^2/s^2: below this dispersion a cel
 uniform float restitution;
 uniform vec2 driftKick;                 // px/s, velocity taken off every particle (statistical drift)
 
+/**
+ * The share of the step, from 0 to 1, at which a particle that goes from x (inside the area) to next reaches a wall of the axis
+ * [0, size]; -1 when next is inside. Twin: wallHit() in leapfrog.ts. The position pass mirrors the same particles.
+ */
+float wallHit(float x, float next, float size) {
+    if (next < 0.0) return clamp(x / (x - next), 0.0, 1.0);
+    if (next > size) return clamp((size - x) / (next - x), 0.0, 1.0);
+    return -1.0;
+}
+
+/**
+ * The velocity stored for an axis that bounced (twin: bounceVelocity() in leapfrog.ts): the particle reaches the wall with
+ * v + a hit dt, leaves it with restitution times that reversed, and is pulled by a for the rest of the step; the next step adds its two
+ * half kicks (a and the next a, taken equal) to what is stored here.
+ */
+float bounced(float v, float a, float hit) {
+    return -restitution * (v + a * hit * dt) - a * hit * dt;
+}
+
 void main() {
     vec2 uv = gl_FragCoord.xy / resolution.xy;
     vec4 vel = texture2D(textureVelocity, uv);
@@ -23,12 +44,15 @@ void main() {
     vec4 pos = texture2D(texturePosition, uv);
     if (pos.w < 0.0) { gl_FragColor = vec4(0.0); return; }
 
-    // Velocity Verlet: v(t) = v(t - dt) + (a(t - dt) + a(t)) dt / 2; the position pass moves the
-    // particle by v(t) dt + a(t) dt^2 / 2 from the same inputs.
-    vec2 aPrev = texture2D(textureAccel, uv).xy;
+    // Velocity Verlet: v(t) = v(t - dt) + (a(t - dt) + a(t)) dt / 2, the second half kick of the last
+    // step and the first of this one; the position pass moves the particle to x + v(t) dt + a(t) dt^2 / 2
+    // from the same inputs (the same expression: both must see the same `next`). On the first step of a
+    // run the velocity stored is v(t) itself and nothing is owed (textureAccel.z = 1).
+    vec4 accelState = texture2D(textureAccel, uv);
     vec2 a = forceAt(pos.xy);
-    vec2 v = vel.xy + 0.5 * (aPrev + a) * dt - driftKick;
-    vec2 next = pos.xy + v * dt + 0.5 * a * dt * dt;
+    vec2 kicked = vel.xy + (1.0 - accelState.z) * 0.5 * (accelState.xy + a) * dt;
+    vec2 next = pos.xy + kicked * dt + 0.5 * a * dt * dt;
+    vec2 v = kicked - driftKick;
 
     // Radiative cooling: only the disordered part of the motion (around the local mean
     // velocity) is damped; rotation and infall are kept. Dense gas is opaque: it radiates
@@ -62,8 +86,12 @@ void main() {
 
     float s = length(v);
     if (s > maxSpeed) v *= maxSpeed / s;
-    if ((next.x < 0.0 && v.x < 0.0) || (next.x > screenSize.x && v.x > 0.0)) v.x = -v.x * restitution;
-    if ((next.y < 0.0 && v.y < 0.0) || (next.y > screenSize.y && v.y > 0.0)) v.y = -v.y * restitution;
+
+    // Walls: a particle whose step ends outside the area bounces (the position pass mirrors it).
+    float hitX = wallHit(pos.x, next.x, screenSize.x);
+    float hitY = wallHit(pos.y, next.y, screenSize.y);
+    if (hitX >= 0.0) v.x = bounced(v.x, a.x, hitX);
+    if (hitY >= 0.0) v.y = bounced(v.y, a.y, hitY);
 
     // Glow read by the particle layer: hot gas shines, fusing gas flares. Hot is the temperature
     // (the dispersion times mu / mu_H: a helium gas shines at a lower dispersion than a hydrogen one).

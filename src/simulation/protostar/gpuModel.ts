@@ -78,7 +78,6 @@ export class ProtostarModel implements GpuModel {
     private params: ParamValues = {};
     private types: readonly ParticleType[] = [];
     private scales: RunScales;
-    private initialAccel: Float32Array | null = null;
     private substep = 0;
     private frame = 0;
     private generation = 0;
@@ -123,7 +122,9 @@ export class ProtostarModel implements GpuModel {
             name: ACCEL,
             shader: withProtostarCommon(accelFrag),
             uniforms: { ...common },
-            init: data => { if (this.initialAccel) data.set(this.initialAccel.subarray(0, data.length)); },
+            // z = 1 marks the first step of a run: the velocity stored is then v(t) itself and no half kick is owed (the
+            // acceleration pass writes 0 there from the next step on).
+            init: (data, state) => { for (let i = 0; i < state.count; i++) data[i * 4 + 2] = 1; },
         }];
         const size = context.screenSize.value;
         this.scales = { length: Math.max(1, Math.min(size.x, size.y)), cloudRadius: 1, count: 1 };
@@ -185,12 +186,11 @@ export class ProtostarModel implements GpuModel {
     initialize(state: InitialState): void {
         if (this.debugInitialState) {
             this.debugInitialState(state);
-            this.initialAccel = null;
             return;
         }
         const length = Math.max(1, Math.min(state.width, state.height));
         const radius = PROTOSTAR_CLOUD_RADIUS * length;
-        this.initialAccel = fillCloud(state, {
+        fillCloud(state, {
             radius, gravity: this.gravity(length), totalMass: TOTAL_MASS, softening: this.softening(length),
             rotation: numberOr(state.params[P.rotation], 0), agitation: numberOr(state.params[P.agitation], 0),
         });
@@ -201,7 +201,6 @@ export class ProtostarModel implements GpuModel {
         const length = Math.max(1, Math.min(size.x, size.y));
         this.scales = { length, cloudRadius: PROTOSTAR_CLOUD_RADIUS * length, count: Math.max(1, this.context.activeCount()) };
         this.params = { ...this.params, ...params };
-        this.initialAccel = null;
         this.generation++;
         this.frame = 0;
         this.substep = 0;                              // a restart replays the same random stream (the lab relies on it)

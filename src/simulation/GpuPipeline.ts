@@ -160,6 +160,13 @@ export class GpuPipeline {
         return this.gpu.getCurrentRenderTarget(this.velVar);
     }
 
+    /** Dev-only, read-only: the render target holding the model's extra state variable `name` now (the protostar's acceleration), for the lab page (src/lab). Not used by the app. */
+    debugVariableTarget(name: string): THREE.WebGLRenderTarget {
+        const variable = this.extraVars.find(v => v.name === name);
+        if (!variable) throw new Error(`Unknown GPU variable: ${name}`);
+        return this.gpu.getCurrentRenderTarget(variable);
+    }
+
     /**
      * Dev-only: overwrites the particles' state (the first `count` texels of each, RGBA per texel: positions x, y, type
      * rank, w; velocities vx, vy, z, w) for the lab's scenarios that need a cloud of their own. A restart must have

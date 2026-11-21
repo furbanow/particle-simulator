@@ -285,19 +285,6 @@ describe('initial cloud', () => {
         }
     });
 
-    it('initial accelerations point to the center, from the enclosed mass', () => {
-        const state = makeState(500, [500]);
-        const accel = fillCloud(state, options, seeded(3));
-        const { positions: p } = state;
-        const radii = Array.from({ length: 500 }, (_, i) => Math.hypot(p[i * 4] - 400, p[i * 4 + 1] - 300));
-        const enclosed = enclosedMassFractions(radii);
-        for (let i = 0; i < 500; i += 13) {
-            const dx = p[i * 4] - 400, dy = p[i * 4 + 1] - 300;
-            expect(accel[i * 4] * dx + accel[i * 4 + 1] * dy).toBeLessThanOrEqual(0);
-            expect(Math.hypot(accel[i * 4], accel[i * 4 + 1])).toBeCloseTo(softenedPull(3, enclosed[i] * 1000, radii[i], 5), 3);
-        }
-    });
-
     it('agitation has the requested spread and no net momentum', () => {
         const state = makeState(20000, [20000]);
         fillCloud(state, { ...options, rotation: 0, agitation: 0.5 }, seeded(4));

@@ -12,6 +12,7 @@ import { dustHitchScenarios } from './scenarios/dustHitches';
 import { dustSupernovaScenarios } from './scenarios/dustSupernova';
 import { dustSupernovaHistoryScenarios } from './scenarios/dustSupernovaHistory';
 import { energyDrift, energyDriftAttribution, energyReference, reductionChannels } from './scenarios/energy';
+import { integration } from './scenarios/integration';
 import { halfFloatDeposit } from './scenarios/halfFloat';
 import { heating } from './scenarios/heating';
 import { ignitionGas, molecularWeight } from './scenarios/molecularWeight';
@@ -42,6 +43,7 @@ export const SCENARIOS: readonly Scenario[] = [
     reductionChannels,
     energyDrift,
     energyDriftAttribution,
+    integration,
     ...dustGravityScenarios,
     ...dustCloudScenarios,
     ...dustGranularScenarios,
