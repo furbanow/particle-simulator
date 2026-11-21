@@ -417,6 +417,25 @@ Simulation ms/frame of the dust, the build before and after alternated, 6 pairs,
 | 400 000 | 3.51 / 3.68 | 2.83 / 2.90 |
 | 1 000 000 | 4.76 / 4.83 | 4.93 / 5.06 |
 
+## After phase B4
+
+B4 ([the sticky dust's concentration on the GPU](spikes/b4-gpu-concentration.md)) does not touch the protostar, the parameters or the statistics. It replaces the dust's periodic read-back of the positions
+(up to 48 MB every 12 frames and a loop over them in JavaScript) by a GPU search of the densest disk that reads back two texels, and the mask of the ejected particles by a test in the velocity pass.
+GTX 1060, the build before (`11a7a7a`) and after alternated, 6 pairs, medians (the GPU was clocked low during these runs: read the ratios, not the milliseconds):
+
+| | Before | After |
+|---|---|---|
+| GPU against CPU (`dust.concentration.parity`, 35 comparisons): center, share of the mass, particles inside | | 5e-4 px, 4.4e-4 points, the same particles (one of 2 181 899 apart) |
+| Worst frame over 360 frames of a cloud whose read never stops (`perf.dustHitch`), 400 000 / 1 000 000 / 3 000 000 particles | 68.5 / 74.3 / 209.2 ms | 20.1 / 31.6 / 96.7 ms |
+| p99 frame, the same | 61.2 / 63.7 / 147.9 ms | 19.6 / 27.9 / 92.3 ms |
+| Simulation ms/frame, frames 10 to 50 (reads) at 400 000 / 1 000 000 particles | 3.48 / 14.90 | 3.20 / 14.45 (-9 %, -4 %) |
+| Simulation ms/frame, frames 150 to 190 (no read) at 400 000 / 1 000 000 particles | 9.76 / 17.38 | 9.51 / 16.94 (-2.6 %, -2.6 %) |
+| One GPU search (`perf.dustConcentration`), 400 000 / 1 000 000 / 3 000 000 particles, the default cloud collapsed | | 4.1 / 5.3 / 16.6 ms |
+| The default cloud's supernovae at the application's pace (`dust.supernova.paced`, three clouds) | 4, 4, 3 events; first at 2.73 to 2.75 s | 3, 4, 4 events; first at 2.75 s |
+| The same in the lab's unpaced loop (`dust.supernova.seeds`) | first at 3.03 s, second at 9.03 s | first at 2.78 s, second at 13.5 to 16.0 s (a property of the loop, see the spike) |
+
+The blast, homology and infall scenarios (`dust.supernova.blast`, `.infall`) give the numbers of phase P6b to the digit.
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a and is a
