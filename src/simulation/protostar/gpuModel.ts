@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
-    MAX_SPECIES, PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_DRIFT_GAIN, PROTOSTAR_FUSION_C2, PROTOSTAR_FUSION_T_REF,
-    PROTOSTAR_GLOW_FUSION, PROTOSTAR_GLOW_HEATING_REF, PROTOSTAR_GLOW_MAX, PROTOSTAR_GLOW_T_RANGE,
+    MAX_SPECIES, PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_DRIFT_GAIN, PROTOSTAR_ENERGY_FIRST_FRAME, PROTOSTAR_FUSION_C2,
+    PROTOSTAR_FUSION_T_REF, PROTOSTAR_GLOW_FUSION, PROTOSTAR_GLOW_HEATING_REF, PROTOSTAR_GLOW_MAX, PROTOSTAR_GLOW_T_RANGE,
     PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_MAX_SPEED,
     PROTOSTAR_RATE_SMOOTHING, PROTOSTAR_RESTITUTION, PROTOSTAR_STATS_INTERVAL, REMOVED_PARTICLE_W, TOTAL_MASS,
 } from '../../config';
@@ -10,11 +10,13 @@ import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
 import type { GpuModel, GpuModelContext, GpuVariable, InitialState } from '../gpuModel';
 import { countTypes } from '../typeCounts';
 import { centerOfMass, driftCorrection, type Vec2 } from './drift';
+import { EnergyBalance, type EnergyStats } from './energy';
 import { PROTOSTAR_PARAM, PROTOSTAR_PROPERTY, PROTOSTAR_REACTIONS, PROTOSTAR_STAT } from './declaration';
 import { inverseMolecularWeights } from './composition';
 import { ProtostarGrids, withProtostarCommon, type ProtostarGridTargets } from './grids';
 import { fillCloud } from './initialConditions';
 import { reactionArrays } from './reactions';
+import { REDUCTION_FLOATS, REDUCTION_TEXELS, unpackReduction, type Reduction, type ReductionScales } from './reduction';
 import velocityFrag from '../../shaders/protostar-velocity.frag?raw';
 import positionFrag from '../../shaders/protostar-position.frag?raw';
 import accelFrag from '../../shaders/protostar-accel.frag?raw';
@@ -35,13 +37,25 @@ interface RunScales {
 
 const numberOr = (value: ParamValue | undefined, fallback: number): number => typeof value === 'number' ? value : fallback;
 
+/** The scales of a reduction when no substep has drawn the grids yet: the sums are all zero then. */
+const NO_SCALES: ReductionScales = { massPerDeposit: 1, depositVelScale: 1, gravityPerDeposit: 0, softening: 0 };
+
+/** The energy of the cloud as the diagnostics see it, in simulation units (mass x px^2/s^2). */
+export interface ProtostarEnergy extends EnergyStats {
+    kinetic: number;
+    /** Gravitational (Plummer) potential energy of the positions that go with `kinetic`, the self-interaction of the particles removed. */
+    potential: number;
+}
+
 /**
  * GPU side of the protostar algorithm. Before every substep the grid passes (grids.ts) deposit
  * the particles and compute density, temperature, mean velocity, fusion heating and softened
  * gravity; the GPGPU pass then integrates with velocity Verlet (the previous acceleration is the
  * extra state variable `textureAccel`), cools, heats and fuses (types change in the position pass).
- * Every few frames the grids are reduced on the GPU to three numbers for the stats, and the
- * positions are read back to count the particles per type and measure the drift of the star.
+ * Every few frames the grids are reduced on the GPU (reduction.ts) to the numbers of the stats and
+ * of the diagnostics (energy, extreme speeds and accelerations, center of mass...), read back in
+ * one asynchronous read, and the positions are read back to count the particles per type and
+ * measure the drift of the star.
  */
 export class ProtostarModel implements GpuModel {
     readonly usesDensityField = false;
@@ -68,7 +82,16 @@ export class ProtostarModel implements GpuModel {
     private frame = 0;
     private generation = 0;
     private readingStats = false;
-    private readonly statsBuffer = new Float32Array(4);
+    private pendingReading: Promise<void> | null = null;
+    private readingSequence = 0;                       // numbers the reductions as they are read...
+    private readingApplied = 0;                        // ...so that a late one never replaces a newer one
+    private latestReduction: Reduction | null = null;
+    private diagnostics = true;
+    private readonly energyBalance = new EnergyBalance();
+    private currentEnergy: ProtostarEnergy | null = null;
+    private reductionScales: ReductionScales | null = null;     // those of the last substep's grids
+    private gridsDrawn = false;                        // the grids hold this run's state (not a previous run's)
+    private stashedFrame = -1;                         // the frame in which the potential of the previous grids was kept
     private coreTemperature: number | null = null;
     private coreDensity: number | null = null;
     private fusionRate: number | null = null;
@@ -127,7 +150,21 @@ export class ProtostarModel implements GpuModel {
         this.params[key] = value;
         if (key === P.cooling && typeof value === 'number') this.own.coolingRate.value = value;
         if (key === P.opacity && typeof value === 'number') this.own.opacityDensity.value = value;
+        if (key === P.diagnostics) this.setDiagnostics(value === true);
         if (REACTION_PARAMS.has(key)) this.updateReactions();
+    }
+
+    private setDiagnostics(on: boolean): void {
+        if (on === this.diagnostics) return;
+        this.diagnostics = on;
+        this.clearEnergy();
+    }
+
+    /** The energy readings start again: a restart, or the diagnostics switched on or off. */
+    private clearEnergy(): void {
+        this.energyBalance.reset();
+        this.currentEnergy = null;
+        this.stashedFrame = -1;
     }
 
     /** G_eff (px^3 / (mass s^2)) for a run of length scale L. */
@@ -160,6 +197,10 @@ export class ProtostarModel implements GpuModel {
         this.coreTemperature = null;
         this.coreDensity = null;
         this.fusionRate = null;
+        this.latestReduction = null;
+        this.reductionScales = null;
+        this.gridsDrawn = false;
+        this.clearEnergy();
         this.typeCounts = null;
         this.lastCenter = null;
         this.pendingKick = null;
@@ -205,35 +246,73 @@ export class ProtostarModel implements GpuModel {
         const depositMassScale = 1 / meanMass;
         grids.common.gridCell.value = cell;
         grids.common.seed.value = this.substep = (this.substep + 1) % SEED_PERIOD;
-        grids.setScales({
+        const scales = {
             depositMassScale,
             depositVelScale: 1 / length,
             densityPerDeposit: meanMass / (neighborhood * rho0),
             gravityPerDeposit: this.gravity(length) * meanMass,
             softening: this.softening(length),
-        });
+        };
+        // The energy of the frame about to end needs the potential of the grids this substep is going to overwrite.
+        if (this.diagnostics && this.gridsDrawn && this.readingDue(this.frame + 1)) {
+            grids.stashPotential();
+            this.stashedFrame = this.frame;
+        }
+        grids.setScales(scales);
         grids.update(context.positionTexture(), context.velocityTexture());
+        this.gridsDrawn = true;
+        this.reductionScales = {
+            massPerDeposit: meanMass, depositVelScale: scales.depositVelScale,
+            gravityPerDeposit: scales.gravityPerDeposit, softening: scales.softening,
+        };
+    }
+
+    /** Whether the reduction is read at the end of frame number `frame` (1 for the first): the stats' frames, and the first one for the energy. */
+    private readingDue(frame: number): boolean {
+        return frame % PROTOSTAR_STATS_INTERVAL === 0 || frame === PROTOSTAR_ENERGY_FIRST_FRAME;
     }
 
     endFrame(): void {
         this.frame++;
-        if (this.frame % PROTOSTAR_STATS_INTERVAL !== 0 || this.readingStats) return;
+        const statsDue = this.frame % PROTOSTAR_STATS_INTERVAL === 0;
+        // The stats' frames wait for the previous stats' reading to be over (as they always did); the
+        // first frame's reading, for the energy, is on its own and does not hold the stats back.
+        if (statsDue ? this.readingStats : !(this.diagnostics && this.readingDue(this.frame))) return;
         const { renderer } = this.context;
         if (!renderer.readRenderTargetPixelsAsync) return;
         this.grids.reduceStats();
         const gen = this.generation;
-        this.readingStats = true;
-        renderer.readRenderTargetPixelsAsync(this.grids.reduce2.target, 0, 0, 1, 1, this.statsBuffer)
+        const sequence = ++this.readingSequence;
+        const scales = this.gridsDrawn ? this.reductionScales : null;
+        // The potential kept in this frame's substeps goes with the kinetic energy the reduction sums now.
+        const synchronized = this.diagnostics && this.stashedFrame === this.frame - 1;
+        const buffer = new Float32Array(REDUCTION_FLOATS);           // the read is issued now: a later one can overlap it
+        if (statsDue) this.readingStats = true;
+        this.pendingReading = renderer.readRenderTargetPixelsAsync(this.grids.reduce2.target, 0, 0, REDUCTION_TEXELS, 1, buffer)
             .then(() => {
-                if (gen !== this.generation) return;
-                const [density, temperature, rate] = this.statsBuffer;
-                this.coreDensity = density;
-                this.coreTemperature = temperature;
-                this.fusionRate = this.fusionRate === null ? rate
-                    : this.fusionRate + PROTOSTAR_RATE_SMOOTHING * (rate - this.fusionRate);
+                if (gen !== this.generation || sequence < this.readingApplied) return;
+                this.readingApplied = sequence;
+                this.takeReading(buffer, statsDue, scales, synchronized);
             })
             .catch(err => console.error(err))
-            .finally(() => { this.readingStats = false; });
+            .finally(() => { if (statsDue) this.readingStats = false; });
+    }
+
+    /** The reduction has been read back: updates the stats (on their frames) and the energy diagnostics. */
+    private takeReading(texels: Float32Array, statsDue: boolean, scales: ReductionScales | null, synchronized: boolean): void {
+        const reduction = unpackReduction(texels, scales ?? NO_SCALES, synchronized);
+        this.latestReduction = reduction;
+        if (statsDue) {
+            this.coreDensity = reduction.peakDensity;
+            this.coreTemperature = reduction.peakTemperature;
+            this.fusionRate = this.fusionRate === null ? reduction.fusionRate
+                : this.fusionRate + PROTOSTAR_RATE_SMOOTHING * (reduction.fusionRate - this.fusionRate);
+        }
+        const { kinetic, potential } = reduction.energy;
+        if (!this.diagnostics || !scales || potential === null) return;
+        const stats = this.energyBalance.record(kinetic, potential);
+        if (!stats) return;
+        this.currentEnergy = { ...stats, kinetic, potential };
     }
 
     onReadback(positions: Float32Array, count: number): void {
@@ -252,8 +331,55 @@ export class ProtostarModel implements GpuModel {
             case PROTOSTAR_STAT.coreTemperature: return this.coreTemperature;
             case PROTOSTAR_STAT.coreDensity: return this.coreDensity;
             case PROTOSTAR_STAT.fusionRate: return this.fusionRate;
+            case PROTOSTAR_STAT.energyDrift: return this.energy?.drift ?? null;
+            case PROTOSTAR_STAT.virialRatio: return this.energy?.virial ?? null;
             default: return null;
         }
+    }
+
+    // ---- The reduction of the grids, for the phases that consume it (reduction.ts says what each number is) ----
+
+    /** The latest reduction of the grids, with everything below; read every PROTOSTAR_STATS_INTERVAL frames, null before the first. */
+    get reduction(): Reduction | null {
+        return this.latestReduction;
+    }
+
+    /** Proxy of the fastest particles' speed, px/s: the largest |mean velocity| + sqrt(T) over the cells with mass. */
+    get maxSpeed(): number | null {
+        return this.latestReduction?.maxSpeed ?? null;
+    }
+
+    /** The largest gravitational acceleration of the grid over the cells with mass, px/s^2. */
+    get maxAcceleration(): number | null {
+        return this.latestReduction?.maxAcceleration ?? null;
+    }
+
+    /** Center of the densest cell, px. */
+    get peakPosition(): Vec2 | null {
+        return this.latestReduction?.peak ?? null;
+    }
+
+    /** Center of mass of the deposited particles, px. */
+    get centerOfMass(): Vec2 | null {
+        return this.latestReduction?.centerOfMass ?? null;
+    }
+
+    /**
+     * Kinetic and potential energy (simulation units: mass x px^2/s^2), their drift since the first
+     * reading of the run and the virial ratio. Null while unknown and when the diagnostics are off.
+     */
+    get energy(): ProtostarEnergy | null {
+        return this.diagnostics ? this.currentEnergy : null;
+    }
+
+    /** Dev-only: the reading in flight (resolves once it is in `reduction`), for the lab page. */
+    get debugReading(): Promise<void> | null {
+        return this.pendingReading;
+    }
+
+    /** Dev-only, read-only: the scales that turn the sums of the last grids into simulation units, for the lab page. */
+    get debugReductionScales(): ReductionScales | null {
+        return this.reductionScales;
     }
 
     liveTypeCounts(): readonly number[] | null {

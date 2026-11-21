@@ -210,6 +210,8 @@ export const de: Record<MessageKey, string> = {
     'algo.protostar.param.heFusionExponent.doc': 'Exponent α der Temperatur in der Triple-Alpha-Reaktion. Er beträgt in Sternen etwa 40: 10 % mehr Temperatur beschleunigen die Reaktion etwa um das 45-Fache, daher eine fast schwellenartige Zündung.',
     'algo.protostar.param.feedback.label': 'Dem Gas zurückgegebene Wärme',
     'algo.protostar.param.feedback.doc': 'Multipliziert die als Wärme an das Gas zurückgegebene Fusionsenergie. Diese Wärme erzeugt einen Druck, der den Kollaps des Kerns bremst.',
+    'algo.protostar.param.diagnostics.label': 'Energiediagnose',
+    'algo.protostar.param.diagnostics.doc': 'Misst alle paar Bilder die Energie der Wolke (kinetisch und gravitativ) und zeigt in den Statistiken ihre Drift seit dem Start und ihr Virialverhältnis. Das kostet alle zehn Bilder einige kleine GPU-Durchgänge. Ausgeschaltet bleiben die beiden Statistiken leer.',
     'algo.protostar.prop.weight.label': 'Anfangsverteilung',
     'algo.protostar.prop.weight.resetTitle': 'Reiner Wasserstoff, ohne primordiales Helium oder Kohlenstoff',
     'algo.protostar.prop.weight.randomTitle': 'Zufällige Verteilung',
@@ -224,6 +226,10 @@ export const de: Record<MessageKey, string> = {
     'algo.protostar.stat.coreTemperature': 'Max. Temperatur (Kern)',
     'algo.protostar.stat.coreDensity': 'Max. Dichte (Kern)',
     'algo.protostar.stat.fusionRate': 'Fusionen / s',
+    'algo.protostar.stat.energyDrift': 'Energiedrift',
+    'algo.protostar.stat.energyDrift.doc': 'Änderung der Gesamtenergie (kinetisch + gravitativ) seit dem Start, als Anteil ihres Anfangsbetrags. Strahlungskühlung senkt sie, Fusionsheizung erhöht sie; ohne beide misst sie den Integrationsfehler. Die Kräfte der Zeichnungen werden nicht mitgezählt.',
+    'algo.protostar.stat.virialRatio': 'Virialverhältnis 2K/|U|',
+    'algo.protostar.stat.virialRatio.doc': 'Doppelte kinetische Energie geteilt durch den Betrag der Gravitationsenergie. Etwa 1 für eine Wolke im Gleichgewicht; darunter fällt sie weiter zusammen, darüber dehnt sie sich aus.',
 
     // ---- Visual effects ----
     'effect.exposure.label': 'Belichtung',

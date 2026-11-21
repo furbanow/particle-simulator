@@ -152,6 +152,11 @@ export class GpuPipeline {
         return this.gpu.getCurrentRenderTarget(this.posVar);
     }
 
+    /** Dev-only, read-only: the render target holding the velocities now, for the lab page (src/lab). Not used by the app. */
+    get debugVelocityTarget(): THREE.WebGLRenderTarget {
+        return this.gpu.getCurrentRenderTarget(this.velVar);
+    }
+
     setParam(key: string, value: ParamValue): void {
         this.model.setParam(key, value);
     }

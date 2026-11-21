@@ -7,7 +7,7 @@ import type { InitialState } from '../src/simulation/gpuModel';
 import { ALGORITHMS } from '../src/simulation/algorithms';
 import { defaultParams } from '../src/simulation/params';
 import {
-    CARBON, formatSmall, HELIUM, HYDROGEN, PROTOSTAR, PROTOSTAR_PARAM, PROTOSTAR_REACTIONS, PROTOSTAR_TYPES,
+    CARBON, formatEnergyDrift, formatSmall, HELIUM, HYDROGEN, PROTOSTAR, PROTOSTAR_PARAM, PROTOSTAR_REACTIONS, PROTOSTAR_TYPES,
 } from '../src/simulation/protostar/declaration';
 import {
     atomicNumber, inverseMeanMolecularWeight, inverseMolecularWeights,
@@ -50,10 +50,11 @@ describe('protostar declaration', () => {
         expect(byKey.fusionRate.kind === 'number' && byKey.fusionRate.scale).toBe('log');
         expect(byKey.feedback.kind === 'number' && byKey.feedback.scale).toBe('log');
         expect(byKey.heFusionRate.kind === 'number' && byKey.heFusionRate.scale).toBe('log');
-        expect(tabsOf(PROTOSTAR.params).map(t => t.id)).toEqual(['initial', 'physics', 'fusion']);
+        expect(tabsOf(PROTOSTAR.params).map(t => t.id)).toEqual(['initial', 'physics', 'fusion', 'features']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'initial').map(p => p.key)).toEqual(['count', 'rotation', 'agitation']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'cooling', 'opacity']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'fusion').map(p => p.key)).toEqual(['fusionRate', 'fusionExponent', 'heFusionRate', 'heFusionExponent', 'feedback']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics']);
         expect(params.fusionExponent).toBe(2.8);
         expect(params.heFusionExponent).toBe(16);
     });
@@ -74,9 +75,30 @@ describe('protostar declaration', () => {
         ]);
     });
 
-    it('declares counts per type, core temperature and density', () => {
+    it('declares counts per type, core temperature and density, fusion rate and the two energy diagnostics', () => {
         expect(PROTOSTAR.stats?.map(s => s.kind === 'typeCounts' ? s.kind : s.key))
-            .toEqual(['typeCounts', 'coreTemperature', 'coreDensity', 'fusionRate']);
+            .toEqual(['typeCounts', 'coreTemperature', 'coreDensity', 'fusionRate', 'energyDrift', 'virialRatio']);
+    });
+
+    it('has the energy diagnostics switch on, in the features tab', () => {
+        const flag = PROTOSTAR.params.find(p => p.key === PROTOSTAR_PARAM.diagnostics);
+        expect(flag?.kind).toBe('boolean');
+        expect(flag?.tab).toBe('features');
+        expect(flag?.kind === 'boolean' && flag.default).toBe(true);
+        expect(defaultParams(PROTOSTAR).diagnostics).toBe(true);
+    });
+
+    it('explains the two energy tiles', () => {
+        for (const s of PROTOSTAR.stats ?? []) {
+            if (s.kind === 'value' && (s.key === 'energyDrift' || s.key === 'virialRatio')) expect(s.title?.length).toBeGreaterThan(s.label.length);
+        }
+    });
+
+    it('formats the energy drift as a signed percentage', () => {
+        expect(formatEnergyDrift(0.0031)).toBe('+0.31 %');
+        expect(formatEnergyDrift(-0.0125)).toBe('-1.25 %');
+        expect(formatEnergyDrift(-0.2)).toBe('-20.0 %');
+        expect(formatEnergyDrift(0)).toBe('0.00 %');
     });
 
     it('reaction parameters exist', () => {

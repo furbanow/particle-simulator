@@ -35,6 +35,7 @@ export const PROTOSTAR_PARAM = {
     heFusionRate: 'heFusionRate',
     heFusionExponent: 'heFusionExponent',
     feedback: 'feedback',
+    diagnostics: 'diagnostics',
 } as const;
 
 export const PROTOSTAR_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -43,6 +44,8 @@ export const PROTOSTAR_STAT = {
     coreTemperature: 'coreTemperature',
     coreDensity: 'coreDensity',
     fusionRate: 'fusionRate',
+    energyDrift: 'energyDrift',
+    virialRatio: 'virialRatio',
 } as const;
 
 /** Type ranks. */
@@ -72,6 +75,10 @@ export function formatSmall(v: number): string {
 }
 
 const fixed = (digits: number) => (v: number): string => formatNumber(v, digits);
+
+/** A change of the total energy, as a fraction of the initial one: "+0.31 %", "-12.5 %" (one digit once it is above 10 %). */
+export const formatEnergyDrift = (fraction: number): string =>
+    `${fraction > 0 ? '+' : ''}${fixed(Math.abs(fraction) < 0.1 ? 2 : 1)(fraction * 100)} %`;
 
 /** A temperature in T0, in millions of kelvins. */
 export const formatTemperature = (t: number): string => `${fixed(1)(t * PROTOSTAR_T0_KELVIN / KELVIN_PER_MK)} MK`;
@@ -113,6 +120,8 @@ const params: readonly ParamDef[] = [
     { ...logSliderFields(PROTOSTAR_FEEDBACK_SLIDER), key: PROTOSTAR_PARAM.feedback, tab: 'fusion', label: t('algo.protostar.param.feedback.label'),
         doc: t('algo.protostar.param.feedback.doc'),
         format: v => `× ${formatSmall(v)}` },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.diagnostics, tab: 'features', label: t('algo.protostar.param.diagnostics.label'),
+        doc: t('algo.protostar.param.diagnostics.doc'), default: true },
 ];
 
 const element = (symbol: string) => {
@@ -188,5 +197,9 @@ export const PROTOSTAR: AlgorithmDeclaration = {
             format: v => `${v < 10 ? fixed(1)(v) : formatInt(Math.round(v))} ρ₀` },
         { kind: 'value', key: PROTOSTAR_STAT.fusionRate, label: t('algo.protostar.stat.fusionRate'), flash: false,
             format: v => v < 10 ? fixed(2)(v) : formatInt(Math.round(v)) },
+        { kind: 'value', key: PROTOSTAR_STAT.energyDrift, label: t('algo.protostar.stat.energyDrift'),
+            title: t('algo.protostar.stat.energyDrift.doc'), flash: false, format: formatEnergyDrift },
+        { kind: 'value', key: PROTOSTAR_STAT.virialRatio, label: t('algo.protostar.stat.virialRatio'),
+            title: t('algo.protostar.stat.virialRatio.doc'), flash: false, format: fixed(2) },
     ],
 };

@@ -13,7 +13,9 @@ import gasFrag from '../../shaders/protostar-gas.frag?raw';
 import heatFrag from '../../shaders/protostar-heat.frag?raw';
 import coarseFrag from '../../shaders/grid-coarse.frag?raw';
 import gravityFrag from '../../shaders/grid-gravity.frag?raw';
+import potentialFrag from '../../shaders/protostar-potential.frag?raw';
 import reduceFrag from '../../shaders/protostar-reduce.frag?raw';
+import { REDUCTION_TEXEL, REDUCTION_TEXELS } from './reduction';
 
 const COARSE_RES = PROTOSTAR_GRID_RES / PROTOSTAR_COARSE_FACTOR;
 const REDUCE_BLOCK = PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES;
@@ -23,6 +25,17 @@ export const PROTOSTAR_DEFINES = {
     MAX_SPECIES, GRID_RES: PROTOSTAR_GRID_RES, FUSION_RATE_MAX: glslFloat(PROTOSTAR_FUSION_RATE_MAX),
     ...DRAWING_DEFINES,
 } as const;
+
+/** The stages of the reductions (REDUCE_STAGE of protostar-reduce.frag, POTENTIAL_STAGE of protostar-potential.frag). */
+const STAGE = { first: 0, second: 1 } as const;
+const reduceDefines = (stage: number, block: number) => withDefines(reduceFrag, {
+    REDUCE_STAGE: stage, REDUCE_FIRST: STAGE.first, REDUCE_SECOND: STAGE.second, BLOCK: block,
+    TEXEL_CORE: REDUCTION_TEXEL.core, TEXEL_EXTREMES: REDUCTION_TEXEL.extremes,
+    TEXEL_ENERGY: REDUCTION_TEXEL.energy, TEXEL_MOMENTS: REDUCTION_TEXEL.moments,
+});
+const potentialDefines = (stage: number, block: number) => withDefines(potentialFrag, {
+    POTENTIAL_STAGE: stage, POTENTIAL_FIRST: STAGE.first, POTENTIAL_SECOND: STAGE.second, BLOCK: block,
+});
 
 let halfFloatDepositForced = false;
 
@@ -96,10 +109,12 @@ export interface ProtostarGridTargets {
     readonly heat: THREE.WebGLRenderTarget;
     readonly coarse: THREE.WebGLRenderTarget;
     readonly gravity: THREE.WebGLRenderTarget;
-    /** First stage of the stats reduction. */
+    /** First stage of the reduction: four attachments (core, extremes, energy, moments), one block of cells per texel. */
     readonly reduce1: THREE.WebGLRenderTarget;
-    /** The single texel the stats are read from. */
+    /** The result of the reduction, REDUCTION_TEXELS x 1 texels: the layout is in reduction.ts. */
     readonly reduce2: THREE.WebGLRenderTarget;
+    /** The potential energy of the grids as they were before the last stashPotential(): one texel, x. */
+    readonly potential: THREE.WebGLRenderTarget;
 }
 
 /** What the deposit shader reads, as plain numbers (see ProtostarGrids.debugDepositInputs). */
@@ -167,9 +182,12 @@ class DepositPass {
  *  2. gas: density, temperature (velocity dispersion) and mean velocity of each 3x3 neighborhood;
  *  3. power: deposit of the expected fusion power of the fusing particles;
  *  4. heat: fusion heating per unit mass of each 3x3 neighborhood;
- *  5. coarse + gravity: softened gravity at the cell centers, summed cell to cell on two levels.
+ *  5. coarse + gravity: softened gravity and its Plummer potential at the cell centers, summed cell
+ *     to cell on two levels (the force in x and y, the potential in z).
  * The particle passes sample gas, heat and gravity through the common uniforms. reduceStats()
- * reduces the gas and power grids to one texel (max density, temperature there, fusions / s).
+ * reduces the grids to REDUCTION_TEXELS texels (max density, temperature there, fusions / s, the
+ * densest cell, the extreme speeds and accelerations, the center of mass, the energies: see
+ * reduction.ts).
  */
 export class ProtostarGrids {
     readonly common: ProtostarCommonUniforms;
@@ -185,8 +203,12 @@ export class ProtostarGrids {
     private readonly heat: GridPass;
     private readonly coarse: GridPass;
     private readonly gravity: GridPass;
+    private gravityPlain: GridPass | null = null;
+    private readonly gravityUniforms: Record<string, THREE.IUniform>;
     private readonly reduce1: GridPass;
     readonly reduce2: GridPass;
+    private readonly potential1: GridPass;
+    private readonly potential2: GridPass;
     private readonly u = {
         texturePosition: { value: null as THREE.Texture | null },
         textureVelocity: { value: null as THREE.Texture | null },
@@ -202,6 +224,11 @@ export class ProtostarGrids {
      * as it did before the composition existed (the composition grid then goes stale). True in the application.
      */
     compositionEnabled = true;
+    /**
+     * Dev-only (the lab's cost comparison): false draws the gravity grid without its potential channel, as the pass was before
+     * the energy diagnostics (the reductions then read a potential of 0). True in the application.
+     */
+    potentialEnabled = true;
 
     constructor(private readonly renderer: THREE.WebGLRenderer, geometry: THREE.BufferGeometry,
                 private readonly splatMass: Uniform<number[]>, drawing: DrawingUniforms) {
@@ -232,22 +259,30 @@ export class ProtostarGrids {
         this.coarse = new GridPass(withDefines(coarseFrag, { COARSE_FACTOR: PROTOSTAR_COARSE_FACTOR }), {
             gridMoments: this.momentsTexture, gridCell: common.gridCell,
         }, gridTarget(COARSE_RES, THREE.FloatType));
-        this.gravity = new GridPass(withDefines(gravityFrag, {
-            GRID_RES: res, COARSE_RES, COARSE_FACTOR: PROTOSTAR_COARSE_FACTOR, NEAR_RADIUS: PROTOSTAR_NEAR_RADIUS,
-        }), {
+        this.gravityUniforms = {
             gridMoments: this.momentsTexture,
             gridCoarse: { value: this.coarse.target.texture },
             gridCell: common.gridCell, softening2: u.softening2, gravityPerDeposit: u.gravityPerDeposit,
-        }, gridTarget(res, THREE.FloatType));
+        };
+        this.gravity = this.gravityPass(true);
         common.gridForce.value = this.gravity.target.texture;
-        this.reduce1 = new GridPass(withDefines(reduceFrag, { FIRST_STAGE: 1, BLOCK: REDUCE_BLOCK }), {
-            source: { value: this.gas.target.texture }, gridPower: { value: this.power.target.texture },
-            fusionTRef: common.fusionTRef,
+        this.potential1 = new GridPass(potentialDefines(STAGE.first, REDUCE_BLOCK), {
+            gridMoments: this.momentsTexture, gridForce: common.gridForce,
         }, gridTarget(PROTOSTAR_STATS_REDUCE_RES, THREE.FloatType));
-        this.reduce2 = new GridPass(withDefines(reduceFrag, { FIRST_STAGE: 0, BLOCK: PROTOSTAR_STATS_REDUCE_RES }), {
-            source: { value: this.reduce1.target.texture }, gridPower: { value: null },
-            fusionTRef: common.fusionTRef,
+        this.potential2 = new GridPass(potentialDefines(STAGE.second, PROTOSTAR_STATS_REDUCE_RES), {
+            source: { value: this.potential1.target.texture },
         }, gridTarget(1, THREE.FloatType));
+        this.reduce1 = new GridPass(reduceDefines(STAGE.first, REDUCE_BLOCK), {
+            gridGas: common.gridGas, gridMoments: this.momentsTexture,
+            gridComposition: { value: this.moments.target.textures[1] }, gridForce: common.gridForce,
+            gridPower: { value: this.power.target.texture }, gridCell: common.gridCell, fusionTRef: common.fusionTRef,
+        }, gridTarget(PROTOSTAR_STATS_REDUCE_RES, THREE.FloatType, REDUCTION_TEXELS));
+        const stages = this.reduce1.target.textures;
+        this.reduce2 = new GridPass(reduceDefines(STAGE.second, PROTOSTAR_STATS_REDUCE_RES), {
+            stageCore: { value: stages[REDUCTION_TEXEL.core] }, stageExtremes: { value: stages[REDUCTION_TEXEL.extremes] },
+            stageEnergy: { value: stages[REDUCTION_TEXEL.energy] }, stageMoments: { value: stages[REDUCTION_TEXEL.moments] },
+            potentialBefore: { value: this.potential2.target.texture },
+        }, gridTarget(REDUCTION_TEXELS, THREE.FloatType, 1, 1));
     }
 
     /** Dev-only, read-only: the render targets of every pass, to read the grids back. */
@@ -255,6 +290,7 @@ export class ProtostarGrids {
         return {
             moments: this.moments.target, gas: this.gas.target, power: this.power.target, heat: this.heat.target,
             coarse: this.coarse.target, gravity: this.gravity.target, reduce1: this.reduce1.target, reduce2: this.reduce2.target,
+            potential: this.potential2.target,
         };
     }
 
@@ -301,9 +337,25 @@ export class ProtostarGrids {
         this.power.render(renderer);
         this.heat.render(renderer);
         this.coarse.render(renderer);
-        this.gravity.render(renderer);
+        const gravity = this.potentialEnabled ? this.gravity : this.gravityWithoutPotential();
+        this.common.gridForce.value = gravity.target.texture;
+        gravity.render(renderer);
         renderer.setClearAlpha(clearAlpha);
         renderer.setRenderTarget(null);
+    }
+
+    /** The gravity pass: acceleration in x and y, and with `potential` the Plummer potential in z (grid-gravity.frag). */
+    private gravityPass(potential: boolean): GridPass {
+        return new GridPass(withDefines(gravityFrag, {
+            GRID_RES: PROTOSTAR_GRID_RES, COARSE_RES, COARSE_FACTOR: PROTOSTAR_COARSE_FACTOR, NEAR_RADIUS: PROTOSTAR_NEAR_RADIUS,
+            ...(potential ? { GRAVITY_POTENTIAL: 1 } : {}),
+        }), this.gravityUniforms, gridTarget(PROTOSTAR_GRID_RES, THREE.FloatType));
+    }
+
+    /** Dev-only (see potentialEnabled): the gravity pass as it was before the potential, built on first use. */
+    private gravityWithoutPotential(): GridPass {
+        this.gravityPlain ??= this.gravityPass(false);
+        return this.gravityPlain;
     }
 
     /** Dev-only (see compositionEnabled): the moments pass as it was before the composition, built on first use. */
@@ -313,17 +365,36 @@ export class ProtostarGrids {
         return this.momentsAlone;
     }
 
-    /** Reduces the stats into reduce2's single texel. */
+    /**
+     * Reduces the grids as they are into reduce2's REDUCTION_TEXELS texels (layout and meaning in
+     * reduction.ts), in two passes. It reads the grids of the last update() and, for the energy,
+     * the potential that stashPotential() kept.
+     */
     reduceStats(): void {
         this.reduce1.render(this.renderer);
         this.reduce2.render(this.renderer);
         this.renderer.setRenderTarget(null);
     }
 
+    /**
+     * Keeps the potential energy of the grids as they are, in two passes, for reduceStats(). Called
+     * right before update() draws them again: the velocities the next deposit reads belong to
+     * those grids' positions, not to the next ones (velocity Verlet: the velocity texture is one
+     * substep behind the positions), so the energy of one state needs the potential of the grids
+     * before and the kinetic energy of the grids after.
+     */
+    stashPotential(): void {
+        this.potential1.render(this.renderer);
+        this.potential2.render(this.renderer);
+        this.renderer.setRenderTarget(null);
+    }
+
     dispose(): void {
-        for (const pass of [this.moments, this.power, this.gas, this.heat, this.coarse, this.gravity, this.reduce1, this.reduce2]) {
+        for (const pass of [this.moments, this.power, this.gas, this.heat, this.coarse, this.gravity, this.reduce1, this.reduce2,
+                            this.potential1, this.potential2]) {
             pass.dispose();
         }
         this.momentsAlone?.dispose();
+        this.gravityPlain?.dispose();
     }
 }

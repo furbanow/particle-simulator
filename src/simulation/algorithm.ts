@@ -182,10 +182,11 @@ interface StatBase {
     readonly label: string;
 }
 
-/** A number in a tile; null shows '–'. `flash`: the tile flashes when the value increases. */
+/** A number in a tile; null shows '–'. `flash`: the tile flashes when the value increases. `title`: explanation shown on hover. */
 export interface ValueStat extends StatBase {
     readonly kind: 'value';
     readonly flash?: boolean;
+    readonly title?: string;
     format(value: number): string;
 }
 

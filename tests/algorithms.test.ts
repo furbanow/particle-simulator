@@ -187,6 +187,7 @@ describe('panel tabs', () => {
         expect(Object.fromEntries(flags)).toEqual({
             count: true, rotation: true, agitation: true, gravity: false, softening: false, cooling: false,
             opacity: false, fusionRate: false, fusionExponent: false, heFusionRate: false, heFusionExponent: false, feedback: false,
+            diagnostics: false,
         });
     });
 });

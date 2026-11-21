@@ -210,6 +210,8 @@ export const pl: Record<MessageKey, string> = {
     'algo.protostar.param.heFusionExponent.doc': 'Wykładnik α temperatury w reakcji potrójnej alfa. W gwiazdach wynosi około 40: o 10% wyższa temperatura przyspiesza reakcję około 45 razy, stąd zapłon niemal progowy.',
     'algo.protostar.param.feedback.label': 'Ciepło zwracane gazowi',
     'algo.protostar.param.feedback.doc': 'Mnoży energię fuzji zwracaną gazowi w postaci ciepła. To ciepło wytwarza ciśnienie, które hamuje zapadanie jądra.',
+    'algo.protostar.param.diagnostics.label': 'Diagnostyka energii',
+    'algo.protostar.param.diagnostics.doc': 'Co kilka klatek mierzy energię chmury (kinetyczną i grawitacyjną) i pokazuje w statystykach jej dryf od początku oraz stosunek wirialny. Kosztuje kilka małych przebiegów GPU co dziesięć klatek. Po wyłączeniu obie statystyki pozostają puste.',
     'algo.protostar.prop.weight.label': 'Rozkład początkowy',
     'algo.protostar.prop.weight.resetTitle': 'Czysty wodór, bez pierwotnego helu ani węgla',
     'algo.protostar.prop.weight.randomTitle': 'Losowy rozkład',
@@ -224,6 +226,10 @@ export const pl: Record<MessageKey, string> = {
     'algo.protostar.stat.coreTemperature': 'Maks. temperatura (jądro)',
     'algo.protostar.stat.coreDensity': 'Maks. gęstość (jądro)',
     'algo.protostar.stat.fusionRate': 'Fuzje / s',
+    'algo.protostar.stat.energyDrift': 'Dryf energii',
+    'algo.protostar.stat.energyDrift.doc': 'Zmiana energii całkowitej (kinetycznej + grawitacyjnej) od początku, jako część jej wartości początkowej. Chłodzenie radiacyjne ją obniża, a ogrzewanie przez fuzję podnosi; bez nich mierzy błąd całkowania. Siły rysunków nie są liczone.',
+    'algo.protostar.stat.virialRatio': 'Stosunek wirialny 2K/|U|',
+    'algo.protostar.stat.virialRatio.doc': 'Podwojona energia kinetyczna podzielona przez wartość bezwzględną energii grawitacyjnej. Około 1 dla chmury w równowadze; poniżej 1 nadal się zapada, powyżej 1 rozszerza się.',
 
     // ---- Visual effects ----
     'effect.exposure.label': 'Ekspozycja',

@@ -210,6 +210,8 @@ export const es: Record<MessageKey, string> = {
     'algo.protostar.param.heFusionExponent.doc': 'Exponente α de la temperatura en la reacción triple alfa. Vale aproximadamente 40 en las estrellas: un 10 % más de temperatura acelera la reacción unas 45 veces, de ahí una ignición casi de umbral.',
     'algo.protostar.param.feedback.label': 'Calor devuelto al gas',
     'algo.protostar.param.feedback.doc': 'Multiplica la energía de fusión devuelta al gas en forma de calor. Este calor crea una presión que frena el colapso del núcleo.',
+    'algo.protostar.param.diagnostics.label': 'Diagnóstico de energía',
+    'algo.protostar.param.diagnostics.doc': 'Mide la energía de la nube (cinética y gravitatoria) cada pocos fotogramas y muestra en las estadísticas su deriva desde el inicio y su razón virial. Cuesta unas pocas pasadas pequeñas de GPU cada diez fotogramas. Desactivado, las dos estadísticas quedan vacías.',
     'algo.protostar.prop.weight.label': 'Distribución inicial',
     'algo.protostar.prop.weight.resetTitle': 'Hidrógeno puro, sin helio primordial ni carbono',
     'algo.protostar.prop.weight.randomTitle': 'Distribución aleatoria',
@@ -224,6 +226,10 @@ export const es: Record<MessageKey, string> = {
     'algo.protostar.stat.coreTemperature': 'Temperatura máx. (núcleo)',
     'algo.protostar.stat.coreDensity': 'Densidad máx. (núcleo)',
     'algo.protostar.stat.fusionRate': 'Fusiones / s',
+    'algo.protostar.stat.energyDrift': 'Deriva de la energía',
+    'algo.protostar.stat.energyDrift.doc': 'Variación de la energía total (cinética + gravitatoria) desde el inicio, como parte de su valor inicial. El enfriamiento radiativo la baja y el calentamiento por fusión la sube; sin ellos, mide el error de integración. Las fuerzas de los dibujos no se cuentan.',
+    'algo.protostar.stat.virialRatio': 'Razón virial 2K/|U|',
+    'algo.protostar.stat.virialRatio.doc': 'El doble de la energía cinética dividido por el valor absoluto de la energía gravitatoria. Cerca de 1 para una nube en equilibrio; por debajo de 1 sigue colapsando, por encima se expande.',
 
     // ---- Visual effects ----
     'effect.exposure.label': 'Exposición',

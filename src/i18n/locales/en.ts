@@ -226,6 +226,8 @@ export const en = {
     'algo.protostar.param.heFusionExponent.doc': 'Exponent α of the temperature in the triple-alpha reaction. It is about 40 in stars: 10% more temperature speeds the reaction up about 45 times, hence an almost threshold-like ignition.',
     'algo.protostar.param.feedback.label': 'Heat returned to the gas',
     'algo.protostar.param.feedback.doc': 'Multiplies the fusion energy returned to the gas as heat. This heat creates a pressure that slows the collapse of the core.',
+    'algo.protostar.param.diagnostics.label': 'Energy diagnostics',
+    'algo.protostar.param.diagnostics.doc': 'Measures the energy of the cloud every few frames (kinetic and gravitational) and shows its drift since the start and its virial ratio in the statistics. It costs a few small GPU passes every ten frames. Off, the two statistics stay blank.',
     'algo.protostar.prop.weight.label': 'Initial distribution',
     'algo.protostar.prop.weight.resetTitle': 'Pure hydrogen, with no primordial helium or carbon',
     'algo.protostar.prop.weight.randomTitle': 'Random distribution',
@@ -240,6 +242,10 @@ export const en = {
     'algo.protostar.stat.coreTemperature': 'Max temperature (core)',
     'algo.protostar.stat.coreDensity': 'Max density (core)',
     'algo.protostar.stat.fusionRate': 'Fusions / s',
+    'algo.protostar.stat.energyDrift': 'Energy drift',
+    'algo.protostar.stat.energyDrift.doc': 'Change of the total energy (kinetic + gravitational) since the start, as a share of its initial magnitude. Radiative cooling lowers it and fusion heating raises it; without them it measures the error of the integration. The drawings\' forces are not counted.',
+    'algo.protostar.stat.virialRatio': 'Virial ratio 2K/|U|',
+    'algo.protostar.stat.virialRatio.doc': 'Twice the kinetic energy over the magnitude of the gravitational energy. About 1 for a cloud in equilibrium; below 1 it keeps falling in, above 1 it expands.',
 
     // ---- Visual effects ----
     'effect.exposure.label': 'Exposure',

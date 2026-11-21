@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { clipSpaceCamera } from './common';
 import gridVert from '../shaders/grid.vert?raw';
 
-/** A square RGBA grid of `size` x `size` cells, read texel by texel (no filtering, no mipmaps). */
-export function gridTarget(size: number, type: THREE.TextureDataType, count = 1): THREE.WebGLRenderTarget {
-    return new THREE.WebGLRenderTarget(size, size, {
+/** An RGBA grid of `size` x `height` cells (square by default), read texel by texel (no filtering, no mipmaps). */
+export function gridTarget(size: number, type: THREE.TextureDataType, count = 1, height = size): THREE.WebGLRenderTarget {
+    return new THREE.WebGLRenderTarget(size, height, {
         count, type, format: THREE.RGBAFormat, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
         generateMipmaps: false, depthBuffer: false,
     });

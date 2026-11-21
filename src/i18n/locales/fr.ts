@@ -210,6 +210,8 @@ export const fr: Record<MessageKey, string> = {
     'algo.protostar.param.heFusionExponent.doc': 'Exposant α de la température dans la réaction triple-alpha. Il vaut environ 40 dans les étoiles : 10 % de température en plus accélèrent la réaction environ 45 fois, d\'où un allumage presque à seuil.',
     'algo.protostar.param.feedback.label': 'Chaleur rendue au gaz',
     'algo.protostar.param.feedback.doc': 'Multiplie l\'énergie de fusion rendue au gaz sous forme de chaleur. Cette chaleur crée une pression qui freine l\'effondrement du cœur.',
+    'algo.protostar.param.diagnostics.label': 'Diagnostics d\'énergie',
+    'algo.protostar.param.diagnostics.doc': 'Mesure l\'énergie du nuage (cinétique et gravitationnelle) toutes les quelques images, et affiche sa dérive depuis le départ et son rapport du viriel dans les statistiques. Cela coûte quelques petites passes GPU toutes les dix images. Désactivé, les deux statistiques restent vides.',
     'algo.protostar.prop.weight.label': 'Répartition initiale',
     'algo.protostar.prop.weight.resetTitle': 'Hydrogène pur, sans hélium primordial ni carbone',
     'algo.protostar.prop.weight.randomTitle': 'Répartition aléatoire',
@@ -224,6 +226,10 @@ export const fr: Record<MessageKey, string> = {
     'algo.protostar.stat.coreTemperature': 'Température max (cœur)',
     'algo.protostar.stat.coreDensity': 'Densité max (cœur)',
     'algo.protostar.stat.fusionRate': 'Fusions / s',
+    'algo.protostar.stat.energyDrift': 'Dérive de l\'énergie',
+    'algo.protostar.stat.energyDrift.doc': 'Variation de l\'énergie totale (cinétique + gravitationnelle) depuis le départ, en part de sa valeur initiale. Le refroidissement radiatif l\'abaisse et le chauffage par fusion l\'élève ; sans eux, elle mesure l\'erreur d\'intégration. Les forces des dessins ne sont pas comptées.',
+    'algo.protostar.stat.virialRatio': 'Rapport du viriel 2K/|U|',
+    'algo.protostar.stat.virialRatio.doc': 'Deux fois l\'énergie cinétique sur la valeur absolue de l\'énergie gravitationnelle. Proche de 1 pour un nuage à l\'équilibre ; en dessous de 1 il continue de s\'effondrer, au-dessus il se dilate.',
 
     // ---- Visual effects ----
     'effect.exposure.label': 'Exposition',

@@ -104,6 +104,12 @@ export const PROTOSTAR_MAX_SPEED = 2;              // L/s
 export const PROTOSTAR_DRIFT_GAIN = 0.5;           // fraction of the measured drift of the star taken off at each read-back
 export const PROTOSTAR_STATS_INTERVAL = 10;        // frames between two GPU reductions of the stats
 export const PROTOSTAR_STATS_REDUCE_RES = 16;      // first reduction stage (GRID_RES / 16 = 8 x 8 cells each)
+// Energy diagnostics (reduction.ts, energy.ts): besides the stats' frames, the first frame is read too, so that the
+// initial energy is the one of the start and not of 10 frames of cooling later.
+export const PROTOSTAR_ENERGY_FIRST_FRAME = 1;
+// A virial ratio or an energy drift is not shown when the potential (or the total) energy is below this fraction of
+// |K| + |U|: the quantity it divides by is then noise, not a scale.
+export const PROTOSTAR_ENERGY_RATIO_FLOOR = 1e-6;
 export const PROTOSTAR_RATE_SMOOTHING = 0.3;       // weight of a new fusion rate reading (exponential smoothing)
 // Glow of the particles (0..GLOW_MAX), read by the particle layer from velocity w: it rises with
 // the local temperature (T/T0 over GLOW_T_RANGE) and with the local fusion heating (per unit mass,

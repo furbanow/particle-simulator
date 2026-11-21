@@ -94,6 +94,7 @@ export class Stats {
             case 'value': {
                 el.innerHTML = '<div class="stat-label"></div><div class="stat-value"></div>';
                 el.querySelector('.stat-label')!.textContent = def.label;
+                if (def.title) el.title = def.title;
                 const out = el.querySelector<HTMLElement>('.stat-value')!;
                 let last: number | null | undefined;
                 return {

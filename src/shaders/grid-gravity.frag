@@ -1,7 +1,14 @@
 // Softened gravity at each fine cell center: a = G sum m_j (r_j - r) / (|r_j - r|^2 + eps^2)^(3/2).
 // Two levels: fine cells inside the coarse cells within NEAR_RADIUS of the cell's own coarse cell
 // one by one, the other coarse cells as one mass at their center of mass.
-// Defines: GRID_RES, COARSE_RES, COARSE_FACTOR, NEAR_RADIUS.
+// Defines: GRID_RES, COARSE_RES, COARSE_FACTOR, NEAR_RADIUS. Optional: GRAVITY_POTENTIAL.
+//
+// Output (ax, ay, phi, 0). Without GRAVITY_POTENTIAL, phi is 0 (the drawings' fields, which only
+// need the force, are built like that). With it, phi is the Plummer potential of the very same
+// sum, the one the force is the gradient of: phi = -G sum m_j / sqrt(|r_j - r|^2 + eps^2) (px^2/s^2).
+// The cell's own mass is in the sum (at distance 0: -G m / eps), which the force does not feel
+// (r = 0) but the potential does: see ProtostarModel / reduction.ts for the correction of that
+// self-interaction in the potential energy.
 uniform sampler2D gridMoments;          // mass in x, deposit units
 uniform sampler2D gridCoarse;           // (mass, center of mass px)
 uniform float gridCell;
@@ -15,6 +22,9 @@ void main() {
     vec2 x = (vec2(cell) + 0.5) * gridCell;
     ivec2 own = cell / COARSE_FACTOR;
     vec2 acc = vec2(0.0);
+#ifdef GRAVITY_POTENTIAL
+    float potential = 0.0;
+#endif
 
     for (int j = 0; j < COARSE_RES; j++) {
         for (int i = 0; i < COARSE_RES; i++) {
@@ -26,6 +36,9 @@ void main() {
             vec2 r = m.yz - x;
             float s = inversesqrt(dot(r, r) + softening2);
             acc += m.x * r * (s * s * s);
+#ifdef GRAVITY_POTENTIAL
+            potential -= m.x * s;
+#endif
         }
     }
 
@@ -39,7 +52,14 @@ void main() {
             vec2 r = (vec2(c) + 0.5) * gridCell - x;
             float s = inversesqrt(dot(r, r) + softening2);
             acc += m * r * (s * s * s);
+#ifdef GRAVITY_POTENTIAL
+            potential -= m * s;
+#endif
         }
     }
+#ifdef GRAVITY_POTENTIAL
+    gl_FragColor = vec4(acc * gravityPerDeposit, potential * gravityPerDeposit, 0.0);
+#else
     gl_FragColor = vec4(acc * gravityPerDeposit, 0.0, 0.0);
+#endif
 }
