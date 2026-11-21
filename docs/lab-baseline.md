@@ -356,6 +356,46 @@ Simulation ms/frame of the dust, the build before and after alternated, 6 pairs,
 | 400 000 | 3.72 / 3.53 | 2.85 / 2.83 |
 | 1 000 000 | 4.72 / 4.78 | 4.42 / 5.03 |
 
+## After phase P3a: heating by scaling, the noise of the temperature
+
+P3a (proposals A5 and A3, [the spike](spikes/a5-a3-heating-and-t-noise.md)) **changes the physics** of the protostar, so the
+default cloud above is the record of the code before it (`5ed76ae`). The same run on the branch of P3a, same GPU, same seed (the
+averaged temperature with tau = 0.1 s, the bias correction and the heating by scaling all on):
+
+| t (s) | frame | core T (MK) before | after | peak density (rho0) before | after | fusions / s before | after |
+|---|---|---|---|---|---|---|---|
+| 0.28 | 10 | 3.2 | 3.1 | 1.1 | 1.1 | 0.65 | 0.78 |
+| 1.4 | 50 | 5.1 | 5.1 | 4.5 | 4.5 | 4.6 | 3.0 |
+| 2.27 | 80 | **91.7** | **90.3** | 32 | 33 | **119 300** | **33 500** |
+| 4.25 | 150 | 30.7 | 29.6 | 34.6 | 30.3 | 1 833 | 1 512 |
+| 8.2 | 290 | 15.7 | 14.6 | 37.8 | 37.4 | 4 297 | 2 129 |
+| 11.6 | 410 | 51.5 | 66.8 | 53.6 | 67.6 | 15 493 | 29 813 |
+| 14.5 | 510 | 57.7 | 67.0 | 60.0 | 63.8 | 14 974 | 19 702 |
+| 20.4 | 720 | 58.6 | 68.1 | 72.2 | 76.7 | 9 928 | 10 222 |
+| 34 | 1200 | 55.1 | 79.3 | 109.0 | 130 | 2 810 | 2 334 |
+
+At the end: 20 153 H, 92 948 He, 544 C (before: 93 345, 75 491, 407). The shape is the same up to 10 s: the first collapse
+at 2.27 s reaches the same temperature (90 against 92 MK) and density, the cloud rebounds and the core settles, and what changes is
+the **rate of the first burst, 3.6 times lower** (the average of T takes the top off the collapse's short temperature spikes).
+After that this seed's burning history goes another way: a plateau of 67 to 68 MK instead of 58, a faster consumption of the
+hydrogen (95 % burnt at 34 s against 77 %), a helium flare at 119 MK at 20.7 s. The burn history of this star is chaotic, one seed
+is not its plateau: over three seeds the last quarter's core temperature is 56.7 MK before (56.5 to 57.1) and 61.9 MK after (52.1 to
+78.8), the heating by scaling alone gives 57.8 and the correction alone changes nothing (the core holds thousands of particles
+per neighborhood); see the table of `baseline.protostar.default-cloud-variants` in the spike. No default was retuned: the star
+ignites and burns hydrogen then helium as before, and the recalibration of G, lambda, alpha and the feedback is planned for
+the end of P3b. The recorded table above stays the reference for phases that must not change the physics; for those that
+do, compare with `baseline.protostar.default-cloud-variants`, whose first variant is the code before P3a.
+
+Switching the three changes off (the kick of every cell, no correction, no average: `baseline.protostar.default-cloud-variants`, first
+variant) reproduces the table above to the last digit for the first 250 frames and then diverges slowly, as any two
+runs of this chaotic history do.
+
+Acceptance checks of the phase (`protostar.heating`, `protostar.temperature-noise`; numbers and method in the spike): the energy
+the heating adds is q dt to 4e-6 on isolated cells and to 3e-4 on a gas of 1 400 particles per neighborhood, the momentum is
+unchanged to rounding on isolated cells, the mean fusion rate of a thermal gas is within 2.1 % of the true rate at 100 to 6 400
+particles per neighborhood and exponents 4 and 40 (uncorrected: up to 51 times too high). Simulation cost at 400 000 particles: not
+measurable (8.57 ms before, 8.62 ms after, median of 6 alternated pairs).
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a and is a
