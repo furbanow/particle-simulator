@@ -60,7 +60,9 @@ not run. Set `LAB_NO_SANDBOX=1` where Chrome refuses to start without `--no-sand
 | `baseline.protostar.ignition-ratio` | Ignition temperatures of H and He from the current rate laws, and their ratio (pure TypeScript). |
 | `baseline.protostar.default-cloud` | The default cloud: core temperature, peak density, fusion rate and omega.dt in the core over time. |
 | `baseline.protostar.energy-drift` | `skip`: needs A7 (phase P1a). |
-| `perf.<algorithm>.<count>` | ms per frame of protostar and sticky dust at 400 000 and 1 000 000 particles. |
+| `dust.gravity.parity` | The sticky dust's per-texel gravity against the per-particle loop it replaced (the yardstick kept in `src/lab/gravityProbe.ts`), at the particles of a clumped cloud; also against the original central-difference loop. |
+| `dust.gravity.point-mass` | The pull of a point mass on rings around it against the angle: anisotropy of the central difference, of Scharr's stencil and of the stencil in use ([spikes/b1-dust-gravity.md](spikes/b1-dust-gravity.md)). |
+| `perf.<algorithm>.<count>` | ms per frame of protostar (400 000 and 1 000 000 particles) and sticky dust (400 000, 1 000 000 and 3 000 000). |
 | `cost.protostar.second-deposit` | Simulation ms/frame at 400 000 particles with and without the composition on the moments pass, the two alternated chunk after chunk in one run, and the grid passes alone on a frozen early (frame 55) and late (about frame 970) cloud; the frame numbers are in the metrics. One run is not a measurement: repeat it (see the spike). |
 
 The recorded numbers are in [lab-baseline.md](lab-baseline.md).

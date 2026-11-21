@@ -78,3 +78,13 @@ export function alternatingOrders<T>(items: readonly T[], rounds: number): T[][]
     // A step of 5 through the listing (coprime with 2 and with 6) visits every order once per cycle.
     return Array.from({ length: rounds }, (_, r) => [...all[(r * 5) % all.length]]);
 }
+
+/** The `index`-th (from 1) term of the van der Corput sequence in `base`, in [0, 1): paired bases give well spread points in the plane. */
+export function halton(index: number, base: number): number {
+    let fraction = 1, result = 0;
+    for (let i = index; i > 0; i = Math.floor(i / base)) {
+        fraction /= base;
+        result += fraction * (i % base);
+    }
+    return result;
+}

@@ -2,6 +2,8 @@
 // frame counts and the thresholds of the sanity checks. The application's own constants stay in
 // src/config.ts.
 
+import { DUST_GRADIENT_CORNER_WEIGHT } from '../config';
+
 /** Simulation area of every scenario, in CSS px (the physics scales with min(width, height)). */
 export const LAB_AREA = { width: 1024, height: 768 } as const;
 
@@ -51,7 +53,11 @@ export const REAL_IGNITION_RATIO = 100 / 15;
 
 // ---- Performance probe ----
 export const PERF_ALGORITHMS = ['protostar', 'stickyDust'] as const;
-export const PERF_COUNTS = [400000, 1000000] as const;
+/** Particle counts timed per algorithm; the sticky dust, the cheaper one, goes up to the largest count of the sliders too. */
+export const PERF_COUNTS: Record<(typeof PERF_ALGORITHMS)[number], readonly number[]> = {
+    protostar: [400000, 1000000],
+    stickyDust: [400000, 1000000, 3000000],
+};
 /** Timed frames per measurement, in chunks synchronized with the GPU (the median chunk is reported). */
 export const PERF_FRAMES = 120;
 export const PERF_CHUNK_FRAMES = 30;
@@ -110,3 +116,33 @@ export const COST_CHUNK_FRAMES = 30;
  */
 export const COST_FROZEN_ROUNDS = 12;
 export const COST_FROZEN_SUBSTEPS = 40;
+
+// ---- Gravity of the sticky dust (per-texel field against the per-particle loop) ----
+export const DUST_GRAVITY_SEED = 7771;
+export const DUST_PARITY_PARTICLES = 400000;
+/** Frames before the comparison: long enough for the clumps to have formed (the field is then rough at every scale). */
+export const DUST_PARITY_FRAMES = 150;
+/** Comparisons, a few frames apart so the grid is shifted differently each time, and particles compared in each. */
+export const DUST_PARITY_SNAPSHOTS = 4;
+export const DUST_PARITY_SNAPSHOT_GAP = 5;
+export const DUST_PARITY_PROBES = 262144;
+/** The error limit of the acceptance test (relative to the reference pull). */
+export const DUST_PARITY_LIMIT = 0.01;
+/** Pulls shorter than this fraction of the RMS pull are not judged by their relative error (the levels nearly cancel there). */
+export const DUST_PARITY_FLOOR = 0.1;
+
+// Point mass: the pull of one particle's worth of mass on rings around it.
+export const POINT_MASS = 1000;
+/** Radii of the rings (density texels; the probe domain is one px per texel) and angles on each. */
+export const POINT_MASS_RADII = [2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96] as const;
+export const POINT_MASS_ANGLES = 360;
+/** Positions of the mass relative to the grid (the app shifts the grid at random every substep: the pull it feels is their average; Halton points). */
+export const POINT_MASS_PHASES = 256;
+/** Rings smaller than this (texels) feel the 2-texel stencil and the 2x2 deposit of the mass: the anisotropy is judged beyond. */
+export const POINT_MASS_MIN_RADIUS = 4;
+/** Orders of the angular harmonics a 4-fold symmetric (square) kernel produces: the anisotropy is read on these only, the rest being noise. */
+export const ANISOTROPY_HARMONICS = [4, 8, 12, 16] as const;
+/** Stencils compared: name and corner weight of the coarse levels' gradient (0 is the central difference of the original loop). */
+export const POINT_MASS_STENCILS: readonly (readonly [string, number])[] = [
+    ['cross', 0], ['scharr', 3 / 16], ['tuned', DUST_GRADIENT_CORNER_WEIGHT],
+];

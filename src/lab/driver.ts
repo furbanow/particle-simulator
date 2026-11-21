@@ -8,6 +8,7 @@ import { defaultParams } from '../simulation/params';
 import { PROTOSTAR_PROPERTY, PROTOSTAR_STAT } from '../simulation/protostar/declaration';
 import { ProtostarModel } from '../simulation/protostar/gpuModel';
 import type { ProtostarGridTargets } from '../simulation/protostar/grids';
+import { StickyDustModel } from '../simulation/stickyDust/gpuModel';
 import { LAB_SEED, LAB_SYNC_EVERY } from './config';
 import { withSeededRandom } from './random';
 import type { LabContext } from './types';
@@ -15,6 +16,12 @@ import type { LabContext } from './types';
 export const protostarModel = (context: LabContext): ProtostarModel => {
     const model = context.simulation.debugPipeline.debugModel;
     if (!(model instanceof ProtostarModel)) throw new Error('The running algorithm is not the protostar');
+    return model;
+};
+
+export const stickyDustModel = (context: LabContext): StickyDustModel => {
+    const model = context.simulation.debugPipeline.debugModel;
+    if (!(model instanceof StickyDustModel)) throw new Error('The running algorithm is not the sticky dust');
     return model;
 };
 

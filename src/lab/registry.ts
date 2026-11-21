@@ -2,6 +2,7 @@
 // docs/lab.md) in src/lab/scenarios/ and list it here.
 
 import { defaultCloud, energyDrift, ignitionRatioBaseline } from './scenarios/baseline';
+import { dustGravityScenarios } from './scenarios/dustGravity';
 import { halfFloatDeposit } from './scenarios/halfFloat';
 import { perfScenarios } from './scenarios/perf';
 import { secondDeposit, secondDepositLoad } from './scenarios/secondDeposit';
@@ -17,6 +18,7 @@ export const SCENARIOS: readonly Scenario[] = [
     ignitionRatioBaseline,
     defaultCloud,
     energyDrift,
+    ...dustGravityScenarios,
     ...perfScenarios,
     secondDepositCost,
 ];

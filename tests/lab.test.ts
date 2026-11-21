@@ -3,7 +3,7 @@ import { probeCore } from '../src/lab/core';
 import { compareDeposit, ratioError, referenceDeposit, type DepositTolerance } from '../src/lab/depositReference';
 import { jsonSafe } from '../src/lab/json';
 import {
-    alternatingOrders, decimate, extractChannel, maxAbsChannel, maxAbsDiff, maxChannel, mean, quantile, relativeDiff, significant, sumChannel,
+    alternatingOrders, decimate, extractChannel, halton, maxAbsChannel, maxAbsDiff, maxChannel, mean, quantile, relativeDiff, significant, sumChannel,
 } from '../src/lab/numbers';
 import { mulberry32, withSeededRandom } from '../src/lab/random';
 import { isSoftwareRenderer, parseOptions, selectScenarios } from '../src/lab/select';
@@ -89,6 +89,16 @@ describe('lab: grid and series helpers', () => {
         expect(significant(0.00123456, 3)).toBe(0.00123);
         expect(significant(0, 3)).toBe(0);
         expect(significant(Infinity, 3)).toBe(Infinity);
+    });
+
+    it('draws well spread points from the Halton sequence', () => {
+        expect([1, 2, 3, 4].map(i => halton(i, 2))).toEqual([0.5, 0.25, 0.75, 0.125]);
+        expect(halton(1, 3)).toBeCloseTo(1 / 3, 12);
+        expect(halton(4, 3)).toBeCloseTo(1 / 3 + 1 / 9, 12);
+        // In each quarter of the unit square: close to a quarter of the points.
+        const counts = [0, 0, 0, 0];
+        for (let i = 1; i <= 256; i++) counts[(halton(i, 2) < 0.5 ? 0 : 1) + (halton(i, 3) < 0.5 ? 0 : 2)]++;
+        for (const count of counts) expect(Math.abs(count - 64)).toBeLessThan(8);
     });
 });
 

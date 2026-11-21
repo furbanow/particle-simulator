@@ -129,7 +129,7 @@ async function probe(context: LabContext, algorithm: AlgorithmId, count: number)
 const label = (count: number): string => count >= 1e6 ? `${count / 1e6}m` : `${count / 1e3}k`;
 
 /** One scenario per algorithm and count. */
-export const perfScenarios: Scenario[] = PERF_ALGORITHMS.flatMap(algorithm => PERF_COUNTS.map((count): Scenario => ({
+export const perfScenarios: Scenario[] = PERF_ALGORITHMS.flatMap(algorithm => PERF_COUNTS[algorithm].map((count): Scenario => ({
     id: `perf.${algorithm}.${label(count)}`,
     title: `Performance: ${algorithm} at ${count.toLocaleString('en-US')} particles (ms/frame)`,
     tags: ['perf', 'slow', algorithm],
