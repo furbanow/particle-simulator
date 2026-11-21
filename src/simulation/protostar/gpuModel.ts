@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
     MAX_SPECIES, PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_DRIFT_GAIN, PROTOSTAR_ENERGY_FIRST_FRAME, PROTOSTAR_FUSION_C2,
     PROTOSTAR_FUSION_T_REF, PROTOSTAR_GLOW_FUSION, PROTOSTAR_GLOW_HEATING_REF, PROTOSTAR_GLOW_MAX, PROTOSTAR_GLOW_T_RANGE,
-    PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_MAX_SPEED,
+    PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_HEATING_T_FLOOR, PROTOSTAR_MAX_SPEED,
     PROTOSTAR_RATE_SMOOTHING, PROTOSTAR_RESTITUTION, PROTOSTAR_STATS_INTERVAL, REMOVED_PARTICLE_W, TOTAL_MASS,
 } from '../../config';
 import { glslFloat } from '../../gl/withDefines';
@@ -70,6 +70,7 @@ export class ProtostarModel implements GpuModel {
         coolingRate: { value: 0 },
         opacityDensity: { value: 1 },
         maxSpeed: { value: 1 },
+        heatingTFloor: { value: 0 },
         restitution: { value: PROTOSTAR_RESTITUTION },
         driftKick: { value: new THREE.Vector2() },
     };
@@ -99,6 +100,11 @@ export class ProtostarModel implements GpuModel {
     private lastCenter: Vec2 | null = null;
     private sinceLastCenter = 0;                       // s
     private pendingKick: Vec2 | null = null;
+    /**
+     * Dev-only (the lab): fills the initial positions and velocities instead of the cloud (see fillCloud), with no initial
+     * acceleration; for gases of known temperature. Null in the application.
+     */
+    debugInitialState: ((state: InitialState) => void) | null = null;
 
     constructor(private readonly context: GpuModelContext) {
         this.grids = new ProtostarGrids(context.renderer, context.geometry, context.speciesUniforms.splatMass,
@@ -110,7 +116,7 @@ export class ProtostarModel implements GpuModel {
             GLOW_TEMPERATURE: glslFloat(PROTOSTAR_GLOW_TEMPERATURE), GLOW_FUSION: glslFloat(PROTOSTAR_GLOW_FUSION),
             GLOW_HEATING_REF: glslFloat(PROTOSTAR_GLOW_HEATING_REF), GLOW_MAX: glslFloat(PROTOSTAR_GLOW_MAX),
         });
-        this.positionShader = withProtostarCommon(positionFrag, { REMOVED_W: glslFloat(REMOVED_PARTICLE_W) });
+        this.positionShader = withProtostarCommon(positionFrag, { REMOVED_W: glslFloat(REMOVED_PARTICLE_W), GAS_THERMO: 1 });
         this.velocityUniforms = { ...common, ...this.own };
         this.positionUniforms = { ...common };
         this.variables = [{
@@ -177,6 +183,11 @@ export class ProtostarModel implements GpuModel {
     }
 
     initialize(state: InitialState): void {
+        if (this.debugInitialState) {
+            this.debugInitialState(state);
+            this.initialAccel = null;
+            return;
+        }
         const length = Math.max(1, Math.min(state.width, state.height));
         const radius = PROTOSTAR_CLOUD_RADIUS * length;
         this.initialAccel = fillCloud(state, {
@@ -206,6 +217,8 @@ export class ProtostarModel implements GpuModel {
         this.pendingKick = null;
         this.own.maxSpeed.value = PROTOSTAR_MAX_SPEED * length;
         this.grids.common.fusionTRef.value = PROTOSTAR_FUSION_T_REF * length * length;
+        this.own.heatingTFloor.value = PROTOSTAR_HEATING_T_FLOOR * PROTOSTAR_FUSION_T_REF * length * length;
+        this.grids.startRun();
     }
 
     updateSpecies(types: readonly ParticleType[]): void {
@@ -259,7 +272,7 @@ export class ProtostarModel implements GpuModel {
             this.stashedFrame = this.frame;
         }
         grids.setScales(scales);
-        grids.update(context.positionTexture(), context.velocityTexture());
+        grids.update(context.positionTexture(), context.velocityTexture(), dt);
         this.gridsDrawn = true;
         this.reductionScales = {
             massPerDeposit: meanMass, depositVelScale: scales.depositVelScale,

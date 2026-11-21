@@ -11,6 +11,7 @@ uniform float activeCount;
 uniform float coolingRate;              // 1/s
 uniform float opacityDensity;           // rho / rho0 above which the gas traps its heat
 uniform float maxSpeed;                 // px/s
+uniform float heatingTFloor;            // px^2/s^2: below this dispersion a cell is heated by a random kick, not by scaling
 uniform float restitution;
 uniform vec2 driftKick;                 // px/s, velocity taken off every particle (statistical drift)
 
@@ -34,15 +35,27 @@ void main() {
     // less and keeps the heat of its compression.
     Gas gas = gasAt(pos.xy);
     float cooling = coolingRate / (1.0 + gas.rho / opacityDensity);
-    if (gas.rho > 0.0) v = gas.v + (v - gas.v) * exp(-cooling * dt);
+    float damping = exp(-cooling * dt);
+    if (gas.rho > 0.0) v = gas.v + (v - gas.v) * damping;
 
-    // Fusion feedback: the heating adds q dt of energy per unit mass on average, as a kick in a
-    // random direction (it raises the velocity dispersion: heat, hence pressure). The speed limit
-    // also bounds the kick: q can be infinite on half-float grids, where the deposit can saturate.
+    // Fusion feedback: the heating adds q dt of kinetic energy per unit mass, that is 2 q dt to
+    // |v|^2 (twin and derivation: heating.ts). The deviations from the local mean velocity u are
+    // scaled by sqrt(1 + 2 q dt / T), T being the dispersion |v - u|^2 of the neighborhood (left
+    // after the cooling, which scaled it by damping^2): the dispersion grows by exactly that
+    // energy, the mean velocity (the momentum) does not move and no noise is added. A cell too
+    // cold for that (T near 0: nothing to scale) gets the same energy as a kick in a random
+    // direction. The speed limit also bounds the energy: q can be infinite on half-float grids,
+    // where the deposit can saturate.
     float q = gas.heat * fusionTRef;
     if (q > 0.0) {
-        float angle = 6.2831853 * random01(index, 2u);
-        v += sqrt(min(2.0 * q * dt, maxSpeed * maxSpeed)) * vec2(cos(angle), sin(angle));
+        float energy = min(2.0 * q * dt, maxSpeed * maxSpeed);
+        float dispersion = gas.t * damping * damping;
+        if (dispersion > heatingTFloor) {
+            v = gas.v + (v - gas.v) * sqrt(1.0 + energy / dispersion);
+        } else {
+            float angle = 6.2831853 * random01(index, 2u);
+            v += sqrt(energy) * vec2(cos(angle), sin(angle));
+        }
     }
 
     float s = length(v);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
-    MAX_SPECIES, PROTOSTAR_COARSE_FACTOR, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_STATS_REDUCE_RES,
+    MAX_SPECIES, PROTOSTAR_COARSE_FACTOR, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_NOISE_N_MIN,
+    PROTOSTAR_NOISE_N_SHAPE, PROTOSTAR_STATS_REDUCE_RES, PROTOSTAR_TEMPERATURE_TAU,
 } from '../../config';
 import { additiveBlending, clipSpaceCamera, type Uniform } from '../../gl/common';
 import { GridPass, gridTarget } from '../../gl/gridPass';
@@ -15,14 +16,19 @@ import coarseFrag from '../../shaders/grid-coarse.frag?raw';
 import gravityFrag from '../../shaders/grid-gravity.frag?raw';
 import potentialFrag from '../../shaders/protostar-potential.frag?raw';
 import reduceFrag from '../../shaders/protostar-reduce.frag?raw';
+import { smoothingWeight } from './noiseBias';
 import { REDUCTION_TEXEL, REDUCTION_TEXELS } from './reduction';
 
 const COARSE_RES = PROTOSTAR_GRID_RES / PROTOSTAR_COARSE_FACTOR;
 const REDUCE_BLOCK = PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES;
 
-/** Defines of every shader including protostar-common.glsl. */
+/**
+ * Defines of every shader including protostar-common.glsl. GAS_THERMO is 0 here: the shaders that compute a fusion
+ * rate (the power deposit, the position pass) set it to 1 and gasAt() then reads the temperature that feeds the rate.
+ */
 export const PROTOSTAR_DEFINES = {
     MAX_SPECIES, GRID_RES: PROTOSTAR_GRID_RES, FUSION_RATE_MAX: glslFloat(PROTOSTAR_FUSION_RATE_MAX),
+    NOISE_N_MIN: glslFloat(PROTOSTAR_NOISE_N_MIN), NOISE_N_SHAPE: glslFloat(PROTOSTAR_NOISE_N_SHAPE), GAS_THERMO: 0,
     ...DRAWING_DEFINES,
 } as const;
 
@@ -71,8 +77,10 @@ export interface ProtostarCommonUniforms extends DrawingUniforms {
     gridForce: Uniform<THREE.Texture | null>;
     gridGas: Uniform<THREE.Texture | null>;
     gridHeat: Uniform<THREE.Texture | null>;
+    gridThermo: Uniform<THREE.Texture | null>;
     gridCell: Uniform<number>;
     fusionTRef: Uniform<number>;
+    noiseCorrection: Uniform<number>;
     seed: Uniform<number>;
     reactionTo: Uniform<number[]>;
     reactionKeep: Uniform<number[]>;
@@ -87,8 +95,8 @@ export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonU
     const perType = (fill: number): Uniform<number[]> => ({ value: new Array<number>(MAX_SPECIES).fill(fill) });
     return {
         ...drawing,
-        gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null },
-        gridCell: { value: 1 }, fusionTRef: { value: 1 }, seed: { value: 0 },
+        gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null }, gridThermo: { value: null },
+        gridCell: { value: 1 }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },
         reactionTo: perType(-1), reactionKeep: perType(0), reactionRate: perType(0),
         reactionExponent: perType(0), reactionReference: perType(1), reactionDensityExponent: perType(1),
         reactionEnergy: perType(0),
@@ -100,10 +108,15 @@ export interface ProtostarGridTargets {
     /**
      * Two attachments, deposited together: `moments.texture` (attachment 0) holds (m, m v, m |v|^2),
      * `moments.textures[1]` (attachment 1) the composition (sum m (1 + Z) / A, sum count, sum m^2, 0)
-     * with the same cloud-in-cell weights. No pass reads the composition yet. Only attachment 0 can
-     * be read back directly (see lab/readback.ts).
+     * with the same cloud-in-cell weights. The gas pass reads its m^2 (the effective number of particles behind T);
+     * nothing reads the rest yet. Only attachment 0 can be read back directly (see lab/readback.ts).
      */
     readonly moments: THREE.WebGLRenderTarget;
+    /**
+     * Two attachments: `gas.texture` (attachment 0) holds (rho / rho0, T, mean v), `gas.textures[1]` the temperature averaged over time
+     * and the effective number of particles (T averaged, N, 0, 0). Two targets take turns from one substep to the next: this one
+     * is the latest drawn.
+     */
     readonly gas: THREE.WebGLRenderTarget;
     readonly power: THREE.WebGLRenderTarget;
     readonly heat: THREE.WebGLRenderTarget;
@@ -153,7 +166,7 @@ class DepositPass {
         this.material = new THREE.ShaderMaterial({
             uniforms,
             vertexShader: withProtostarCommon(depositVert, {
-                DEPOSIT_KIND: kind, ...DEPOSIT_KIND_DEFINES,
+                DEPOSIT_KIND: kind, ...DEPOSIT_KIND_DEFINES, GAS_THERMO: kind === DEPOSIT_KIND.power ? 1 : 0,
             }),
             fragmentShader: withDefines(depositFrag, { DEPOSIT_KIND: kind, ...DEPOSIT_KIND_DEFINES }),
             ...additiveBlending,
@@ -178,8 +191,9 @@ class DepositPass {
  * The grid passes of the protostar algorithm, rendered before every substep from the current
  * particle state (GRID_RES x GRID_RES square cells over max(width, height)):
  *  1. moments: cloud-in-cell deposit of (m, m v, m |v|^2) and, on a second attachment of the same
- *     pass, of the composition (m (1 + Z) / A, count, m^2), for the passes that need it (none yet);
- *  2. gas: density, temperature (velocity dispersion) and mean velocity of each 3x3 neighborhood;
+ *     pass, of the composition (m (1 + Z) / A, count, m^2), for the passes that need it (the gas pass: m^2);
+ *  2. gas: density, temperature (velocity dispersion) and mean velocity of each 3x3 neighborhood, and on a second
+ *     attachment the temperature averaged over time and the effective number of particles (the noise of T, see noiseBias.ts);
  *  3. power: deposit of the expected fusion power of the fusing particles;
  *  4. heat: fusion heating per unit mass of each 3x3 neighborhood;
  *  5. coarse + gravity: softened gravity and its Plummer potential at the cell centers, summed cell
@@ -199,7 +213,10 @@ export class ProtostarGrids {
     private readonly depositUniforms: Record<string, THREE.IUniform>;
     private readonly blendType: THREE.TextureDataType;
     private readonly power: DepositPass;
-    private readonly gas: GridPass;
+    /** The gas pass, drawn into one of two targets in turn: the averaged temperature of the previous substep is read from the other. */
+    private readonly gasPasses: readonly [GridPass, GridPass];
+    private gasCurrent = 0;
+    private temperatureHistory = false;                // the averaged temperature of the last substep belongs to this run
     private readonly heat: GridPass;
     private readonly coarse: GridPass;
     private readonly gravity: GridPass;
@@ -218,6 +235,7 @@ export class ProtostarGrids {
         gravityPerDeposit: { value: 1 },
         softening2: { value: 1 },
         speciesInverseMu: { value: new Array<number>(MAX_SPECIES).fill(0) },
+        temperatureWeight: { value: 1 },
     };
     /**
      * Dev-only (the lab's cost comparison): false makes the moments pass deposit the moments alone,
@@ -229,6 +247,11 @@ export class ProtostarGrids {
      * the energy diagnostics (the reductions then read a potential of 0). True in the application.
      */
     potentialEnabled = true;
+    /**
+     * Time constant (s) of the average of the temperature that feeds the fusion rate (see smoothingWeight()); 0 or less is no
+     * averaging. The application's constant by default; the lab changes it to measure what the average does.
+     */
+    temperatureTau = PROTOSTAR_TEMPERATURE_TAU;
 
     constructor(private readonly renderer: THREE.WebGLRenderer, geometry: THREE.BufferGeometry,
                 private readonly splatMass: Uniform<number[]>, drawing: DrawingUniforms) {
@@ -245,11 +268,16 @@ export class ProtostarGrids {
         // Both attachments blend the same way: they must have the same type (float32 or half float).
         this.moments = new DepositPass(DEPOSIT_KIND.momentsAndComposition, particleUniforms, geometry, gridTarget(res, blendType, 2));
         this.momentsTexture = { value: this.moments.target.texture };
-        this.gas = new GridPass(withDefines(gasFrag, PROTOSTAR_DEFINES), {
-            gridMoments: this.momentsTexture,
-            depositVelScale: u.depositVelScale, densityPerDeposit: u.densityPerDeposit,
-        }, gridTarget(res, THREE.FloatType));
-        common.gridGas.value = this.gas.target.texture;
+        // Two attachments (gas, then the averaged temperature and the effective number of particles), two targets in turn.
+        const gasTargets = [gridTarget(res, THREE.FloatType, 2), gridTarget(res, THREE.FloatType, 2)] as const;
+        const gasPass = (current: number): GridPass => new GridPass(withDefines(gasFrag, PROTOSTAR_DEFINES), {
+            gridMoments: this.momentsTexture, gridComposition: { value: this.moments.target.textures[1] },
+            gridThermoPrevious: { value: gasTargets[1 - current].textures[1] },
+            depositVelScale: u.depositVelScale, densityPerDeposit: u.densityPerDeposit, temperatureWeight: u.temperatureWeight,
+        }, gasTargets[current]);
+        this.gasPasses = [gasPass(0), gasPass(1)];
+        common.gridGas.value = this.gasPasses[0].target.texture;
+        common.gridThermo.value = this.gasPasses[0].target.textures[1];
         this.power = new DepositPass(DEPOSIT_KIND.power, particleUniforms, geometry, gridTarget(res, blendType));
         this.heat = new GridPass(withDefines(heatFrag, PROTOSTAR_DEFINES), {
             gridMoments: this.momentsTexture,
@@ -288,7 +316,7 @@ export class ProtostarGrids {
     /** Dev-only, read-only: the render targets of every pass, to read the grids back. */
     get targets(): ProtostarGridTargets {
         return {
-            moments: this.moments.target, gas: this.gas.target, power: this.power.target, heat: this.heat.target,
+            moments: this.moments.target, gas: this.gasPasses[this.gasCurrent].target, power: this.power.target, heat: this.heat.target,
             coarse: this.coarse.target, gravity: this.gravity.target, reduce1: this.reduce1.target, reduce2: this.reduce2.target,
             potential: this.potential2.target,
         };
@@ -323,9 +351,21 @@ export class ProtostarGrids {
         u.softening2.value = s.softening * s.softening;
     }
 
-    /** Renders every grid from the particle state. */
-    update(positions: THREE.Texture, velocities: THREE.Texture): void {
+    /**
+     * A new run starts: its first temperature is not averaged with the one of the run before, and the dev-only switches of the lab
+     * (the time constant of the average, the correction of the noise of T) are back at the application's values.
+     */
+    startRun(): void {
+        this.temperatureHistory = false;
+        this.temperatureTau = PROTOSTAR_TEMPERATURE_TAU;
+        this.common.noiseCorrection.value = 1;
+    }
+
+    /** Renders every grid from the particle state, `dt` seconds after the previous ones. */
+    update(positions: THREE.Texture, velocities: THREE.Texture, dt: number): void {
         const { renderer } = this;
+        this.u.temperatureWeight.value = this.temperatureHistory ? smoothingWeight(dt, this.temperatureTau) : 1;
+        this.temperatureHistory = true;
         this.u.texturePosition.value = positions;
         this.u.textureVelocity.value = velocities;
         const clearAlpha = renderer.getClearAlpha();
@@ -333,7 +373,11 @@ export class ProtostarGrids {
         const moments = this.compositionEnabled ? this.moments : this.momentsWithoutComposition();
         this.momentsTexture.value = moments.target.texture;
         moments.render(renderer);
-        this.gas.render(renderer);
+        this.gasCurrent = 1 - this.gasCurrent;
+        const gas = this.gasPasses[this.gasCurrent];
+        gas.render(renderer);
+        this.common.gridGas.value = gas.target.texture;
+        this.common.gridThermo.value = gas.target.textures[1];
         this.power.render(renderer);
         this.heat.render(renderer);
         this.coarse.render(renderer);
@@ -390,7 +434,7 @@ export class ProtostarGrids {
     }
 
     dispose(): void {
-        for (const pass of [this.moments, this.power, this.gas, this.heat, this.coarse, this.gravity, this.reduce1, this.reduce2,
+        for (const pass of [this.moments, this.power, ...this.gasPasses, this.heat, this.coarse, this.gravity, this.reduce1, this.reduce2,
                             this.potential1, this.potential2]) {
             pass.dispose();
         }
