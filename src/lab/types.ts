@@ -5,9 +5,13 @@ import type { GpuSync } from './gpuSync';
 /** What a scenario can record: plain JSON. */
 export type JsonValue = number | string | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
-export type LabStatus = 'pass' | 'fail' | 'skip';
+export type LabStatus = 'pass' | 'fail' | 'skip' | 'known-failure';
 
-/** What a scenario returns. `pass` means it ran and its checks (if any) held; `skip` carries the reason in `details`. */
+/**
+ * What a scenario returns. `pass` means it ran and its checks (if any) held; `skip` carries the reason in `details`;
+ * `known-failure` means a check missed its target and the miss is documented (the details name the phase that fixes it): it does
+ * not make the run fail, but it is not a pass either.
+ */
 export interface ScenarioOutcome {
     status: LabStatus;
     metrics: Record<string, JsonValue>;

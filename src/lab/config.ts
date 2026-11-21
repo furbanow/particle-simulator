@@ -146,3 +146,78 @@ export const ANISOTROPY_HARMONICS = [4, 8, 12, 16] as const;
 export const POINT_MASS_STENCILS: readonly (readonly [string, number])[] = [
     ['cross', 0], ['scharr', 3 / 16], ['tuned', DUST_GRADIENT_CORNER_WEIGHT],
 ];
+
+// ---- Energy diagnostics (phase P1a) ----
+/** Clouds of the consistency check against the direct sum: small enough for the O(N^2) pair sum. */
+export const ENERGY_REFERENCE_PARTICLES = 5000;
+/** Frames of each: a young smooth cloud, and one whose core has formed (the grid is then the least accurate). */
+export const ENERGY_REFERENCE_FRAMES = [6, 110] as const;
+/** The kinetic energy is a plain sum of the deposit: float32 accumulation of 5 000 contributions, a few times 1e-7. */
+export const ENERGY_KINETIC_TOLERANCE = 1e-5;
+/**
+ * The GPU potential energy against the CPU twin of the same scheme (same deposit, same two-level sums, double precision): only
+ * float32 roundoff and the cloud-in-cell weight error of the deposit separate them.
+ */
+export const ENERGY_TWIN_TOLERANCE = 1e-4;
+/**
+ * The grid potential energy (with its self term removed) against the direct pair sum. What separates them is the grid's own
+ * approximation of the force law, estimated per kind of pair: a pair closer than epsilon is smoothed by the cloud-in-cell spread
+ * and sees the other particle of its cell at distance 0, an error up to about (h / epsilon)^2 / 12 of that pair's energy (3.5 % at
+ * a cell of 2/3 epsilon); a pair farther than a coarse cell is summed with the other cell as one mass at its center, an error of
+ * order (S / r)^2 / 12 with S = 4 cells, below 1 % beyond 12 cells. Most of the energy is in the far pairs, so the sum is far better
+ * than the worst pair: 0.15 % (smooth young cloud) and 0.33 % (core formed) were measured at 5 000 particles. The tolerance is three
+ * times the larger, a margin for another GPU or cloud, and well inside the 3.5 % of the worst pairs.
+ */
+export const ENERGY_GRID_TOLERANCE = 0.01;
+/** The fields of the grid gravity (force and potential) against the twin, relative to their largest value. */
+export const GRAVITY_TWIN_TOLERANCE = 1e-4;
+/** A cloud for the reduction's channels: its core has formed, several thousand particles in a cell. */
+export const REDUCTION_PARTICLES = 100000;
+export const REDUCTION_FRAMES = 110;
+/** The reduction's sums against the twin that adds up the grids read back (float32 trees against double precision). */
+export const REDUCTION_SUM_TOLERANCE = 1e-5;
+/** The center of mass, the momentum and the kinetic energy against sums over the particles themselves. */
+export const REDUCTION_PARTICLE_TOLERANCE = 1e-5;
+
+/** Energy drift: the cloud and its run (the plan's criterion is K + U within 1 % over 100 orbits). */
+export const ENERGY_DRIFT_PARTICLES = 100000;
+export const ENERGY_DRIFT_ORBITS = 100;
+export const ENERGY_DRIFT_TARGET = 0.01;
+/** The first orbits, in which the cloud falls in and settles, are left out of the "after settling" statistics. */
+export const ENERGY_DRIFT_SETTLE_ORBITS = 5;
+/**
+ * The oscillation of the energy is what is left once a slow trend is taken off: the readings minus their running median over this many orbits
+ * (a straight line would leave the curvature of a drift that speeds up).
+ */
+export const ENERGY_OSCILLATION_WINDOW_ORBITS = 2;
+/** Orbits at which the drift is reported, besides the statistics. */
+export const ENERGY_DRIFT_REPORT_ORBITS = [1, 3, 10, 30, 100] as const;
+/** Frames between two readings of the energy in the drift run. */
+export const ENERGY_DRIFT_READ_EVERY = 10;
+/** Frames between two awaits of the GPU in the drift run (the readings synchronize it anyway). */
+export const ENERGY_DRIFT_CHUNK_FRAMES = 500;
+/** Software renderer: a token run, to exercise the code. */
+export const ENERGY_DRIFT_FRAMES_SOFTWARE = 40;
+/**
+ * The runs of the drift scenario, each with the wall-clock budget (a run that does not reach its orbits in time stops and says how many it
+ * did) and the restitution of the walls (`ELASTIC_WALLS`: a conservative run has walls that return all of the speed; the application's
+ * return half of it, and the energy that goes there is not the scheme's). The criterion is judged on the first: the default cloud in a
+ * conservative configuration. The second is a cold cloud with rotation at the circular speed and no agitation. The third is the
+ * first with the application's walls, to measure what they take.
+ */
+export const ENERGY_DRIFT_CLOUDS = [
+    { name: 'default', params: {}, budgetMs: 480_000, elasticWalls: true },
+    { name: 'circular', params: { rotation: 1, agitation: 0 }, budgetMs: 120_000, elasticWalls: true },
+    { name: 'default, application walls', params: {}, budgetMs: 100_000, elasticWalls: false },
+] as const;
+/**
+ * Where the energy goes (baseline.protostar.energy-drift-attribution): the conservative default cloud with elastic walls at the default
+ * time step divided by each of these, and once with the application's walls at the default step; orbits and wall-clock budget of each.
+ */
+export const ENERGY_ATTRIBUTION_ORBITS = 12;
+export const ENERGY_ATTRIBUTION_STEP_DIVISORS = [1, 2, 4] as const;
+export const ENERGY_ATTRIBUTION_BUDGET_MS = 150_000;
+/** Restitution of the walls with which the variants make them elastic (the application's is PROTOSTAR_RESTITUTION). */
+export const ELASTIC_WALLS = 1;
+/** Parameters of a conservative run: no cooling, no heat from fusion, no fusion at all (set below the sliders' minima). */
+export const CONSERVATIVE_OVERRIDES = { cooling: 0, feedback: 0, fusionRate: 0, heFusionRate: 0 } as const;

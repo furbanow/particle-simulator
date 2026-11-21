@@ -181,13 +181,3 @@ export const ignitionRatioBaseline: Scenario = {
         };
     },
 };
-
-/** (c) The energy balance of a conservative run: waits for the potential energy (A7, phase P1a). */
-export const energyDrift: Scenario = {
-    id: 'baseline.protostar.energy-drift',
-    title: 'Energy drift of a conservative protostar run (K + U)',
-    tags: ['baseline', 'protostar', 'pending'],
-    async run(): Promise<ScenarioOutcome> {
-        return { status: 'skip', metrics: {}, details: 'needs A7 (phase P1a)' };
-    },
-};

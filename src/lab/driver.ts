@@ -42,6 +42,13 @@ export interface RunOptions {
      * the model the slider-validated values back, so they are set before (the initial cloud reads the gravity) and again after.
      */
     overrides?: ParamValues;
+    /**
+     * Panel parameters set through the Simulation before the restart, so they pass the sliders' validation (the initial
+     * conditions: `{ rotation: 1, agitation: 0 }` for a cold cloud on circular orbits).
+     */
+    params?: ParamValues;
+    /** Simulation speed (time scale) after the restart; the algorithm's default when omitted. It sets the time step: dt = BASE_DT x speed / ceil(speed). */
+    timeScale?: number;
     /** Seed of Math.random for the restart (the cloud); LAB_SEED by default. */
     seed?: number;
     /**
@@ -60,10 +67,11 @@ export async function restart(context: LabContext, options: RunOptions): Promise
     const id = options.algorithm ?? 'protostar';
     const algorithm = ALGORITHMS[id];
     simulation.useAlgorithm(id);
-    simulation.timeScale = algorithm.defaultSpeed ?? 1;
+    simulation.timeScale = options.timeScale ?? algorithm.defaultSpeed ?? 1;
     simulation.paused = false;
     for (const [key, value] of Object.entries(defaultParams(algorithm))) simulation.setParam(key, value);
     simulation.setParam(PARTICLE_COUNT_PARAM, options.count);
+    for (const [key, value] of Object.entries(options.params ?? {})) simulation.setParam(key, value);
     const overrides = options.overrides ?? {};
     const direct = id === 'protostar' && Object.keys(overrides).length > 0;
     if (direct) applyDirect(context, overrides);
