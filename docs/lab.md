@@ -61,7 +61,7 @@ not run. Set `LAB_NO_SANDBOX=1` where Chrome refuses to start without `--no-sand
 | `baseline.protostar.default-cloud` | The default cloud: core temperature, peak density, fusion rate and omega.dt in the core over time. |
 | `baseline.protostar.energy-drift` | `skip`: needs A7 (phase P1a). |
 | `perf.<algorithm>.<count>` | ms per frame of protostar and sticky dust at 400 000 and 1 000 000 particles. |
-| `cost.protostar.second-deposit` | Simulation ms/frame at 400 000 particles with and without the composition on the moments pass, the two alternated chunk after chunk in one run, and the grid passes alone on a frozen early and late cloud. One run is not a measurement: repeat it (see the spike). |
+| `cost.protostar.second-deposit` | Simulation ms/frame at 400 000 particles with and without the composition on the moments pass, the two alternated chunk after chunk in one run, and the grid passes alone on a frozen early (frame 55) and late (about frame 970) cloud; the frame numbers are in the metrics. One run is not a measurement: repeat it (see the spike). |
 
 The recorded numbers are in [lab-baseline.md](lab-baseline.md).
 

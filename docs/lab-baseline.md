@@ -173,6 +173,22 @@ Count on about 10 % between runs.
 - On a software renderer the probe reports `valid: false` and status `skip`.
   SwiftShader gave 1 400 to 2 800 ms per frame.
 
+## After phase P0c
+
+P0c (the [second deposit](spikes/a1-second-deposit.md): a second attachment of the moments pass,
+read by nothing yet) changed no physics. `baseline.protostar.default-cloud` and `lab.selftest` were
+run again on the same GPU, on the code that recorded this baseline and on the branch of P0c: the two
+results are identical on all 428 values (all readings of the four series, peaks, final composition,
+deposited mass, the self-test's checks), and every row of the table above is reproduced at its
+printed precision.
+
+The performance table above was recorded with the GPU in another state than the one P0c found.
+`perf.protostar.400k` on the branch of P0c (composition on) reads 8.2 to 8.6 ms for the simulation
+and 8.8 to 9.1 ms for the whole frame (3 runs), `perf.protostar.1m` 17.0 to 18.3 and 17.4 to 19.9
+ms, against 20.2, 24.1, 39.6 and 50.2 ms here; the extra cost of the composition is about 1 ms of
+the 8 (see the spike). Compare a phase with a run of the previous code taken the same day on the
+same machine, not with the table.
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) is registered and skipped: it
