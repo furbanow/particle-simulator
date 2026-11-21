@@ -396,6 +396,27 @@ unchanged to rounding on isolated cells, the mean fusion rate of a thermal gas i
 particles per neighborhood and exponents 4 and 40 (uncorrected: up to 51 times too high). Simulation cost at 400 000 particles: not
 measurable (8.57 ms before, 8.62 ms after, median of 6 alternated pairs).
 
+## After phase P6b
+
+P6b (the [coherent supernova](spikes/a9-coherent-supernova.md)) does not touch the protostar. It changes the sticky dust's supernova (gravity on the
+ejecta, a front that slows down as `1/R`, a homologous ejection, a trigger on mass) and retunes `SUPERNOVA_SPEED` (420 to 840 px/s) and
+`SUPERNOVA_COOLDOWN` (120 to 240 frames). The default cloud's supernovae over 30 s (`dust.supernova.history`, 400 000 particles, three clouds), before
+(`d2c1dac`) and after:
+
+| | Before | After |
+|---|---|---|
+| Supernovae in 30 s | 4, 5, 5 | 4, 4, 4 |
+| Times, first cloud (s) | 3.0, 12.5, 18.5, 27.5 | 3.0, 9.0, 18.5, 25.0 |
+| Ejecta of the first event after 2 s: mean distance (zone radii), share inside the zone | 6.6, 0.00 | 2.7, 0.00 |
+| Time for the front to reach the farthest corner, 640 px (`dust.supernova.blast`) | 2.0 s (constant speed) | 5.3 s (`R^2` linear in `t`, exponent 0.500) |
+
+Simulation ms/frame of the dust, the build before and after alternated, 6 pairs, medians:
+
+| Particles | Frames 10 to 50, before / after | Frames 150 to 190, before / after |
+|---|---|---|
+| 400 000 | 3.51 / 3.68 | 2.83 / 2.90 |
+| 1 000 000 | 4.76 / 4.83 | 4.93 / 5.06 |
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a and is a
