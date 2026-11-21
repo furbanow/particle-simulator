@@ -124,7 +124,7 @@ Parameters: number of particles (at restart), gravity constant, threshold, conce
 
 Declaration: `src/simulation/protostar/declaration.ts`. GPU model: `src/simulation/protostar/gpuModel.ts` and `grids.ts`. Pure logic: `reactions.ts` (reaction table, rate law, mass balance), `drift.ts` (statistical drift) and `initialConditions.ts` (initial cloud). Shaders: `src/shaders/protostar-*.{vert,frag,glsl}`.
 
-A hydrogen cloud contracts under its own gravity while it cools, and hydrogen fuses into helium (proton-proton chain). The released energy heats the core, which expands: fusion slows down, and cooling and gravity contract it again. The star settles into a self-regulated equilibrium. Once the hydrogen is exhausted, nothing supports the helium core any more: it contracts and heats up to about 100 MK, where helium fuses into carbon (triple alpha). Everything runs on the GPU; the CPU orchestrates the passes and reads back three numbers for the statistics, plus the positions to count the types and measure the drift.
+A hydrogen cloud contracts under its own gravity while it cools, and hydrogen fuses into helium (proton-proton chain). The released energy heats the core, which expands: fusion slows down, and cooling and gravity contract it again. The star settles into a self-regulated equilibrium. Once the hydrogen is exhausted, nothing supports the helium core any more: it contracts and heats up to about 100 MK, where helium fuses into carbon (triple alpha). Everything runs on the GPU; the CPU orchestrates the passes and reads back one small reduction of the grids (the statistics and the energy diagnostics), plus the positions to count the types and measure the drift.
 
 ### Units
 
@@ -143,10 +143,10 @@ Grid of `PROTOSTAR_GRID_RES`² = 128² square cells over max(width, height) (`gr
 2. **Gas**: for each cell, sums over its 3 × 3 neighbors → density ρ = mass / area, mean velocity v̄ = Σm·v / Σm, temperature T = Σm·|v|² / Σm − |v̄|². This is the **velocity dispersion around the local mean flow**, not the absolute velocity: overall rotation and coherent infall do not count as heat (at the scale of the neighborhood, about 3 cells).
 3. **Power**: each particle that can fuse deposits its *expected* fusion power (rate × energy per unit mass × mass) and its rate.
 4. **Heating**: power of the 3 × 3 neighbors / their mass → heating per unit mass q.
-5. **Gravity**, at two levels (see below): coarse grid (mass and center of mass of 4 × 4 cell blocks), then acceleration at the center of each cell.
+5. **Gravity**, at two levels (see below): coarse grid (mass and center of mass of 4 × 4 cell blocks), then acceleration at the center of each cell, and in the same loops the Plummer potential (third channel, see [Energy diagnostics](#energy-diagnostics)).
 6. **GPGPU pass** (`GpuPipeline`), three state textures: velocity (`protostar-velocity.frag`), position (`protostar-position.frag`) and the variable `textureAccel` (`protostar-accel.frag`). Particles read gravity by bilinear interpolation (consistent with the *cloud-in-cell* deposit: no self-force), and density, temperature, v̄ and q by mass-weighted interpolation.
 
-Every `PROTOSTAR_STATS_INTERVAL` frames, a two-stage reduction (128² → 16² → 1) gives the maximum density, the temperature of the densest cell (the core) and the total expected number of fusions per second; a single texel is read back (`readRenderTargetPixelsAsync`). Particle counts per type come from the common position readback (`countTypes`).
+Every `PROTOSTAR_STATS_INTERVAL` frames, a two-stage reduction (128² → 16² → 4 × 1 texels, `protostar-reduce.frag`) gives the maximum density, the temperature of the densest cell (the core) and the total expected number of fusions per second, together with the diagnostics of the next section; the four texels are read back in one `readRenderTargetPixelsAsync`. Particle counts per type come from the common position readback (`countTypes`).
 
 ### Softened gravity, retained approximation
 
@@ -167,6 +167,53 @@ The `GPUComputationRenderer` computes all textures of a step from the previous s
 - `textureAccel` ← a(k).
 
 This is exactly the velocity Verlet scheme; the stored velocity lags the position by one step. Cooling and heating modify velocity after the Verlet half-step (operator splitting); they act on the next displacement. Walls return 50% of the velocity.
+
+### Energy diagnostics
+
+Proposal A7. The energy of the cloud is measured on the GPU, with the same grids as the dynamics, and shown as two statistics. Code: `grid-gravity.frag` (potential), `protostar-reduce.frag` and `protostar-potential.frag` (reductions), `reduction.ts` (layout, unpacking), `energy.ts` (drift and virial ratio), `gpuModel.ts` (cadence, flag). The measure changes nothing in the dynamics: the default-cloud baseline of the lab reproduces the recorded one on all its values.
+
+**Potential.** The loops of `grid-gravity.frag` already compute `inversesqrt(r² + ε²)` for every term of the force. With `GRAVITY_POTENTIAL` defined they also accumulate `−m·s` (fine cells of the near zone) and `−M·s` (coarse cells, monopoles at their center of mass): the Plummer potential Φ = −G Σ m / √(r² + ε²), of which the force is the gradient, goes to the third channel of the gravity grid (px²/s²). The define is set for the protostar only; the drawings' fields (`DrawingField`) build the same shader without it and keep a third channel of 0.
+
+**Energies** (simulation units: mass × px²/s²; divide by `TOTAL_MASS` for a specific energy):
+
+- K = ½ Σ m v², the sum of the fourth channel of the moments (m|v|², deposited anyway) over the grid: exact up to the footprints clipped at the edge of the grid.
+- U = ½ Σ_cells M Φ − (self-interaction), see below.
+
+**The self-interaction.** The potential of a cell includes its own mass at distance 0 (−G M / ε), which the force does not feel (r = 0 gives no pull). In ½ Σ M Φ every particle is therefore also counted against itself, about −G m² / ε (exactly that at the center of a cell, 0.84 times that at a corner for the default softening on the 128-cell grid). The composition deposit (second attachment of the moments) already holds Σ m², so the reduction removes G Σ m² / (2 ε): U = ½ Σ M Φ + G Σ m² / (2 ε). It is a correction of 0.23 to 0.29 % of U for 5 000 particles in the lab, and 6·10⁻⁵ at 400 000. It is the diagonal only: two particles of one cell are treated as being at distance 0, and the cloud-in-cell spread smooths the kernel; against the direct pair sum the grid's U is within 0.15 to 0.33 % at 5 000 particles (lab, `protostar.energy-reference`), with or without this term (the grid's other approximations, of the opposite sign, are of the same size).
+
+**Time alignment.** In velocity Verlet the velocity texture lags the positions by one substep (above): the grids drawn at the beginning of substep n see the positions xₙ and the velocities vₙ₋₁. K from that deposit and U from that gravity would be the energy of no state, with an error of about Δt |dU/dt|. The model therefore keeps the potential of the previous grids before drawing the new ones (`stashPotential()`: two small passes, `protostar-potential.frag`, run in the substeps of the frames that are read), and the reduction pairs the new K with that potential: both belong to the state (xₙ₋₁, vₙ₋₁). The unsynchronized sum is also in the reduction (`energy.potentialNow`), to measure the lag.
+
+**Statistics** (declared in `declaration.ts`, hover texts in the five catalogs):
+
+- *Energy drift*: (E − E₀) / |E₀| in %, with E = K + U and E₀ the first reading of the run, taken at the end of the first frame (so it is the energy of the start, not of 10 frames of cooling later), or of the first usable reading after the diagnostics were switched on. Cooling lowers it and fusion heating raises it; with both off it measures the error of the integration. The drawings' forces are not in U.
+- *Virial ratio* 2K / |U|: about 1 in equilibrium, below 1 for a cloud that falls in. Both tiles show "–" when unknown: with the diagnostics off, before the first reading, with a gravity of 0 (no potential), and when the potential or the total is negligible next to K + |U| (`PROTOSTAR_ENERGY_RATIO_FLOOR`: the quantity divided by is then noise).
+
+**The `diagnostics` flag** (Features tab, on by default): when off the model skips the potential stash and the first-frame reading, and the two tiles show "–". The potential channel of the gravity pass and the reduction (needed by the core statistics) run anyway. Cost: see [lab-baseline.md](lab-baseline.md).
+
+#### The multichannel reduction
+
+One two-stage reduction (128² cells → 16² blocks of 8 × 8 → 4 × 1 texels) and one asynchronous read give everything below; it runs at the end of every `PROTOSTAR_STATS_INTERVAL`-th frame and of the first (diagnostics on). Stage 1 writes four attachments (the block's partial result), stage 2 one texel of the final RGBA32F target `reduce2` per attachment. The model unpacks the floats with `unpackReduction()` (`reduction.ts`, tested) and keeps the latest result:
+
+| Texel | x | y | z | w |
+|---|---|---|---|---|
+| 0 core | max ρ (ρ₀) | T of the densest cell (T₀) | Σ fusions per s | Σ mass (deposit units) |
+| 1 extremes | x of the densest cell (px) | y of the densest cell (px) | speed bound (px/s) | acceleration bound (px/s²) |
+| 2 energy | Σ m\|v/L\|² | ½ Σ M Φ, grids just drawn | Σ m² | ½ Σ M Φ, previous substep |
+| 3 moments | Σ M x | Σ M y | Σ m v_x / L | Σ m v_y / L |
+
+Texel 0 keeps the layout the statistics always read (ρ, T, rate first; the constant 1 in w became the mass). The densest cell is the first one, in reading order, with a strictly greater density; the position goes with the density. What the numbers are:
+
+- **Speed bound**: the maximum, over the cells that hold gas, of |mean velocity| + √T, the mean velocity and T (dispersion) being those of the cell's 3 × 3 neighborhood. It follows bulk flow and thermal spread and misses the far tail of a distribution; in the lab (100 000 particles, core formed) it is 1.12 times the fastest particle, with no particle above it. A proxy for the time-step criterion, not a bound in the strict sense.
+- **Acceleration bound**: the maximum of |a| of the gravity grid over the cells that hold mass (the force on a particle is the bilinear interpolation of four cells, so it never exceeds it); the drawings' force is not in it.
+- **Center of mass and momentum**: first moments of the cloud-in-cell deposit. The weights reproduce a particle's position exactly, so these are the particles' own sums (to 4·10⁻⁵ px and 10⁻⁸ in the lab), not a grid approximation, except for the footprints clipped at the edge.
+
+Typed getters of `ProtostarModel`, for the phases that consume them: `reduction` (everything, `Reduction`), `maxSpeed`, `maxAcceleration`, `peakPosition`, `centerOfMass`, `energy` (`ProtostarEnergy`: K, U, total, drift, virial ratio; null with the diagnostics off). They hold the latest reading (every 10 frames, about 0.3 s of simulated time at the default speed), in px, px/s, px/s² and simulation mass units; `null` before the first.
+
+#### What the current scheme does with it
+
+The lab (`baseline.protostar.energy-drift`, numbers in [lab-baseline.md](lab-baseline.md)) runs the default cloud with cooling, feedback and fusion forced to 0 and elastic walls, for 100 orbits (the period of a circular orbit at the half-mass radius, 10.5 s, 372 frames). The initial virial ratio is 0.33: the cloud falls in, and virializes (2K/|U| close to 1) within about 3 orbits. K + U then **rises**, slowly at first (+0.2 % after 3 orbits, +1.3 % after 10) and faster as the core densifies (+5.5 % after 30, +39.5 % after 100 orbits): the plan's target of less than 1 % over 100 orbits is **not met** and the scenario is a documented known failure. The fast oscillation of the energy about this trend is negligible (±0.02 % at one reading per 10 frames).
+
+Where it comes from (`baseline.protostar.energy-drift-attribution`, 12 orbits): the walls, which return half of the speed in the application, take 14 % (the energy of the particles that the collapse throws out and that hit them): that is not the scheme's. With elastic walls the drift rate after the first orbits is 0.16, 0.077 and 0.036 % per orbit at the default time step, half of it and a quarter of it: it scales with the step, so a shorter or adaptive step (phase P5) attacks the secular part, to the first power of the step, not the second of velocity Verlet. The lag of the velocities behind the positions, which the stash corrects, is small for a slowly evolving cloud: the synchronized and the unsynchronized sums differ by less than 0.1 percentage point of drift over the run (and by a factor 2 in the fast oscillation, ±0.016 % against ±0.033 %).
 
 ### Initial conditions
 
@@ -242,8 +289,9 @@ The color comes from the type (editor). The model declares `glow: 'state'`: each
 | He → C rate λ (/s, log) | `heFusionRate` | 3e-6 | live |
 | He → C temperature exponent α | `heFusionExponent` | 40 | live |
 | Feedback (log) | `feedback` | 1 | live |
+| Energy diagnostics | `diagnostics` | on | live (Features tab) |
 
-Types: hydrogen (1.00783 u, cool blue-white, the entire initial population), helium (4.0026 u, yellow) and carbon (12 u, grey), none at the start; a share can be given to them. Statistics: particles per type, core temperature (densest cell, in MK), maximum density (in ρ₀), fusions per second, of both reactions together (expected, smoothed).
+Types: hydrogen (1.00783 u, cool blue-white, the entire initial population), helium (4.0026 u, yellow) and carbon (12 u, grey), none at the start; a share can be given to them. Statistics: particles per type, core temperature (densest cell, in MK), maximum density (in ρ₀), fusions per second, of both reactions together (expected, smoothed), and, with the diagnostics on, the energy drift and the virial ratio.
 
 ### Calibration (headless Chrome, GTX 1060, 1180 × 726 px area, 30,000 particles)
 
@@ -295,6 +343,7 @@ Effect of settings, from the runs that led to these defaults. Unless stated othe
 - The fusion laws use the total density, without the local fractions of hydrogen or helium. The sensitivity of triple alpha is kept at α = 40 at all temperatures, while it really falls with temperature (about 19 at 200 MK).
 - Only ¹²C is formed: no C + He → O, no electron degeneracy, hence no helium flash.
 - Momentum is conserved by a global correction (`drift.ts`), not reaction by reaction.
+- Energy is not conserved: with the fixed time step K + U of a conservative run drifts (see [Energy diagnostics](#energy-diagnostics)), the grid force is the bilinear interpolation of cell accelerations and not exactly the gradient of the grid potential, and the walls return half of the speed.
 
 ---
 
