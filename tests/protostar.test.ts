@@ -9,6 +9,9 @@ import { defaultParams } from '../src/simulation/params';
 import {
     CARBON, formatSmall, HELIUM, HYDROGEN, PROTOSTAR, PROTOSTAR_PARAM, PROTOSTAR_REACTIONS, PROTOSTAR_TYPES,
 } from '../src/simulation/protostar/declaration';
+import {
+    atomicNumber, inverseMeanMolecularWeight, inverseMolecularWeights,
+} from '../src/simulation/protostar/composition';
 import { centerOfMass, driftCorrection } from '../src/simulation/protostar/drift';
 import {
     circularSpeed, enclosedMassFractions, fillCloud, softenedPull,
@@ -298,5 +301,52 @@ describe('removed particles', () => {
 
     it('the population parameter key of the declaration is a parameter', () => {
         expect(PROTOSTAR.params.some(p => p.key === PROTOSTAR_PARAM.count)).toBe(true);
+    });
+});
+
+describe('protostar composition: mean molecular weight', () => {
+    const factors = inverseMolecularWeights(PROTOSTAR_TYPES, 'mass', MAX_SPECIES);
+
+    it('reads the atomic number from the element table by symbol', () => {
+        expect(['H', 'He', 'C', 'Ne'].map(atomicNumber)).toEqual([1, 2, 6, 10]);
+        expect(atomicNumber('Xx')).toBeNull();
+    });
+
+    it('is (1 + Z) / A for a fully ionised element', () => {
+        expect(inverseMeanMolecularWeight(1, 1.00783)).toBeCloseTo(2 / 1.00783, 12);
+        expect(inverseMeanMolecularWeight(2, 4.0026)).toBeCloseTo(3 / 4.0026, 12);
+        expect(inverseMeanMolecularWeight(6, 12)).toBeCloseTo(7 / 12, 12);
+        expect(inverseMeanMolecularWeight(1, 0)).toBe(0);
+    });
+
+    it('gives the molecular weights of the plan: mu(H) = 0.504, mu(He) = 1.334, a ratio of 2.65', () => {
+        const [h, he, c] = factors;
+        expect(1 / h).toBeCloseTo(0.504, 3);
+        expect(1 / he).toBeCloseTo(1.334, 3);
+        expect(h / he).toBeCloseTo(2.65, 2);
+        expect(1 / c).toBeCloseTo(12 / 7, 12);
+    });
+
+    it('is the pair of the deposit sums: sum(m / mu) / sum(m) is the mean 1 / mu of the gas', () => {
+        // 3 H and 1 He by number, deposited with their masses: X_H = 3.02349 / 7.02609.
+        const masses = PROTOSTAR_TYPES.map(t => t.values.mass);
+        const mass = 3 * masses[HYDROGEN] + masses[HELIUM];
+        const deposited = (3 * masses[HYDROGEN] * factors[HYDROGEN] + masses[HELIUM] * factors[HELIUM]) / mass;
+        // Atoms and electrons per u: 3 H -> 6 particles, 1 He -> 3 particles.
+        expect(deposited).toBeCloseTo((3 * 2 + 3) / mass, 12);
+    });
+
+    it('follows the edited mass of a type and pads to the array size with 0', () => {
+        const heavy: ParticleType[] = [{ ...PROTOSTAR_TYPES[HYDROGEN], values: { ...PROTOSTAR_TYPES[HYDROGEN].values, mass: 2 } }];
+        const [first, ...rest] = inverseMolecularWeights(heavy, 'mass', MAX_SPECIES);
+        expect(first).toBeCloseTo(1, 12);
+        expect(rest).toHaveLength(MAX_SPECIES - 1);
+        expect(rest.every(v => v === 0)).toBe(true);
+        expect(inverseMolecularWeights(PROTOSTAR_TYPES, 'mass', 2)).toHaveLength(2);
+    });
+
+    it('takes Z = A / 2 for a symbol that is not an element', () => {
+        const unknown: ParticleType = { name: 'x', symbol: 'Xx', color: '#fff', values: { mass: 16 } };
+        expect(inverseMolecularWeights([unknown], 'mass', 1)[0]).toBeCloseTo((1 + 8) / 16, 12);
     });
 });

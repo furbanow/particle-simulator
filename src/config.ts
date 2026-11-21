@@ -120,6 +120,10 @@ export const HYDROGEN_1_MASS = 1.00783;
 // Carbon 12, the product of triple alpha, and not the standard atomic weight of carbon (12.011 u, a
 // mix with carbon 13): three helium atoms weigh 12.0078 u, the reaction would release no energy.
 export const CARBON_12_MASS = 12;
+// Mean molecular weight of a fully ionised gas: 1 / mu = (1 + Z) / A (one nucleus and Z electrons per A u).
+// For a type whose symbol is not an element of the table, Z is taken as A * this ratio (the valley of
+// stability: about as many neutrons as protons in the light nuclei).
+export const PROTONS_PER_NUCLEON = 0.5;
 
 // ---- Drawings: static attractors and repellers (common to every algorithm) ----
 // Two kinds, each drawn as an opacity mask the size of the simulation area: a pixel of opacity 1 holds a unit of
