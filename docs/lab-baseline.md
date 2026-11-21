@@ -145,27 +145,29 @@ algorithm's default parameters and speed (two substeps per frame for both). "Sim
 `Simulation.step()` plus `endFrame()`; "whole frame" adds the application's particle layer,
 nebula, bloom and output (1024 x 768).
 
-| Algorithm | Particles | Simulation (ms) | Whole frame (ms) |
-|---|---|---|---|
-| Protostar | 400 000 | 20.2 | 24.1 |
-| Protostar | 1 000 000 | 39.6 | 50.2 |
-| Sticky dust | 400 000 | 9.9 | 18.7 |
-| Sticky dust | 1 000 000 | 16.0 | 33.4 |
+| Algorithm | Particles | Simulation (ms) | Whole frame (ms) | Recorded |
+|---|---|---|---|---|
+| Protostar | 400 000 | **8.3** (7.9 to 9.3) | **9.3** (8.6 to 10.0) | after P0c, 6 runs |
+| Protostar | 1 000 000 | **17.9** (17.2 to 20.4) | **19.7** (18.4 to 20.4) | after P0c, 6 runs |
+| Sticky dust | 400 000 | 9.9 | 18.7 | P0b, 4 runs (being re-measured) |
+| Sticky dust | 1 000 000 | 16.0 | 33.4 | P0b, 4 runs (being re-measured) |
 
-Spread over four runs on this machine (simulation, whole frame): protostar 400 000, 19.8 to
-22.0 and 24.1 to 25.1 ms; protostar 1 000 000, 38.6 to 39.6 and 47.1 to 54.2 ms; sticky dust
-400 000, 9.5 to 9.9 and 18.7 to 19.0 ms; sticky dust 1 000 000, 16.0 to 16.2 and 32.1 to 33.4 ms.
-Count on about 10 % between runs.
+The protostar rows were recorded again on the code of phase P0c (commit `343d69c`), on the same
+GPU with nothing else drawing on it: the runs went through a lock that the other users of the GPU
+also take, and no headless Chrome was left over. Each figure is the median over six fresh pages of
+the median of the four chunks of a page, with the range of the six pages in brackets. The first
+recording of the protostar (20.2 and 39.6 ms) was disturbed (a stray Chrome was drawing on the
+GPU): a clean run of the same code gives less than half. The sticky dust rows are those of the
+first recording, unchanged: they are being measured again.
 
-- The protostar's cost **varies within a measurement**: at 400 000 particles the four chunks
-  were 19.2 to 22.2 ms in this run and 12.4 to 21.8 ms in another; at 1 000 000 they climb from 34
-  to 47 ms. This follows the formation of the core, so the suspect is the additive deposit of many
-  particles into a few cells, which serializes in the blending hardware; a GPU still raising its
-  clocks may add to it. The cause is not isolated. The probe always warms up for the same time, so
-  two phases are comparable as long as their dynamics are alike; a phase that changes how fast
-  the core forms changes this number.
-- 2.5 times more particles cost 2.0 times more for the protostar and 1.6 times more for the sticky
-  dust (simulation).
+- The protostar's cost **varies within a measurement**: the 24 timed chunks (6 pages) go from 7.4
+  to 9.8 ms at 400 000 particles and from 15.1 to 23.2 ms at 1 000 000. This follows the formation
+  of the core, so the suspect is the additive deposit of many particles into a few cells, which
+  serializes in the blending hardware; a GPU still raising its clocks may add to it. The cause is
+  not isolated. The probe always warms up for the same time, so two phases are comparable as long
+  as their dynamics are alike; a phase that changes how fast the core forms changes this number.
+- 2.5 times more particles cost 2.2 times more for the protostar (after P0c) and 1.6 times more for
+  the sticky dust (simulation, first recording).
 - The animation-frame intervals (what the application's own GPU benchmark measures) read 16.7 ms
   in every case: headless Chrome runs animation frames on a 60 Hz timer and does not wait for the
   GPU. They are in the results (`animationFrameMedianMs`, flagged `animationFramesIgnoreGpu`) but
@@ -182,12 +184,12 @@ results are identical on all 428 values (all readings of the four series, peaks,
 deposited mass, the self-test's checks), and every row of the table above is reproduced at its
 printed precision.
 
-The performance table above was recorded with the GPU in another state than the one P0c found.
+The protostar rows of the performance table above were first recorded with the GPU in another
+state than the one P0c found (20.2 and 39.6 ms) and have been re-recorded since (see there):
 `perf.protostar.400k` on the branch of P0c (composition on) reads 8.2 to 8.6 ms for the simulation
 and 8.8 to 9.1 ms for the whole frame (3 runs), `perf.protostar.1m` 17.0 to 18.3 and 17.4 to 19.9
-ms, against 20.2, 24.1, 39.6 and 50.2 ms here; the extra cost of the composition is about 1 ms of
-the 8 (see the spike). Compare a phase with a run of the previous code taken the same day on the
-same machine, not with the table.
+ms; the extra cost of the composition is about 1 ms of the 8 (see the spike). Compare a phase with a
+run of the previous code taken the same day on the same machine, not with a table recorded earlier.
 
 ## After phase P2
 
