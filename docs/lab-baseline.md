@@ -335,6 +335,27 @@ over 84 pairs; simulation only, ms per frame:
 
 All of it is far below the 10 % of a frame that the plan sets: **`diagnostics` is on by default**.
 
+## After phase P6a
+
+P6a (the [granular dust](spikes/a10-granular-dust.md)) does not touch the protostar. It changes the sticky dust's physics (an agitation energy
+in the density grid's alpha channel, Haff sticking, a kinetic pressure, a colour from the agitation), after a gain of 1.2 on its gravity slider
+restored the pull B1's isotropic stencil had weakened. The default dust cloud (`dust.default-cloud`, 400 000 particles, seed 20240612, 15 s), before
+(`05cb977`) and after:
+
+| | Before | After |
+|---|---|---|
+| Time to 2 / 5 / 10 / 20 / 30 % of the mass in dense texels | 2.02 / 2.05 / 2.10 / 2.19 / 2.28 s | 2.06 / 2.16 / 2.27 / 2.37 / 2.48 s |
+| First supernova | 2.78 s | 2.78 s |
+| At 15 s: dense share, clumps, peak density | 29.5 %, 4, 106 | 19.9 %, 4, 98 |
+| Supernovae in 15 s | 1 | 2 |
+
+Simulation ms/frame of the dust, the build before and after alternated, 6 pairs, medians (the cost depends on the phase of the cloud; see the spike):
+
+| Particles | Frames 10 to 50, before / after | Frames 150 to 190, before / after |
+|---|---|---|
+| 400 000 | 3.72 / 3.53 | 2.85 / 2.83 |
+| 1 000 000 | 4.72 / 4.78 | 4.42 / 5.03 |
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a and is a

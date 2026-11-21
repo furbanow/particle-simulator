@@ -4,7 +4,7 @@ The algorithm is chosen in the side panel, below the "Restart" button. Switching
 
 | Name (interface) | Identifier | Status | Principle |
 |---|---|---|---|
-| Sticky dust | `stickyDust` | ✅ available | Gravity on a grid, pressure only inside clusters, viscosity that erases agitation |
+| Sticky dust | `stickyDust` | ✅ available | Gravity on a grid, granular dust: grains stick at a rate that grows with density and agitation (Haff's law) and resist compression by their agitation and, packed, by contact |
 | Protostar (H → He → C) | `protostar` | ✅ available | Softened gravity, Verlet integration, cooling, H → He fusion whose heat slows the collapse |
 | Gas | `gas` | 🕓 planned | Pressure everywhere, energy is conserved |
 | Plasma | `plasma` | 🕓 planned | Positive and negative charges on the same grid |
@@ -91,7 +91,7 @@ Technical name: **Dissipative Particle-Mesh**.
 
 Declaration: `src/simulation/stickyDust/declaration.ts`. GPU model: `src/simulation/stickyDust/gpuModel.ts`. Shader: `src/shaders/velocity-sticky-dust.frag`.
 
-Parameters: number of particles (at restart), gravity constant, threshold, concentration radius and supernova power. Particle types: the first ten elements, with distribution, atomic mass (in u), size and color; the editor displays the density. Statistics: number of supernovae and maximum concentration, with the threshold as a marker.
+Parameters: number of particles (at restart), gravity constant, stickiness, collision speed, threshold, concentration radius and supernova power. Particle types: the first ten elements, with distribution, atomic mass (in u), size and color; the editor displays the density. Statistics: number of supernovae and maximum concentration, with the threshold as a marker.
 
 ### What it does
 
@@ -99,23 +99,26 @@ Parameters: number of particles (at restart), gravity constant, threshold, conce
    - **Per texel, not per particle** (`DustGravityField`, `src/simulation/stickyDust/gravityField.ts`). The slope of each coarse level (1 and up) is computed on that level's own grid, then one pass sums the levels at the corners of the density texels (a 513² half-float grid, only over the part the screen can read). A particle reads that sum with a single bilinear read and adds level 0 from the four density taps it already reads for the pressure: 5 reads instead of the 36 of a per-particle loop. The sum is exactly what the loop computed (the levels are bilinear between corners that are also corners of level 0), up to the rounding of the half floats: 0.13 % median, 0.5 % at the 95th percentile on a clumped cloud.
    - **Isotropic slope.** The slope of a level is the difference across a texel averaged over three rows with the weights w, 1 − 2w, w (`DUST_GRADIENT_CORNER_WEIGHT`, w = 0.21, close to the stencil of Scharr, 3/16). The plain central difference makes the pull of a point mass vary by about 40 % with the angle (the kernel is a square); with this stencil it varies by 4 % (median) to 5 % (worst radius). On a smooth field the slope is unchanged; on a clumped cloud the pull is weaker (84 % of the central difference's in RMS).
    - The measurements, and why the stencil stops at 4 % rather than 2 %, are in [spikes/b1-dust-gravity.md](spikes/b1-dust-gravity.md).
-2. **Threshold pressure.** Pressure equals `max(density − REST_DENSITY, 0)`. It is zero as long as particles are not packed. The push is divided by the relative density of the species: dense elements fall to the core of clusters and light ones stay at the edge.
-3. **Sticky viscosity.** In dense zones, each particle's velocity is pulled back toward the local mean flow (`VISCOSITY_RATE`). Disordered agitation is erased.
-4. **Energy losses.** There is global friction (`GLOBAL_DRAG`), a maximum speed (`MAX_SPEED`), and walls return 80% of the velocity (`RESTITUTION`).
-5. **Supernovae.** They trigger on a geometric criterion: a share of particles (60% by default) inside a disk. All species receive the same kinetic energy (v ∝ 1/√m). A shock wave then pushes the surrounding medium.
+2. **Agitation.** The grid also holds the energy of the particles' motion (the alpha channel of the density: `m |v − v_ref|²`, `ENERGY_SCALE`). With the mean flow `u` of the momentum channels, the agitation of a texel is `T = ⟨|v|²⟩ − |u|²` (px²/s², at least 0): the energy of the motion around the mean flow. It is the same for a cloud at rest and a cloud flying at 1000 px/s. The grid is in half floats, where `⟨|v|²⟩ − |u|²` would subtract two large numbers, so the energy is deposited about a coarse reference velocity `v_ref` (the mean flow of a 16 × 16 level of the previous substep's density, `REFERENCE_LEVEL`, sampled at the particle): the two terms of the subtraction are then the size of the agitation, not of the speed. The velocity pass reads the same reference. A texel can hold at most about 128 mass units at 400 000 particles (the half floats lose a particle's contribution once the sum is large): the agitation of such a core is the one of the grains that were counted. See [spikes/a10-granular-dust.md](spikes/a10-granular-dust.md).
+3. **Pressure.** Two parts, both divided by the relative density of the species (dense elements fall to the core of clusters and light ones stay at the edge): the **threshold pressure** `max(density − REST_DENSITY, 0)` as before, zero as long as the grains are not packed, and the **kinetic pressure** `P = ρT/2` (two degrees of freedom), whose push is `−∇P/ρ` where the grains are in contact (a ramp between 0.1 and 0.6 `REST_DENSITY`, `CONTACT_RANGE`). An agitated cloud resists compression; a cold one does not. The agitation is capped by what the grid can resolve in a substep (the sound speed crosses at most one texel, `PRESSURE_CFL`).
+4. **Sticking (Haff).** Grains collide at a frequency proportional to `ρ√T` and stick, so each particle's velocity is pulled toward the local mean flow at `ν = STICK_RATE × stickiness × ρ × √T` (1/s): the denser and the more agitated, the faster. The agitation then falls as `T = T₀ / (1 + t/t₀)²`, Haff's law of the free cooling of a granular gas. Grains that meet faster than the **collision speed** (the velocity relative to the local mean flow, `v_coll`) bounce instead of sticking: the sticking fades out between half of it and all of it. This also keeps fast ejecta from sticking to the flow they leave. The default (100 % stickiness, 600 px/s) gives the clumps of the default cloud about the sticking frequency they had with the constant rate of 6 per second (4 to 7 per second in its clumps).
+5. **Colour.** The glow of a particle follows the agitation of the grains around it (`√T` between `GLOW_AGITATION_RANGE`), not its speed: a cloud falling in coherently stays dark, a shell-crossing or a shock lights up. The velocity pass writes it in the free component of the velocity (`w`).
+6. **Energy losses.** There is global friction (`GLOBAL_DRAG`), a maximum speed (`MAX_SPEED`), and walls return 80% of the velocity (`RESTITUTION`).
+7. **Supernovae.** They trigger on a geometric criterion: a share of particles (60% by default) inside a disk. All species receive the same kinetic energy (v ∝ 1/√m). A shock wave then pushes the surrounding medium.
 
 ### Behavior
 
 - **Low-density zones**: like dark matter or a cloud of stars. Particles do not touch and only feel gravity.
-- **Clusters**: like wet dust. It resists being crushed but sticks together and does not bounce.
-- **In short**: a cloud that **cools instantly**. Compression does not heat it; it dissipates energy, hence a collapse into clumps.
+- **Clusters**: like wet dust. It resists being crushed, by contact and by its agitation, and sticks together while the grains meet slowly.
+- **In short**: a granular gas that **cools by sticking**. Compression heats it (the infalling streams cross), the sticking dissipates the agitation faster the denser and hotter it is, hence a collapse into clumps.
 
 ### Differences from real physics
 
-- Pressure exists only inside clusters.
-- Energy is not conserved.
+- The kinetic pressure acts only where the grains are in contact (a collisionless cloud has none, as it should), and only up to the agitation the grid resolves.
+- Energy is not conserved: sticking dissipates it, walls return 80 % of the velocity, there is global friction.
+- The sticking is a relaxation of each particle toward the mean flow of its texel, not a pairwise collision: grains of a texel that do not move together are made to.
 - The gravity law is a compromise between 2D and 3D.
-- The « hot » color depends on absolute velocity, not on agitation around the mean motion. It is not a real temperature.
+- The « hot » color is the agitation `√T` around the mean flow of a texel, as the grid sees it (a texel is 4 px wide at 1024 × 768): it is a temperature, but of the grid's resolution.
 - Supernovae depend on concentration, not on mass or temperature.
 
 ---

@@ -281,6 +281,7 @@ every chunk of 30 frames, the median of four chunks after a 1.5 s warm-up) and t
   and the strength of the shock were tuned against the old pull: retune them after this phase, not before.
 - **K_GRAVITY.** To get the old strength back in a clumped cloud, multiply it by about 1.2 (84 % RMS
   pull); it would also strengthen the smooth, large-scale pull by 20 %, which A14 did not change, so it
-  is a trade, and it was not made.
+  is a trade, and it was not made. (Made in P6a, as a gain of 1.2 on the gravity slider's value: `K_GRAVITY` was dead code, the slider's default
+  overwrote it; see [a10-granular-dust.md](a10-granular-dust.md).)
 - **The 3 000 000-particle gain is small (7 to 9 % in the first measurement)**: the cost that
   remains is per particle (see "Where the time goes"). Nothing was tried to lower it.
