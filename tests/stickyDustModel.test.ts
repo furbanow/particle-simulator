@@ -8,10 +8,12 @@ import { StickyDustModel } from '../src/simulation/stickyDust/gpuModel';
 
 // The constructor merges the drawing uniforms and builds the gravity passes (objects only: nothing
 // needs a GPU until they render), so setting parameters does not need one either.
-const newModel = (): StickyDustModel => new StickyDustModel({
-    drawing: { uniforms: {} }, renderer: {}, density: { target: new THREE.WebGLRenderTarget(1, 1) },
+const newModel = (renderer: object = {}): StickyDustModel => new StickyDustModel({
+    drawing: { uniforms: {} }, renderer, geometry: new THREE.BufferGeometry(), density: { target: new THREE.WebGLRenderTarget(1, 1) },
     screenSize: { value: new THREE.Vector2(800, 600) }, activeCount: () => 300,
 } as unknown as GpuModelContext);
+/** A renderer that says it blends float32 targets: the model builds its GPU reduction (nothing draws until a measure). */
+const gpuRenderer = { extensions: { has: (name: string) => name === 'EXT_float_blend' } };
 
 describe('StickyDustModel.setParam', () => {
     it('applies numbers to the uniforms', () => {
@@ -108,5 +110,47 @@ describe('StickyDustModel supernova', () => {
         model.onReadback(texels(points), points.length);
         expect(model.wantsReadback()).toBe(false);                      // a supernova is pending
         expect(model.velocityUniforms.supernovaCenter.value.x).toBeCloseTo((100 * 4.0026 + 110 * 1.008) / (4.0026 + 1.008), 6);
+    });
+});
+
+describe('StickyDustModel concentration on the GPU', () => {
+    const reading = { fraction: 0.6, members: 10, centerX: 400, centerY: 300, spread: 30 };
+
+    it('reads no positions back when the device can blend float32 targets, and does when it cannot', () => {
+        const gpu = newModel(gpuRenderer);
+        expect(gpu.wantsReadback()).toBe(false);
+        gpu.debugForceCpu(true);
+        expect(gpu.wantsReadback()).toBe(true);
+        expect(newModel().wantsReadback()).toBe(true);
+    });
+
+    it('arms the ejection of the disk the reduction found: center, radius, and the rms radius of the ejecta', () => {
+        const model = newModel(gpuRenderer);
+        model.setParam(STICKY_DUST_PARAM.supernovaThreshold, 50);
+        model.takeConcentration(reading, 65);
+        const u = model.velocityUniforms;
+        expect(model.stat(STICKY_DUST_STAT.concentration)).toBe(0.6);
+        expect([u.supernovaCenter.value.x, u.supernovaCenter.value.y]).toEqual([400, 300]);
+        expect(u.supernovaRadius.value).toBe(65);
+        expect(u.ejectaRadius.value).toBe(30);
+    });
+
+    it('updates the meter but does not arm a supernova below the threshold, or without particles in the disk', () => {
+        const model = newModel(gpuRenderer);
+        model.setParam(STICKY_DUST_PARAM.supernovaThreshold, 70);
+        model.takeConcentration(reading, 65);
+        expect(model.stat(STICKY_DUST_STAT.concentration)).toBe(0.6);
+        expect(model.velocityUniforms.supernovaCenter.value.x).toBe(0);
+        model.setParam(STICKY_DUST_PARAM.supernovaThreshold, 10);
+        model.takeConcentration({ ...reading, members: 0 }, 65);
+        expect(model.velocityUniforms.supernovaCenter.value.x).toBe(0);
+    });
+
+    it('keeps the radius the disk was measured with, not the slider\'s value of the moment the reading came back', () => {
+        const model = newModel(gpuRenderer);
+        model.setParam(STICKY_DUST_PARAM.supernovaThreshold, 10);
+        model.setParam(STICKY_DUST_PARAM.concentrationRadius, 200);
+        model.takeConcentration(reading, 65);
+        expect(model.velocityUniforms.supernovaRadius.value).toBe(65);
     });
 });

@@ -81,6 +81,20 @@ export const MOMENTUM_SCALE = 0.01;                // keeps splatted momentum in
 
 // ---- Supernova ----
 export const CLUSTER_CHECK_INTERVAL = 12;          // frames
+// The search of the densest disk of the detection radius (simulation/concentration.ts, and its GPU twin in stickyDust/concentrationReduction.ts):
+// the particles' masses are summed in square cells of CONCENTRATION_CELLS_PER_RADIUS to the radius (at least CONCENTRATION_MIN_CELL px a side),
+// the densest disk of cells is refined on the particles themselves. On the GPU the particles that pass the disk are summed in
+// CONCENTRATION_BINS x CONCENTRATION_BINS bins (spreads the blending over many texels), then reduced CONCENTRATION_REDUCE_BLOCK x BLOCK texels at a time.
+export const CONCENTRATION_CELLS_PER_RADIUS = 4;
+export const CONCENTRATION_MIN_CELL = 2;           // px
+export const CONCENTRATION_BINS = 64;
+export const CONCENTRATION_REDUCE_BLOCK = 16;
+// A collapsed clump puts millions of particles in a few cells, and blending that many float32 additions into one texel serializes in the
+// ROP (11 to 16 ms at 3 000 000 particles): each cell is therefore drawn into up to CONCENTRATION_REPLICAS copies (chosen by the particle's
+// index, laid out in tiles CONCENTRATION_REPLICA_COLUMNS wide) that a pass folds into one grid. The copies are limited to a budget of texels.
+export const CONCENTRATION_REPLICAS = 16;
+export const CONCENTRATION_REPLICA_COLUMNS = 4;
+export const CONCENTRATION_REPLICA_BUDGET = 1 << 20;
 export const SUPERNOVA_SPEED = 840;                // px/s at 100 % power (scaled by the power slider): rms speed of the ejecta, initial speed of the shock wave
 // The ejecta fly out as v = H r (homologous): H is set so that the mass-weighted rms speed is the ejection speed, whatever the
 // size of the cluster (the explosion releases the same energy per unit of mass in a compact clump as in a diffuse one). The

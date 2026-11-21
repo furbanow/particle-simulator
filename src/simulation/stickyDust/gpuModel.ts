@@ -1,20 +1,21 @@
 import * as THREE from 'three';
 import {
-    COLLISION_SPEED_SLIDER, CONCENTRATION_RADIUS_SLIDER, CONTACT_RANGE, DENSITY_RES, DUST_GRAVITY_GAIN, EJECT_TIME,
-    GLOBAL_DRAG, GLOW_AGITATION_RANGE, GRAVITY_SLIDER, GRAVITY_WINDOW_MARGIN, INV_REL_DENSITY_RANGE, K_PRESSURE, KINETIC_PRESSURE,
-    MAX_PARTICLES, MAX_SPECIES, MAX_SPEED, PRESSURE_CFL, REST_DENSITY, RESTITUTION, SHOCK_STRENGTH, STICK_RATE, STICKINESS_SLIDER,
-    SUPERNOVA_COOLDOWN, SUPERNOVA_SPEED, SUPERNOVA_THRESHOLD_SLIDER, TEX_SIZE,
+    CLUSTER_CHECK_INTERVAL, COLLISION_SPEED_SLIDER, CONCENTRATION_RADIUS_SLIDER, CONTACT_RANGE, DENSITY_RES, DUST_GRAVITY_GAIN,
+    EJECT_TIME, GLOBAL_DRAG, GLOW_AGITATION_RANGE, GRAVITY_SLIDER, GRAVITY_WINDOW_MARGIN, INV_REL_DENSITY_RANGE, K_PRESSURE,
+    KINETIC_PRESSURE, MAX_SPECIES, MAX_SPEED, PRESSURE_CFL, REST_DENSITY, RESTITUTION, SHOCK_STRENGTH, STICK_RATE, STICKINESS_SLIDER,
+    SUPERNOVA_COOLDOWN, SUPERNOVA_SPEED, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../../config';
 import { glslFloat, withDefines } from '../../gl/withDefines';
 import { clamp } from '../../util/math';
 import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
-import { analyzeConcentration } from '../concentration';
+import { analyzeConcentration, type Concentration, type ConcentrationReading } from '../concentration';
 import { DRAWING_DEFINES, drawingGlsl } from '../drawing/DrawingField';
 import type { DensityField } from '../densityField';
 import type { GpuModel, GpuModelContext } from '../gpuModel';
 import { ShockWave } from '../shockWave';
 import { STICKY_DUST_PARAM, STICKY_DUST_PROPERTY, STICKY_DUST_STAT, stickyDustDensity } from './declaration';
 import { ejectaRadius, ejectScale } from './ejecta';
+import { ConcentrationReduction } from './concentrationReduction';
 import { DustGravityField } from './gravityField';
 import { gravityWindow } from './gravityWindow';
 import referenceGlsl from '../../shaders/density-reference.glsl?raw';
@@ -25,8 +26,10 @@ const P = STICKY_DUST_PARAM;
 
 /**
  * GPU side of "sticky dust": multi-scale gravity, pressure (threshold and kinetic) and sticking in the velocity
- * pass, plus the supernovae. Every few frames the positions are read back to find the disk holding the most
- * mass; above the threshold (a share of the total mass) it goes supernova (homologous ejection, then a shock wave).
+ * pass, plus the supernovae. Every few frames the GPU searches the disk holding the most mass (ConcentrationReduction:
+ * a few floats come back, not the positions); above the threshold (a share of the total mass) it goes supernova
+ * (homologous ejection of the particles inside that disk, then a shock wave). A device that cannot blend float32 targets
+ * reads the positions back instead and runs the CPU reference (analyzeConcentration): the same figures, the same ejection.
  */
 export class StickyDustModel implements GpuModel {
     readonly velocityShader = withDefines(`${drawingGlsl}\n${latticeGlsl}\n${referenceGlsl}\n${stickyDustFrag}`, {
@@ -46,10 +49,10 @@ export class StickyDustModel implements GpuModel {
         globalDrag: { value: GLOBAL_DRAG },
         maxSpeed: { value: MAX_SPEED },
         restitution: { value: RESTITUTION },
-        textureSupernova: { value: null as THREE.DataTexture | null },
         textureGravity: { value: null as THREE.Texture | null },
         supernovaActive: { value: 0 },
         supernovaCenter: { value: new THREE.Vector2() },
+        supernovaRadius: { value: CONCENTRATION_RADIUS_SLIDER.default },
         ejectaRadius: { value: CONCENTRATION_RADIUS_SLIDER.default },
         supernovaSpeed: { value: SUPERNOVA_SPEED },
         ejectTime: { value: EJECT_TIME },
@@ -72,11 +75,17 @@ export class StickyDustModel implements GpuModel {
     private concentration: number | null = null;
     private cooldown = 0;
     private supernovaPending = false;
-    /** Mass of each species (u), by species index: what the concentration weighs the particles by. */
+    /** Mass of each species (u), by species index: what the concentration weighs the particles by (shared with the GPU reduction). */
     private readonly speciesMass = new Array<number>(MAX_SPECIES).fill(1);
-    private readonly supernovaMask = new Uint8Array(MAX_PARTICLES);
-    private readonly supernovaTexture = new THREE.DataTexture(this.supernovaMask, TEX_SIZE, TEX_SIZE,
-        THREE.RedFormat, THREE.UnsignedByteType);
+    /** Total mass (u) of the particles, from the species' masses and counts: the denominator of the share, exact where the GPU's float32 sums are not. */
+    private totalMass = 0;
+    /** The GPU search of the densest disk; null on a device that cannot blend float32 targets (the CPU analyses a read-back then). */
+    private readonly reduction: ConcentrationReduction | null;
+    private cpuForced = false;
+    private measuring = false;
+    private frame = 0;
+    /** Counts the restarts: a measurement that comes back after one belongs to the cloud before it, and is dropped. */
+    private generation = 0;
     private readonly shock = new ShockWave(this.velocityUniforms);
     private gravity: DustGravityField;
 
@@ -84,8 +93,8 @@ export class StickyDustModel implements GpuModel {
         Object.assign(this.velocityUniforms, context.drawing.uniforms);   // by reference
         this.gravity = new DustGravityField(context.renderer, context.density.target.texture);
         this.velocityUniforms.textureGravity.value = this.gravity.target.texture;
-        this.supernovaTexture.needsUpdate = true;
-        this.velocityUniforms.textureSupernova.value = this.supernovaTexture;
+        this.reduction = ConcentrationReduction.supported(context.renderer)
+            ? new ConcentrationReduction(context.renderer, context.geometry, this.speciesMass) : null;
     }
 
     /** Dev-only: the per-texel gravity field, for the lab page (src/lab). Not used by the app. */
@@ -106,6 +115,26 @@ export class StickyDustModel implements GpuModel {
     /** Dev-only: the density field the gravity is computed from, for the lab page. Not used by the app. */
     get debugDensity(): DensityField {
         return this.context.density;
+    }
+
+    /**
+     * Dev-only: measures the concentration now, on the GPU or (when `onGpu` is false, or the device has no float32 blending) on the CPU
+     * from a read-back of the positions, without arming a supernova: the lab compares the two. Not used by the app.
+     */
+    async debugMeasure(onGpu: boolean, positions: Float32Array | null = null): Promise<Concentration> {
+        const { context } = this;
+        const size = context.screenSize.value;
+        if (onGpu) {
+            if (!this.reduction) throw new Error('No GPU reduction: the device cannot blend float32 targets');
+            return this.reduction.measure(context.positionTexture(), this.concentrationRadius, size.x, size.y, this.totalMass);
+        }
+        if (!positions) throw new Error('debugMeasure on the CPU needs the positions read back');
+        return analyzeConcentration(positions, context.activeCount(), this.concentrationRadius, size.x, size.y, this.speciesMass);
+    }
+
+    /** Dev-only: makes the model analyse a read-back of the positions on the CPU, as a device without float32 blending does. */
+    debugForceCpu(forced: boolean): void {
+        this.cpuForced = forced;
     }
 
     /** Dev-only, read-only: the values the model holds, whatever their kind. */
@@ -137,6 +166,9 @@ export class StickyDustModel implements GpuModel {
 
     reset(params: ParamValues): void {
         Object.assign(this.params, params);
+        this.generation++;
+        this.frame = 0;
+        this.measuring = false;
         this.cooldown = 0;
         this.supernovaCount = 0;
         this.concentration = null;
@@ -153,6 +185,7 @@ export class StickyDustModel implements GpuModel {
             massDensity += m * stickyDustDensity(t);
         });
         if (totalMass <= 0) return;
+        this.totalMass = totalMass;
         const meanDensity = massDensity / totalMass;          // mass-weighted
         const meanMass = totalMass / this.context.activeCount();
         const u = this.velocityUniforms;
@@ -189,22 +222,60 @@ export class StickyDustModel implements GpuModel {
 
     endFrame(): void {
         if (this.cooldown > 0) this.cooldown--;
+        this.frame++;
+        if (this.frame % CLUSTER_CHECK_INTERVAL === 0 && this.reductionOnGpu() && !this.measuring && this.ready()) this.measure();
     }
 
-    wantsReadback(): boolean {
+    /** Whether a supernova can be looked for: not within the cooldown, not while one is about to fire. */
+    private ready(): boolean {
         return this.cooldown <= 0 && !this.supernovaPending;
+    }
+
+    private reductionOnGpu(): boolean {
+        return this.reduction !== null && !this.cpuForced;
+    }
+
+    /** Searches the densest disk on the GPU; the few floats come back a frame or two later and are taken as the read-back's analysis was. */
+    private measure(): void {
+        const { reduction, generation, concentrationRadius: radius } = this;
+        if (!reduction) return;
+        const size = this.context.screenSize.value;
+        this.measuring = true;
+        let reading: Promise<ConcentrationReading>;
+        try {
+            reading = reduction.measure(this.context.positionTexture(), radius, size.x, size.y, this.totalMass);
+        } catch (err) {
+            reading = Promise.reject(err);
+        }
+        reading
+            .then(result => { if (generation === this.generation) this.takeConcentration(result, radius); })
+            .catch(err => console.error(err))
+            .finally(() => { if (generation === this.generation) this.measuring = false; });
+    }
+
+    /** The CPU path (no float32 blending): the pipeline reads the positions back when this asks. */
+    wantsReadback(): boolean {
+        return !this.reductionOnGpu() && this.ready();
     }
 
     onReadback(positions: Float32Array, count: number): void {
         const size = this.context.screenSize.value;
-        const result = analyzeConcentration(positions, count, this.concentrationRadius, size.x, size.y, this.supernovaMask,
-            this.speciesMass);
-        this.concentration = result.fraction;
-        if (result.members === 0 || result.fraction < this.supernovaThreshold) return;
+        const radius = this.concentrationRadius;
+        this.takeConcentration(analyzeConcentration(positions, count, radius, size.x, size.y, this.speciesMass), radius);
+    }
 
-        this.supernovaTexture.needsUpdate = true;
-        this.velocityUniforms.supernovaCenter.value.set(result.centerX, result.centerY);
-        this.velocityUniforms.ejectaRadius.value = ejectaRadius(result.spread, this.concentrationRadius);
+    /**
+     * The densest disk of `radius` px is known (either way): updates the meter and, when it holds the threshold's share of the mass,
+     * arms the supernova that ejects the particles inside that disk at the next substep.
+     */
+    takeConcentration(result: Concentration, radius: number): void {
+        this.concentration = result.fraction;
+        if (result.members === 0 || result.fraction < this.supernovaThreshold || !this.ready()) return;
+
+        const u = this.velocityUniforms;
+        u.supernovaCenter.value.set(result.centerX, result.centerY);
+        u.supernovaRadius.value = radius;
+        u.ejectaRadius.value = ejectaRadius(result.spread, radius);
         this.supernovaPending = true;
     }
 
@@ -217,7 +288,8 @@ export class StickyDustModel implements GpuModel {
     }
 
     dispose(): void {
+        this.generation++;
         this.gravity.dispose();
-        this.supernovaTexture.dispose();
+        this.reduction?.dispose();
     }
 }

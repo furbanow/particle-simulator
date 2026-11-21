@@ -7,7 +7,6 @@
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
 uniform sampler2D textureDensity;
-uniform sampler2D textureSupernova;
 uniform sampler2D textureGravity;       // gravity of the coarse levels per density texel (DustGravityField)
 uniform vec2 screenSize;
 uniform vec2 domainOffset;
@@ -28,6 +27,7 @@ uniform float restitution;
 uniform float momentumScale;
 uniform float supernovaActive;
 uniform vec2 supernovaCenter;
+uniform float supernovaRadius;         // detection radius: the particles inside this disk about the center are the ejecta
 uniform float ejectaRadius;             // rms distance of the ejecta to the centre: they move at supernovaSpeed (rms) at this distance
 uniform float supernovaSpeed;
 uniform float ejectTime;
@@ -68,8 +68,9 @@ void main() {
     int species = clamp(int(posData.z + 0.5), 0, MAX_SPECIES - 1);
     float ejectScale = speciesEjectScale[species];
 
-    if (supernovaActive > 0.5 && texture2D(textureSupernova, uv).r > 0.5) {
-        vec2 d = pos - supernovaCenter;
+    vec2 fromCenter = pos - supernovaCenter;
+    if (supernovaActive > 0.5 && dot(fromCenter, fromCenter) <= supernovaRadius * supernovaRadius) {
+        vec2 d = fromCenter;
         float r = length(d);
         float angle = r > 0.001 ? atan(d.y, d.x) : hash(uv) * 6.2831853;
         angle += (hash(uv + 0.37) - 0.5) * 0.25;
