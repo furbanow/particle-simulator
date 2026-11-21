@@ -116,6 +116,18 @@ describe('simulation config store', () => {
         expect(drawing?.params['repeller.strength']).toBe(defaultDrawing().params['repeller.strength']);
     });
 
+    it('drops the protostar parameters a later version removed and gives the new ones their defaults', () => {
+        const store = newStore(new MemoryStorage());
+        // saved before the initial conditions were set by the virial ratio: the rotation and the agitation as fractions of v_circ
+        const older = { ...store.current, algorithm: 'protostar', params: { count: 100000, rotation: 0.9, agitation: 1.2, gravity: 7 } };
+        const params = sanitizeSimulationConfig(older, CONTROLS)?.params;
+        expect(params).toMatchObject({ count: 100000, gravity: 7, alphaVir: 0.33, betaRot: 0.08, profile: 'uniform', turbulence: 'white' });
+        expect(params).not.toHaveProperty('rotation');
+        expect(params).not.toHaveProperty('agitation');
+        const invalid = { ...older, params: { profile: 'sphere', turbulence: 3, alphaVir: 99, betaRot: -1 } };
+        expect(sanitizeSimulationConfig(invalid, CONTROLS)?.params).toMatchObject({ profile: 'uniform', turbulence: 'white', alphaVir: 3, betaRot: 0 });
+    });
+
     it('keeps the built-in configs read-only', () => {
         const store = newStore();
         const builtin = store.current;

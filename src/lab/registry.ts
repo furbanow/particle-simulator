@@ -12,6 +12,7 @@ import { dustHitchScenarios } from './scenarios/dustHitches';
 import { dustSupernovaScenarios } from './scenarios/dustSupernova';
 import { dustSupernovaHistoryScenarios } from './scenarios/dustSupernovaHistory';
 import { energyDrift, energyDriftAttribution, energyReference, reductionChannels } from './scenarios/energy';
+import { initialConditions, initialCost, initialGridForce, maclaurinCollapse, restartCost } from './scenarios/initialConditions';
 import { integration } from './scenarios/integration';
 import { halfFloatDeposit } from './scenarios/halfFloat';
 import { heating } from './scenarios/heating';
@@ -44,6 +45,11 @@ export const SCENARIOS: readonly Scenario[] = [
     energyDrift,
     energyDriftAttribution,
     integration,
+    initialConditions,
+    initialGridForce,
+    maclaurinCollapse,
+    initialCost,
+    restartCost,
     ...dustGravityScenarios,
     ...dustCloudScenarios,
     ...dustGranularScenarios,

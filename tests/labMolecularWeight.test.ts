@@ -101,6 +101,12 @@ describe('lab: variants of the default cloud given in the page URL', () => {
         expect(variants[2].name).toBe('variant 3');
     });
 
+    it('reads the panel parameters of a variant (the initial conditions): numbers and choices, not objects', () => {
+        const [variant] = parseCloudVariants(JSON.stringify([{ name: 'correlated', params: { turbulence: 'correlated', alphaVir: 0.5, junk: { a: 1 } } }]));
+        expect(variant.params).toEqual({ turbulence: 'correlated', alphaVir: 0.5 });
+        expect(variant.overrides).toBeUndefined();
+    });
+
     it('gives no variant for text that is not a JSON array', () => {
         expect(parseCloudVariants('')).toEqual([]);
         expect(parseCloudVariants('{"a":1}')).toEqual([]);

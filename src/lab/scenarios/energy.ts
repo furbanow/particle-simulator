@@ -40,7 +40,7 @@ const relative = (value: number, reference: number, floor = 0): number =>
     Math.abs(value - reference) / Math.max(Math.abs(reference), floor, Number.MIN_VALUE);
 
 /** The grids as the model draws them from the textures as they are now, and the reduction of them, read back. */
-async function drawAndReduce(context: LabContext): Promise<{ texels: Float32Array; reduction: Reduction }> {
+export async function drawAndReduce(context: LabContext): Promise<{ texels: Float32Array; reduction: Reduction }> {
     const model = protostarModel(context);
     model.beforeSubstep(0);                              // draws the grids from the current state (and keeps the previous potential)
     model.debugGrids.reduceStats();

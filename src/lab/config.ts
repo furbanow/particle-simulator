@@ -240,6 +240,51 @@ export const ELASTIC_WALLS = 1;
 /** Parameters of a conservative run: no cooling, no heat from fusion, no fusion at all (set below the sliders' minima). */
 export const CONSERVATIVE_OVERRIDES = { cooling: 0, feedback: 0, fusionRate: 0, heFusionRate: 0 } as const;
 
+// ---- Initial conditions of the protostar (phase P5b, docs/spikes/a8-initial-conditions.md) ----
+/** Particles of the checks of the initial cloud: the default's. */
+export const INITIAL_PARTICLES = 400000;
+/** The clouds `protostar.initial-conditions` sets up: the sliders' values and the energies read back at t = 0. */
+export const INITIAL_CASES = [
+    { name: 'default', params: {} },
+    { name: 'cold', params: { alphaVir: 0, betaRot: 0 } },
+    { name: 'circular orbits', params: { alphaVir: 0.96, betaRot: 0.48 } },
+    { name: 'virial 1, no rotation', params: { alphaVir: 1, betaRot: 0 } },
+    { name: 'virial 1, rotation 0.25', params: { alphaVir: 1, betaRot: 0.25 } },
+    { name: 'hot', params: { alphaVir: 2, betaRot: 0.1 } },
+    { name: 'default, correlated', params: { turbulence: 'correlated' } },
+    { name: 'virial 1, correlated', params: { alphaVir: 1, betaRot: 0.25, turbulence: 'correlated' } },
+    { name: 'Maclaurin', params: { profile: 'maclaurin' } },
+    { name: 'Maclaurin, correlated', params: { profile: 'maclaurin', turbulence: 'correlated' } },
+] as const;
+/** Largest relative difference of the virial ratio the reduction reads (K over the grid's |U|) from the slider. */
+export const INITIAL_VIRIAL_TOLERANCE = 0.01;
+/** The same for the rotation energy along the circular-speed pattern (it is exact up to float32: the agitation has no part of it). */
+export const INITIAL_ROTATION_TOLERANCE = 2e-3;
+/** The same for the kinetic energy read by the reduction, against alpha |U| / 2 with the table's |U|. */
+export const INITIAL_KINETIC_TOLERANCE = 2e-3;
+/** Rings of the profiles of the initial cloud. */
+export const INITIAL_BINS = 60;
+/** The grid's acceleration is judged against the table between these fractions of the cloud's radius. */
+export const INITIAL_FORCE_RANGE = [0.1, 0.95] as const;
+/** Largest relative difference, per ring of the profile, between the pull the grid gives and the table's (at t = 0). */
+export const INITIAL_FORCE_TOLERANCE = 0.06;
+/**
+ * The cold Maclaurin disc's collapse: no cooling, feedback or fusion, a softening of this % of L (a hundred times under the cell of the
+ * grid), the speeds the run is repeated at, the fractions of the initial half-mass radius at which the free-fall time is estimated, the
+ * one judged and the tolerance (the plan's 2 %), and the longest run in free-fall times.
+ */
+export const MACLAURIN_SOFTENING = 0.1;
+export const MACLAURIN_SPEEDS = [1.7, 0.85] as const;
+export const MACLAURIN_LEVELS = [0.75, 0.5, 0.25, 0.1] as const;
+export const MACLAURIN_JUDGED_LEVELS = [0.75, 0.5] as const;
+export const MACLAURIN_TOLERANCE = 0.02;
+export const MACLAURIN_MAX_FALL_TIMES = 1.2;
+/** Radii of the disc at which the table of the softened disc is built for the prediction with the softening, as fractions of the initial radius. */
+export const MACLAURIN_PREDICTION_RADII = [1, 0.8, 0.6, 0.45, 0.33, 0.25, 0.18, 0.12, 0.08, 0.05] as const;
+/** Particle counts of the cost of a restart, ms. */
+export const INITIAL_COST_COUNTS = [400000, 1000000, 2000000] as const;
+export const INITIAL_COST_REPEATS = 5;
+
 // ---- Default cloud of the sticky dust (clump statistics, recalibration of the gravity) ----
 export const DUST_CLOUD_SEED = 20240612;
 export const DUST_CLOUD_PARTICLES = 400000;

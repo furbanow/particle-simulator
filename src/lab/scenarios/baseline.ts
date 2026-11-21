@@ -59,6 +59,8 @@ export interface CloudVariant {
     molecularWeight?: boolean;
     /** Protostar parameters (gravity, fusionRate, feedback, ...) set on the model, whatever the sliders' ranges. */
     overrides?: ParamValues;
+    /** Panel parameters set through the Simulation before the restart (the initial conditions: alphaVir, betaRot, profile, turbulence), within the sliders' ranges. */
+    params?: ParamValues;
     /** Frames to run instead of the option's. */
     frames?: number;
     /** Seed of the cloud (LAB_SEED when omitted). */
@@ -69,7 +71,7 @@ export interface CloudVariant {
 async function runDefaultCloud(context: LabContext, variant?: CloudVariant): Promise<ScenarioOutcome> {
     const { baselineParticles: count } = context.options;
     const frames = variant?.frames ?? context.options.baselineFrames;
-    await restart(context, { count, seed: variant?.seed, overrides: variant?.overrides });
+    await restart(context, { count, seed: variant?.seed, overrides: variant?.overrides, params: variant?.params });
     if (variant) {
         // A restart gives the switches their application values back: only the ones the variant changes are set.
         const model = protostarModel(context);
@@ -288,19 +290,26 @@ export function parseCloudVariants(json: string): Omit<CloudVariant, 'seed'>[] {
         if (isRecord(v.overrides)) {
             for (const [key, value] of Object.entries(v.overrides)) if (typeof value === 'number' && Number.isFinite(value)) overrides[key] = value;
         }
+        const params: ParamValues = {};
+        if (isRecord(v.params)) {
+            for (const [key, value] of Object.entries(v.params)) {
+                if (typeof value === 'string' || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value))) params[key] = value;
+            }
+        }
         return {
             name: typeof v.name === 'string' ? v.name : `variant ${i + 1}`,
             kick: v.kick === true, uncorrected: v.uncorrected === true,
             tau: typeof v.tau === 'number' ? v.tau : undefined,
             molecularWeight: v.molecularWeight === false ? false : undefined,
             overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
+            params: Object.keys(params).length > 0 ? params : undefined,
             frames: typeof v.frames === 'number' && v.frames > 0 ? Math.round(v.frames) : undefined,
         };
     });
 }
 
 /**
- * The default cloud under the variants the page URL gives (`?cloudVariants=[{"name":"G 8","overrides":{"gravity":8}}]`), each with
+ * The default cloud under the variants the page URL gives (`?cloudVariants=[{"name":"G 8","overrides":{"gravity":8}},{"name":"correlated","params":{"turbulence":"correlated"}}]`), each with
  * `cloudSeeds` seeds: a tool for tuning the defaults (phase P3b-1's minimal recalibration) and for the ablation of the molecular
  * weight (`molecularWeight: false` is the temperature of the code before A1). Skips when no variant is given.
  */
@@ -320,7 +329,7 @@ export const defaultCloudTuning: Scenario = {
                 finite &&= outcome.status === 'pass';
                 const { metrics } = outcome;
                 runs.push({
-                    variant: variant.name, seed, overrides: variant.overrides ?? null, molecularWeight: variant.molecularWeight ?? true,
+                    variant: variant.name, seed, overrides: variant.overrides ?? null, params: variant.params ?? null, molecularWeight: variant.molecularWeight ?? true,
                     frames: variant.frames ?? context.options.baselineFrames,
                     peak: metrics.peak, peakAtSeconds: metrics.peakAtSeconds, firstFusion: metrics.firstFusion,
                     lastQuarterMean: metrics.lastQuarterMean, final: metrics.final, typeCountsAtEnd: metrics.typeCountsAtEnd,
