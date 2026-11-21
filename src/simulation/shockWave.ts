@@ -14,12 +14,34 @@ export interface ShockUniforms {
 }
 
 /**
- * Expanding front after a supernova. It starts at the aggregate edge, moves at the ejection
- * speed and stops at the farthest screen corner or where the kick has become negligible.
+ * The constant K (px^2/s) of the front law R dR/dt = K, chosen so that the front moves at `speed` (px/s) when it
+ * is at `radius0` (px): K = speed x radius0.
+ */
+export const frontConstant = (speed: number, radius0: number): number => speed * radius0;
+
+/**
+ * Radius of the front `dt` seconds after it was at `radius`. In two dimensions a blast that keeps its energy
+ * obeys dR/dt = K / R (Sedov-Taylor, R ~ t^(1/2)), so R^2 grows linearly with time: R^2 = radius^2 + 2 K dt. Exact for
+ * any dt, and it can be chained step after step (K may change between the steps).
+ */
+export const advanceFront = (radius: number, k: number, dt: number): number => Math.sqrt(radius * radius + 2 * k * dt);
+
+/** Radius of the front `t` seconds after it started at `radius0` moving at `speed`. */
+export const frontRadiusAt = (radius0: number, speed: number, t: number): number =>
+    advanceFront(radius0, frontConstant(speed, radius0), t);
+
+/** Speed of the front at `radius`: K / R. */
+export const frontSpeed = (radius: number, k: number): number => k / radius;
+
+/**
+ * Expanding front after a supernova. It starts at the aggregate edge at the ejection speed, slows down as
+ * dR/dt = K / R (see advanceFront) and stops at the farthest screen corner or where the kick has become negligible.
  */
 export class ShockWave {
     private radius = 0;
     private maxRadius = 0;
+    /** Radius at which the front started: with the speed slider, it sets K. */
+    private startRadius = 1;
 
     constructor(private readonly u: ShockUniforms) {}
 
@@ -30,6 +52,7 @@ export class ShockWave {
         u.shockCenter.value.copy(c);
         u.shockRef.value = ref;
         this.radius = ref;
+        this.startRadius = ref;
         const corner = Math.hypot(Math.max(c.x, width - c.x), Math.max(c.y, height - c.y));
         this.maxRadius = Math.min(corner, ref * SHOCK_STRENGTH / SHOCK_MIN_KICK);
         u.shockInner.value = this.radius;
@@ -46,7 +69,7 @@ export class ShockWave {
             return;
         }
         u.shockInner.value = this.radius;
-        this.radius += speed * dt;
+        this.radius = advanceFront(this.radius, frontConstant(speed, this.startRadius), dt);
         u.shockOuter.value = this.radius;
     }
 

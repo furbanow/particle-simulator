@@ -81,18 +81,23 @@ export const MOMENTUM_SCALE = 0.01;                // keeps splatted momentum in
 
 // ---- Supernova ----
 export const CLUSTER_CHECK_INTERVAL = 12;          // frames
-export const SUPERNOVA_SPEED = 420;                // px/s at 100 % power (scaled by the power slider)
-export const EJECT_TIME = 0.6;                     // s during which ejecta ignore gravity/pressure (fading back in)
-export const SUPERNOVA_COOLDOWN = 120;             // frames
-// Shock wave: the front moves at the ejection speed; the outward kick it gives is
-// SHOCK_STRENGTH * ejection speed at the aggregate edge and falls off as 1/r beyond it.
+export const SUPERNOVA_SPEED = 840;                // px/s at 100 % power (scaled by the power slider): rms speed of the ejecta, initial speed of the shock wave
+// The ejecta fly out as v = H r (homologous): H is set so that the mass-weighted rms speed is the ejection speed, whatever the
+// size of the cluster (the explosion releases the same energy per unit of mass in a compact clump as in a diffuse one). The
+// size of the cluster is its rms radius, bounded below by this fraction of the detection radius.
+export const EJECTA_RADIUS_FLOOR = 0.1;
+export const EJECT_TIME = 0.6;                     // s during which ejecta feel neither pressure nor sticking (fading back in); gravity always acts
+export const SUPERNOVA_COOLDOWN = 240;             // frames (6 s at the default speed)
+// Shock wave: the front starts at the edge of the detection zone at the ejection speed and slows down as
+// dR/dt = K / R (R ~ t^(1/2)); the outward kick it gives is SHOCK_STRENGTH * the front's speed, so it
+// falls off as 1/r.
 export const SHOCK_STRENGTH = 0.9;
 export const SHOCK_MIN_KICK = 0.03;                // fraction of the ejection speed below which the wave dies
 
 // ---- Panel parameters of the sticky dust algorithm (slider min, max, step and default) ----
 export const PARTICLE_COUNT_SLIDER: SliderSpec = { min: 1000, max: 3000000, step: 1000, default: 400000 };
 export const GRAVITY_SLIDER: SliderSpec = { min: 0, max: 15, step: 0.1, default: 2.5 };
-export const SUPERNOVA_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 37 };  // % of the particles
+export const SUPERNOVA_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 37 };  // % of the total mass
 export const CONCENTRATION_RADIUS_SLIDER: SliderSpec = { min: 10, max: 400, step: 5, default: 65 }; // px
 export const SUPERNOVA_POWER_SLIDER: SliderSpec = { min: 5, max: 100, step: 5, default: 70 };      // % of SUPERNOVA_SPEED
 export const STICKINESS_SLIDER: SliderSpec = { min: 0, max: 400, step: 5, default: 100 };               // % of STICK_RATE
