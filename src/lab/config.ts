@@ -302,3 +302,14 @@ export const DUST_SWEEP_ARMS: readonly { name: string; stickiness: number; kinet
     { name: 'collision speed 200', stickiness: 100, kinetic: 1, collisionSpeed: 200 },
     { name: 'collision speed 1000', stickiness: 100, kinetic: 1, collisionSpeed: 1000 },
 ];
+
+// ---- Cost of the sticky dust in two phases of the default cloud ----
+/**
+ * The windows timed after a restart (the frames run first, untimed): before the collapse (it comes at about frame 85) and after the
+ * first supernova (frame 111). Per window: chunks of PERF_PHASE_CHUNK_FRAMES frames, PERF_PHASE_CHUNKS of them per restart, PERF_PHASE_REPS restarts.
+ */
+export const PERF_PHASES = [{ name: 'Early', warmupFrames: 10 }, { name: 'Late', warmupFrames: 150 }] as const;
+export const PERF_PHASE_COUNTS = [400000, 1000000] as const;
+export const PERF_PHASE_CHUNK_FRAMES = 10;
+export const PERF_PHASE_CHUNKS = 4;
+export const PERF_PHASE_REPS = 5;

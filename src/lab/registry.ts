@@ -9,6 +9,7 @@ import { dustGravityScenarios } from './scenarios/dustGravity';
 import { energyDrift, energyDriftAttribution, energyReference, reductionChannels } from './scenarios/energy';
 import { halfFloatDeposit } from './scenarios/halfFloat';
 import { perfScenarios } from './scenarios/perf';
+import { perfPhaseScenarios } from './scenarios/perfPhases';
 import { secondDeposit, secondDepositLoad } from './scenarios/secondDeposit';
 import { secondDepositCost } from './scenarios/secondDepositCost';
 import { selftest } from './scenarios/selftest';
@@ -29,6 +30,7 @@ export const SCENARIOS: readonly Scenario[] = [
     ...dustCloudScenarios,
     ...dustGranularScenarios,
     ...perfScenarios,
+    ...perfPhaseScenarios,
     secondDepositCost,
     diagnosticsCost,
 ];
