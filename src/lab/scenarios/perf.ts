@@ -8,10 +8,11 @@ import {
     LAB_AREA, PERF_ALGORITHMS, PERF_ANIMATION_FRAME_TRUST, PERF_CHUNK_FRAMES, PERF_COUNTS, PERF_FRAMES_SOFTWARE,
     PERF_WARMUP_FRAMES, PERF_WARMUP_MS,
 } from '../config';
-import { nextAnimationFrame, restart, substepsPerFrame } from '../driver';
+import { nextAnimationFrame, protostarModel, restart, substepsPerFrame } from '../driver';
 import { mean, quantile, significant } from '../numbers';
 import { RenderStack } from '../renderStack';
 import type { LabContext, Scenario, ScenarioOutcome } from '../types';
+import { parseCloudVariants } from './baseline';
 
 const DIGITS = 4;
 const stacks = new WeakMap<LabContext, RenderStack>();
@@ -70,7 +71,11 @@ async function probe(context: LabContext, algorithm: AlgorithmId, count: number)
     const warmupMs = software ? 0 : PERF_WARMUP_MS;
     const frames = software ? PERF_FRAMES_SOFTWARE : context.options.perfFrames;
     const chunks = Math.max(1, Math.round(frames / chunkFrames));
-    await restart(context, { algorithm, count });
+    // The protostar's variant of the page URL (`?perfVariant={"molecularWeight":false,"overrides":{...}}`): the physics of another build,
+    // so that two builds are timed on the same dynamics (the cost of a change of shaders, not of a change of defaults).
+    const variant = algorithm === 'protostar' ? parseCloudVariants(`[${context.options.perfVariant}]`)[0] : undefined;
+    await restart(context, { algorithm, count, overrides: variant?.overrides });
+    if (variant?.molecularWeight === false) protostarModel(context).debugGrids.molecularWeightEnabled = false;
     const stack = renderStack(context);
     stack.prepare();
 

@@ -29,5 +29,6 @@ export function parseOptions(search: string, defaults: LabOptions): LabOptions {
         noiseBudgetSeconds: integer('noiseBudgetSeconds', defaults.noiseBudgetSeconds),
         cloudSeeds: integer('cloudSeeds', defaults.cloudSeeds),
         cloudVariants: query.get('cloudVariants') ?? defaults.cloudVariants,
+        perfVariant: query.get('perfVariant') ?? defaults.perfVariant,
     };
 }

@@ -29,6 +29,8 @@ export interface LabOptions {
     /** Seeds of each variant of baseline.protostar.default-cloud-tuning, and its variants as JSON (an array of objects, see CloudVariant). */
     cloudSeeds: number;
     cloudVariants: string;
+    /** One variant (JSON, see CloudVariant: `overrides`, `molecularWeight`) for the performance probe of the protostar: the same physics in two builds. */
+    perfVariant: string;
 }
 
 /** What a scenario is given: the renderer, the real simulation and the helpers that go with them. */

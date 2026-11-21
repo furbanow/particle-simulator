@@ -10,7 +10,9 @@
 //    laws' own twin (src/simulation/protostar/ignition.ts); their ratio, the number the plan wants to be 6.7.
 
 import { MAX_SPECIES, PROTOSTAR_GRID_RES, PROTOSTAR_T0_KELVIN } from '../../config';
+import * as THREE from 'three';
 import { defaultParams } from '../../simulation/params';
+import { forceHalfFloatDeposit } from '../../simulation/protostar/grids';
 import { HELIUM, HYDROGEN, PROTOSTAR, PROTOSTAR_REACTIONS, PROTOSTAR_TYPES } from '../../simulation/protostar/declaration';
 import { molecularWeightFactor, molecularWeightFactors } from '../../simulation/protostar/composition';
 import { fusionLawOf, ignitionRatio, ignitionTemperature, kineticIgnitionRatio } from '../../simulation/protostar/ignition';
@@ -21,7 +23,7 @@ import {
     MU_GAS_DENSITY, MU_GAS_PARTICLES, MU_GAS_SEED, MU_MIXED_DISPERSION_TOLERANCE, MU_MIXED_HELIUM_PERCENT, REAL_IGNITION_RATIO, THERMAL_GAS_TEMPERATURE,
 } from '../config';
 import { referenceDeposit } from '../depositReference';
-import { protostarGrids, protostarModel, restart } from '../driver';
+import { protostarGrids, protostarModel, rebuildPipeline, restart } from '../driver';
 import { boxForDensity, interpolateIgnition, localExponent, type ScanPoint } from '../ignitionScan';
 import { significant } from '../numbers';
 import { mulberry32 } from '../random';
@@ -166,78 +168,113 @@ async function cpuFactors(context: LabContext, gas: Gas, count: number): Promise
 const muGas = (context: LabContext): { count: number; density: number } =>
     context.software ? { count: LAB_CLOUD_PARTICLES_SOFTWARE, density: 1 } : { count: MU_GAS_PARTICLES, density: MU_GAS_DENSITY };
 
+interface PathReport {
+    ok: boolean;
+    metrics: Record<string, JsonValue>;
+    details: string;
+}
+
+/**
+ * The three gases (hydrogen, helium, a mixture) at equal dispersion in the deposit path the grids currently use. `strict`: every
+ * check judges (the float32 path); not strict (the half-float path, whose sums stagnate in a dense cell), only the factors and the
+ * temperature ratio are judged, against `tolerance`, the rest is reported.
+ */
+async function equalDispersion(context: LabContext, tolerance: number, strict: boolean): Promise<PathReport> {
+    const { renderer } = context;
+    const factors = molecularWeightFactors(PROTOSTAR_TYPES, 'mass', MAX_SPECIES);
+    const { count, density } = muGas(context);
+    const box = boxForDensity(density);
+    const dispersion = THERMAL_GAS_TEMPERATURE;
+    const compositions = [PURE_HYDROGEN, PURE_HELIUM, mixed(MU_MIXED_HELIUM_PERCENT)];
+    const gases: Gas[] = [];
+    for (const composition of compositions) gases.push(await drawGas(context, composition, box, count, dispersion, MU_GAS_SEED));
+    const [hydrogen, helium, mix] = gases;
+
+    // The factor cell by cell: the pure gases against their own, the mixture against a CPU deposit of its particles.
+    const mixedExpected = await cpuFactors(context, mix, count);
+    const errors = {
+        hydrogen: maxAbsRelative(hydrogen.reading.cellFactors, 1),
+        helium: maxAbsRelative(helium.reading.cellFactors, factors[HELIUM]),
+        mixed: maxAbsRelative(mix.reading.cellFactors, i => mixedExpected[i]),
+    };
+    // The same particles at the same places with the same velocities: the dispersion (the energy) cannot depend on the gas.
+    // The pure gases have the same deposit masses, so the same dispersion to rounding; the mixture weighs its particles
+    // differently, which changes the sampling of the same dispersion (fewer effective particles: its estimate is a little lower).
+    const dispersionSpread = Math.abs(helium.reading.dispersion / hydrogen.reading.dispersion - 1);
+    const dispersionMixed = Math.abs(mix.reading.dispersion / hydrogen.reading.dispersion - 1);
+    const ratio = helium.reading.temperature / hydrogen.reading.temperature;
+    const expectedRatio = factors[HELIUM] / factors[HYDROGEN];
+    const ratioError = Math.abs(ratio / expectedRatio - 1);
+    const between = mix.reading.temperature > hydrogen.reading.temperature && mix.reading.temperature < helium.reading.temperature;
+
+    // The core temperature of the stats is the temperature (the reduction reads the factor of the densest cell).
+    const grids = protostarModel(context).debugGrids;
+    grids.reduceStats();
+    const targets = protostarGrids(context);
+    const core = await readTarget(renderer, targets.reduce2);
+    const [gas, thermo] = [await readTarget(renderer, targets.gas), await readAttachment(renderer, targets.gas, 1)];
+    let peak = 0, peakCell = 0;
+    for (let cell = 0; cell < RES * RES; cell++) if (gas[cell * 4] > peak) { peak = gas[cell * 4]; peakCell = cell; }
+    const coreExpected = gas[peakCell * 4 + 1] * thermo[peakCell * 4 + 2] / LAB_T0;     // in T0: the mixture's last drawn grids
+    const coreError = Math.abs(core[1] / coreExpected - 1);
+    const coreIsTemperature = coreError < 1e-5 && Math.abs(core[1] - gas[peakCell * 4 + 1] / LAB_T0) > 1e-3 * core[1];
+
+    const summary = (g: Gas): JsonValue => ({
+        particlesPerNeighborhood: significant(9 * g.reading.particles / Math.max(1, g.reading.cellFactors.length), 4),
+        density: significant(g.reading.density, 4), dispersionT0: significant(g.reading.dispersion, DIGITS),
+        temperatureT0: significant(g.reading.temperature, DIGITS), temperatureMK: significant(g.reading.temperature * PROTOSTAR_T0_KELVIN / MEGA, DIGITS),
+        averagedT0: significant(g.reading.averaged, DIGITS), factor: significant(g.reading.factor, DIGITS),
+        effectiveParticles: significant(g.reading.effectiveParticles, 4),
+    });
+    const factorsOk = errors.hydrogen <= tolerance && errors.helium <= tolerance && errors.mixed <= tolerance && ratioError <= tolerance && between;
+    const ok = factorsOk && (!strict || (dispersionSpread <= tolerance && dispersionMixed <= MU_MIXED_DISPERSION_TOLERANCE && coreIsTemperature));
+    return {
+        ok,
+        metrics: {
+            particles: count, densityRho0: density, dispersionT0: dispersion, tolerance,
+            depositPath: gasTextureType(context),
+            hydrogen: summary(hydrogen), helium: summary(helium), mixed: summary(mix), mixedHeliumPercentByNumber: MU_MIXED_HELIUM_PERCENT,
+            factorMaxRelativeError: { hydrogenAgainst1: significant(errors.hydrogen, 3), heliumAgainstMuRatio: significant(errors.helium, 3), mixedAgainstCpu: significant(errors.mixed, 3) },
+            temperatureRatioHeOverH: significant(ratio, DIGITS), expectedRatio: significant(expectedRatio, DIGITS), ratioError: significant(ratioError, 3),
+            mixedBetweenPureGases: between,
+            dispersionDifferenceHeliumHydrogen: significant(dispersionSpread, 3), dispersionDifferenceMixedHydrogen: significant(dispersionMixed, 3),
+            coreTemperatureOfStatsT0: significant(core[1], DIGITS), coreTemperatureExpectedT0: significant(coreExpected, DIGITS),
+            coreTemperatureIsTheTemperature: coreIsTemperature,
+        },
+        details: `equal dispersion ${dispersion} T0: helium / hydrogen = ${ratio.toFixed(4)} (mu ratio ${expectedRatio.toFixed(4)}, error ${ratioError.toExponential(1)}); `
+            + `mixture ${(mix.reading.temperature / hydrogen.reading.temperature).toFixed(3)} (cell factors within ${errors.mixed.toExponential(1)} of the CPU's); `
+            + `hydrogen's factor within ${errors.hydrogen.toExponential(1)} of 1; dispersion differs by ${dispersionSpread.toExponential(1)} (helium) and ${dispersionMixed.toExponential(1)} (mixture) from hydrogen's; `
+            + `stats' core temperature ${core[1].toFixed(4)} T0 (expected ${coreExpected.toFixed(4)})`,
+    };
+}
+
+/** The type of the deposit's textures the model currently uses. */
+const gasTextureType = (context: LabContext): string =>
+    protostarGrids(context).moments.textures[1].type === THREE.FloatType ? 'float32' : 'halfFloat';
+
 export const molecularWeight: Scenario = {
     id: 'protostar.molecular-weight',
     title: 'Protostar: at equal velocity dispersion a helium gas reads mu_He / mu_H times the temperature of a hydrogen gas, a mixture in between',
     tags: ['protostar', 'fast'],
     async run(context): Promise<ScenarioOutcome> {
-        const { renderer } = context;
         await restart(context, { count: COUNT_FOR_WARMUP });       // the protostar must be running before its model is configured
-        const factors = molecularWeightFactors(PROTOSTAR_TYPES, 'mass', MAX_SPECIES);
-        const { count, density } = muGas(context);
-        const box = boxForDensity(density);
-        const tolerance = context.floatBlend ? MU_FACTOR_TOLERANCE : MU_FACTOR_TOLERANCE_HALF_FLOAT;
-        const dispersion = THERMAL_GAS_TEMPERATURE;
-        const compositions = [PURE_HYDROGEN, PURE_HELIUM, mixed(MU_MIXED_HELIUM_PERCENT)];
-        const gases: Gas[] = [];
-        for (const composition of compositions) gases.push(await drawGas(context, composition, box, count, dispersion, MU_GAS_SEED));
-        const [hydrogen, helium, mix] = gases;
-
-        // The factor cell by cell: the pure gases against their own, the mixture against a CPU deposit of its particles.
-        const mixedExpected = await cpuFactors(context, mix, count);
-        const errors = {
-            hydrogen: maxAbsRelative(hydrogen.reading.cellFactors, 1),
-            helium: maxAbsRelative(helium.reading.cellFactors, factors[HELIUM]),
-            mixed: maxAbsRelative(mix.reading.cellFactors, i => mixedExpected[i]),
-        };
-        // The same particles at the same places with the same velocities: the dispersion (the energy) cannot depend on the gas.
-        // The pure gases have the same deposit masses, so the same dispersion to rounding; the mixture weighs its particles
-        // differently, which changes the sampling of the same dispersion (fewer effective particles: its estimate is a little lower).
-        const dispersionSpread = Math.abs(helium.reading.dispersion / hydrogen.reading.dispersion - 1);
-        const dispersionMixed = Math.abs(mix.reading.dispersion / hydrogen.reading.dispersion - 1);
-        const ratio = helium.reading.temperature / hydrogen.reading.temperature;
-        const expectedRatio = factors[HELIUM] / factors[HYDROGEN];
-        const ratioError = Math.abs(ratio / expectedRatio - 1);
-        const between = mix.reading.temperature > hydrogen.reading.temperature && mix.reading.temperature < helium.reading.temperature;
-
-        // The core temperature of the stats is the temperature (the reduction reads the factor of the densest cell).
-        const grids = protostarModel(context).debugGrids;
-        grids.reduceStats();
-        const targets = protostarGrids(context);
-        const core = await readTarget(renderer, targets.reduce2);
-        const [gas, thermo] = [await readTarget(renderer, targets.gas), await readAttachment(renderer, targets.gas, 1)];
-        let peak = 0, peakCell = 0;
-        for (let cell = 0; cell < RES * RES; cell++) if (gas[cell * 4] > peak) { peak = gas[cell * 4]; peakCell = cell; }
-        const coreExpected = gas[peakCell * 4 + 1] * thermo[peakCell * 4 + 2] / LAB_T0;     // in T0: the mixture's last drawn grids
-        const coreError = Math.abs(core[1] / coreExpected - 1);
-        const coreIsTemperature = coreError < 1e-5 && Math.abs(core[1] - gas[peakCell * 4 + 1] / LAB_T0) > 1e-3 * core[1];
-
-        const summary = (g: Gas): JsonValue => ({
-            particlesPerNeighborhood: significant(9 * g.reading.particles / Math.max(1, g.reading.cellFactors.length), 4),
-            density: significant(g.reading.density, 4), dispersionT0: significant(g.reading.dispersion, DIGITS),
-            temperatureT0: significant(g.reading.temperature, DIGITS), temperatureMK: significant(g.reading.temperature * PROTOSTAR_T0_KELVIN / MEGA, DIGITS),
-            averagedT0: significant(g.reading.averaged, DIGITS), factor: significant(g.reading.factor, DIGITS),
-            effectiveParticles: significant(g.reading.effectiveParticles, 4),
-        });
-        const ok = errors.hydrogen <= tolerance && errors.helium <= tolerance && errors.mixed <= tolerance && ratioError <= tolerance
-            && dispersionSpread <= tolerance && dispersionMixed <= MU_MIXED_DISPERSION_TOLERANCE && between && coreIsTemperature;
+        const full = await equalDispersion(context, context.floatBlend ? MU_FACTOR_TOLERANCE : MU_FACTOR_TOLERANCE_HALF_FLOAT, true);
+        // The same with the grids forced to deposit in half floats (the path of the devices without EXT_float_blend), always rebuilt after.
+        forceHalfFloatDeposit(true);
+        let half: PathReport;
+        try {
+            rebuildPipeline(context);
+            await restart(context, { count: COUNT_FOR_WARMUP });
+            half = await equalDispersion(context, MU_FACTOR_TOLERANCE_HALF_FLOAT, false);
+        } finally {
+            forceHalfFloatDeposit(false);
+            rebuildPipeline(context);
+        }
+        const ok = full.ok && half.ok;
         return {
             status: ok ? 'pass' : 'fail',
-            metrics: {
-                particles: count, densityRho0: density, dispersionT0: dispersion, tolerance,
-                depositPath: context.floatBlend ? 'float32' : 'halfFloat',
-                hydrogen: summary(hydrogen), helium: summary(helium), mixed: summary(mix), mixedHeliumPercentByNumber: MU_MIXED_HELIUM_PERCENT,
-                factorMaxRelativeError: { hydrogenAgainst1: significant(errors.hydrogen, 3), heliumAgainstMuRatio: significant(errors.helium, 3), mixedAgainstCpu: significant(errors.mixed, 3) },
-                temperatureRatioHeOverH: significant(ratio, DIGITS), expectedRatio: significant(expectedRatio, DIGITS), ratioError: significant(ratioError, 3),
-                mixedBetweenPureGases: between,
-                dispersionDifferenceHeliumHydrogen: significant(dispersionSpread, 3), dispersionDifferenceMixedHydrogen: significant(dispersionMixed, 3),
-                coreTemperatureOfStatsT0: significant(core[1], DIGITS), coreTemperatureExpectedT0: significant(coreExpected, DIGITS),
-                coreTemperatureIsTheTemperature: coreIsTemperature,
-            },
-            details: `equal dispersion ${dispersion} T0: helium / hydrogen = ${ratio.toFixed(4)} (mu ratio ${expectedRatio.toFixed(4)}, error ${ratioError.toExponential(1)}); `
-                + `mixture ${(mix.reading.temperature / hydrogen.reading.temperature).toFixed(3)} (cell factors within ${errors.mixed.toExponential(1)} of the CPU's); `
-                + `hydrogen's factor within ${errors.hydrogen.toExponential(1)} of 1; dispersion differs by ${dispersionSpread.toExponential(1)} (helium) and ${dispersionMixed.toExponential(1)} (mixture) from hydrogen's; `
-                + `stats' core temperature ${core[1].toFixed(4)} T0 (expected ${coreExpected.toFixed(4)})`,
+            metrics: { float32Path: full.metrics, halfFloatPath: half.metrics },
+            details: `${full.details}. Half-float path: ${half.details}`,
         };
     },
 };
