@@ -275,8 +275,8 @@ circular orbits starts at K = 1.42e8, virial ratio 0.82.
 
 - **The criterion of the plan, K + U within 1 % over 100 orbits, is missed**: +39.5 % at 100 orbits (the
   runs were cut by their wall-clock budget at 75 and 63 orbits for the other two). The scenario
-  is a `known-failure`, fixed by phase P5 (adaptive time step) if the dependence on the step below
-  holds. The virial ratio goes from 0.33 to about 1 within 3 orbits, then rises to 1.40: the cloud heats
+  was a `known-failure`, expected to be fixed by phase P5 (adaptive time step) if the dependence on the step below
+  held; phase P5a found the cause in the walls and fixed it ([below](#after-phase-p5a-the-order-of-the-integration)). The virial ratio goes from 0.33 to about 1 within 3 orbits, then rises to 1.40: the cloud heats
   and expands.
 - **The oscillation of the energy about its trend is small**: ±0.016 % (default cloud, running median over 2
   orbits taken off, one reading per 10 frames, that is 37 per orbit). The professor's figure of 2 to
@@ -306,6 +306,8 @@ makes the fixed step the main suspect and the first power of the step, not the s
 is not isolated (the grid force is not the gradient of the grid potential either, and it does not depend on
 the step). If the proportionality held at 100 orbits, the 0.40 % per orbit the default cloud reaches would
 need a step 40 times shorter to stay inside 1 %: an adaptive step (P5) is the way, not a fixed one.
+**Superseded by phase P5a**: the cause was the bounce on the walls, not the step or the order of the passes; with it fixed the
+rate is 0 at every step (see below).
 
 ### Cost of the diagnostics
 
@@ -492,12 +494,102 @@ Acceptance checks of the phase (numbers and method in the spike): at equal dispe
 point (0.5 per second, 60 rho0) with the new defaults against 1.72 with the old ones. A1 alone (laws unchanged) leaves the
 ratio of temperatures where it was and lowers the ratio of dispersions 2.65 times.
 
+## After phase P5a: the order of the integration
+
+P5a ([the spike](spikes/p5a-integrator-order.md)) changes how the velocity and position passes treat a bounce on a wall and the
+first substep of a run; nothing else (not the order of the passes, not the grids, not the parameters or the statistics). The
+first-order drift of the conservative run found by P1a was the walls'. Same GPU and protocol as the P1a section (100 000 particles,
+elastic walls, seed 20240611, 1024 x 768 px area), on the head of the improvements branch at the time (`4dae91f`, with phase P3b-1's
+G = 9: the orbit lasts 13.08 s now, 10.54 s in the P1a section) "before", and the same plus P5a "after" (the commits of this phase).
+
+`baseline.protostar.energy-drift` (the default cloud, 100 orbits of 46 168 frames; 224 s of wall time; the scenario is a `pass`):
+
+| Drift of K + U (%) after | 1 orbit | 3 | 10 | 30 | 100 |
+|---|---|---|---|---|---|
+| default cloud, before (P1a's run, G = 13.85) | -0.05 | +0.21 | +1.31 | +5.50 | +39.5 |
+| default cloud, before (`4dae91f`) | -0.07 | +0.14 | +1.00 | +4.17 | +16.5 after 76 orbits (budget) |
+| default cloud, **after** | **-0.136** | **-0.140** | **-0.145** | **-0.146** | **-0.133** |
+| cold cloud on circular orbits, before (`4dae91f`) | +0.36 | +2.48 | +5.50 | | +10.0 after 19.5 orbits |
+| cold cloud on circular orbits, **after** | -0.07 | +0.05 | +0.08 | +0.15 | +0.20 after 54 orbits (budget) |
+
+The largest drift of the default cloud over the run is 0.71 % (the first collapse, in the first orbit; 0.16 % after the fifth orbit),
+the slope after settling 7e-5 % per orbit (0.007 % over 100 orbits) and the oscillation about it +-0.006 %. The criterion (below 1 %)
+is met and the scenario is a `pass`. The synchronized and the unsynchronized sums differ only in the first collapse (largest excursion 4.9 %
+against 0.71 %). The cold cloud: the largest drift 0.72 % (also the first orbit), slope 0.0027 % per orbit, ten times the default cloud's and
+the one slope that does not vanish: a floor of about 0.3 % over 100 orbits whose cause is not isolated (the grid force is the suspect, see
+[algorithms](algorithms.md)); the criterion is judged on the default cloud. With the application's walls (restitution 0.5) the energy is not
+conserved by construction: -5.18, -8.61, -12.79, -17.31 % after 1, 3, 10 and 30 orbits (-18.4 % after 44), against -5.15, -8.59, -13.03 % before
+(-15.3 % after 16 orbits): the boundary's, not the scheme's.
+
+`baseline.protostar.energy-drift-attribution`, 12 orbits, elastic walls, the time step divided by 1, 2 and 4 (the dt/4 run of the new
+code stops after 5.4 orbits on its time budget):
+
+| Slope after settling, % per orbit | 14.17 ms | 7.08 ms | 3.54 ms |
+|---|---|---|---|
+| before, `36ea02b` (P1a: clamp, `v(n)` reversed alone) | 0.162 | 0.077 | 0.036 |
+| before, `4dae91f` | 0.127 | 0.061 | 0.029 |
+| position mirrored, `v(n)` still reversed alone (`36ea02b`, a variant that was not kept) | 0.105 | 0.051 | 0.023 |
+| **after** (the bounce as an event of the step) | **-0.0008** | **-0.0008** | **+0.00007** |
+| drift after 12 orbits, before (`4dae91f`) / after | 1.27 / -0.144 | 0.55 / -0.140 | 0.19 / -0.137 (5.4 orbits) |
+| largest drift over the run, before / after | 1.27 / 0.78 | 0.71 / 0.70 | 0.68 / 0.69 |
+
+The drift no longer depends on the step: what is left, -0.14 % from the first orbit on, is set by the first collapse (-0.145, -0.134,
+-0.134 % after one orbit at the three steps) and does not grow; the first-order slope of the rows before (0.127, 0.061, 0.029: halved
+with the step) is gone. The 1.5 u a dt of energy per bounce that the walls gained explains the rows before: the clamp of the position was
+a third of it (0.162 to 0.105 is 35 %), the velocity reversed alone the other two thirds. Putting back half of the old spare kick of the first
+substep on the new scheme changes nothing (-0.141 and -0.139 % after 12 orbits at dt and dt/2, slope -0.0009 and -0.0002 % per orbit,
+measured on `36ea02b`'s physics): the first substep was not what drifted. A CPU twin of the particle-mesh force without walls (a one-off script, not kept: 20 000
+particles, 64 x 64 grid) gives the same energy series at dt, dt/2 and dt/4 (3.03, 3.03, 3.04 % after one orbit): velocity Verlet with the
+grid force has no dependence on the step of its own (that run is confounded by particles that leave the grid, so its absolute drift is not a floor).
+
+The unit tests (`tests/leapfrog.test.ts`) pin the second order on a Kepler orbit (energy error 1.13e-2, 2.87e-3, 7.2e-4 at 100, 200 and 400
+steps a period, no drift over 100 periods) and on a bouncing particle. `protostar.integration`: pass, 4 steps of 20 000 particles with 591
+bounces, worst error 1.2e-4 px and 9.1e-5 px/s against the CPU twin (tolerance 5e-4), no particle beyond the tolerances.
+
+The consistency scenarios of phase P1a on the new code: `lab.selftest` passes (9 checks); `protostar.energy-reference` passes (K 2.8e-8, U to
+the twin 1.4e-8, U to the pair sum 0.15 %); `protostar.reduction-channels` **fails on `4dae91f` as well as here** (peak temperature 4.9e-2
+before, 3.9e-2 after, against the twin of the grids; the channels against the particles pass to 1e-7): since phase P3b-1 the reduction's peak
+temperature is the temperature (times mu / mu_H) and the lab's twin (`src/lab/energyReference.ts`) still reads the dispersion. Not a P5a effect,
+left for the owner of that phase.
+
+The default cloud (`baseline.protostar.default-cloud-tuning`, one variant with the defaults, 400 000 particles, 1 200 frames, seeds 20240611 to
+20240613; "before" is `4dae91f` and reproduces the P3b-1 table above to the digit, which makes the comparison exact):
+
+| 34 s, three seeds | before | after |
+|---|---|---|
+| core T while H burns, median (MK) (readings every 20 frames) | 14.0, 14.9, 15.9 | 14.2, 14.7, 15.5 |
+| highest core T (MK) | 247, 269, 170 | 162, 214, 115 |
+| core T in the last quarter (MK) | 101, 155, 47.5 | 63, 139, 54 |
+| hydrogen left of 400 000 | 3 257, 60, 430 | 219, 51, 459 |
+| helium / carbon at the end | 25 997 / 24 499, 2 510 / 32 664, 26 812 / 24 165 | 61 723 / 12 750, 1 505 / 32 558, 67 684 / 10 737 |
+| peak fusions per second (at 2.83 s in all six runs) | 637 000, 615 000, 683 000 | 509 000, 481 000, 550 000 |
+
+The first collapse is the same to a few percent until frame 70 (peak density 8.4 against 8.2 rho0, 2.0 s) and the burst of the fusion rate at
+2.8 s is 20 % lower in the three seeds. That burst is the same to the digit (509 200, 481 460, 549 920 per second) with the old walls on the new
+first substep: it is the removal of the spare kick of the first substep (every particle of the old scheme got a full `a dt` too many, inward,
+0.7 % of its orbital speed: a harder first collapse), not the walls. After the first collapse the history is chaotic and the two builds
+diverge, as two seeds of the same build do. With eight seeds each (20240611 to 20240618): the hydrogen plateau at 14.4 (before) and 13.9 MK
+(after, means; spread 1.1 and 1.2), hydrogen below 20 000 at 22.1 and 21.8 s (medians), carbon above 10 000 at 26.4 and 26.7 s, carbon at 34 s
+27 300 and 26 200 on average (spread of one build: 16 800 to 33 200): not distinguishable. What does differ is the helium flash's peak
+core T: 250 MK on average (spread 60) before, 183 (spread 34) after, lower in seven seeds of eight, and the peak fusion rate (649 000 and 547 000, the
+burst above). The star still behaves: hydrogen burns at about 15 MK, is gone by 30 s, helium ignites at 115 to 240 MK and turns to carbon (10 700 to
+33 600 carbons at 34 s), the last-quarter temperature stays at 54 to 209 MK, no runaway.
+
+Simulation ms/frame, `perf.protostar.400k` and `.1m`, `4dae91f` and the new code alternated, 6 pairs of fresh pages, GTX 1060 (read the ratios):
+
+| | Before | After | Paired ratio, median |
+|---|---|---|---|
+| 400 000 particles | 7.28 (6.82 to 7.40) | 7.11 (6.86 to 7.42) | 0.98 |
+| 1 000 000 particles | 13.99 (13.08 to 14.21) | 14.36 (13.97 to 15.45) | 1.02 |
+
+Not measurable (a spread of 5 to 10 % of the readings): the change adds no texture read and two cheap branches.
+
 ## Open points for later phases
 
-- The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a and is a
-  documented known failure (K + U +39.5 % over 100 orbits, against a target of 1 %): it turns to `pass`
-  when phase P5 (adaptive time step) brings the secular drift down. The omega.dt column above is its
-  precursor. Re-record its table, with the commit, whenever the integration or the gravity change.
+- The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a; it was a documented
+  known failure (K + U +39.5 % over 100 orbits, against a target of 1 %) and passes since phase P5a, which
+  removed the first-order error of the walls. The omega.dt column above is the precursor of the criterion that
+  the adaptive time step (B5) will use. Re-record its table, with the commit, whenever the integration or the gravity change.
 - The ignition ratio is 5.57 at the reference point (0.5 per second, 60 rho0) since P3b-1 (1.72 before); the target of 6.7 and
   the steepnesses are for the Gamow rates (P3b-2). The reference point is a lab convention, to be revisited with the new rate
   laws, and the table at the top of this section is the evidence that it matters.
