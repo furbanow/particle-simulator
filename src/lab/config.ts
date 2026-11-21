@@ -27,6 +27,8 @@ export const SELFTEST_MASS_TOLERANCE = 1e-3;
 export const HALF_FLOAT_MASS_TOLERANCE = 2e-2;
 
 // ---- Baseline of the current protostar model ----
+/** Seeds (LAB_SEED, +1...) of each variant of the default-cloud ablation. */
+export const CLOUD_VARIANT_SEEDS = 3;
 export const BASELINE_PARTICLES = 400000;
 export const BASELINE_FRAMES = 1200;
 /** A software rasterizer cannot run the full baseline in reasonable time: a smaller, noisier one. */
@@ -313,3 +315,70 @@ export const PERF_PHASE_COUNTS = [400000, 1000000] as const;
 export const PERF_PHASE_CHUNK_FRAMES = 10;
 export const PERF_PHASE_CHUNKS = 4;
 export const PERF_PHASE_REPS = 5;
+
+// ---- Fusion heating and the noise of the temperature (phase P3a) ----
+/**
+ * Parameters of the gases of known temperature (set below the sliders' ranges): no gravity, no cooling; hydrogen that fuses
+ * at `rate` per second and per rho0 whatever its temperature (exponent 0: the heating is then the same in every cell of a uniform gas), with a
+ * feedback that makes the heating a sizeable fraction of the thermal energy in one step.
+ */
+export const THERMAL_GAS_OVERRIDES = { gravity: 0, cooling: 0, fusionExponent: 0, feedback: 1 } as const;
+/** Fusion rate constant (1/s) of the heating test: q dt is then about a twentieth of T0 in one step. */
+export const HEATING_RATE = 0.5;
+/** Dispersion T of the thermal gases, in T0 (the temperature of the hydrogen law: the rate is lambda rho at it). */
+export const THERMAL_GAS_TEMPERATURE = 1;
+/** The uniform gas stays this far (px) from the walls, so that no particle reaches one in a step. */
+export const THERMAL_GAS_MARGIN = 40;
+/** Statistics are taken over the cells at least this many cells inside the gas's box, where a neighborhood is full. */
+export const THERMAL_GAS_INTERIOR_CELLS = 3;
+/** Particle counts of the uniform gas (about 355 and 1400 particles per 3 x 3 neighborhood): the energy error of a uniform gas is statistical, it falls as 1 / N. */
+export const HEATING_UNIFORM_PARTICLES = [400000, 1600000] as const;
+/** A software rasterizer cannot draw millions of particles in reasonable time: a smaller gas. */
+export const HEATING_UNIFORM_PARTICLES_SOFTWARE = [100000] as const;
+/** Blobs on a lattice of this spacing (cells), so that no two share a 3 x 3 neighborhood, of this many particles each. */
+export const HEATING_BLOB_SPACING = 4;
+export const HEATING_BLOB_PARTICLES = 200;
+/** Every this many blobs one is cold (a dispersion, in T0, below the floor of the cold cells: they get the kick), to exercise it. */
+export const HEATING_COLD_EVERY = 12;
+export const HEATING_COLD_TEMPERATURE = 1e-5;
+/** The energy a cold blob gains, against q dt in its own frame: the kick adds a cross term with the blob's thermal velocity, of order sigma / (sqrt(n) kick), a few 1e-3 here. */
+export const HEATING_COLD_ENERGY_TOLERANCE = 5e-3;
+/** Dispersions of the hot blobs: from this fraction of the uniform gas's to this multiple of it. */
+export const HEATING_BLOB_TEMPERATURES = [0.3, 3] as const;
+/** The largest bulk velocity of a blob, px/s. */
+export const HEATING_BLOB_BULK = 100;
+/** The energy a heated blob gains against q dt per particle (the plan's 1e-3), and the momentum it gains against its particles' thermal momentum. */
+export const HEATING_ENERGY_TOLERANCE = 1e-3;
+export const HEATING_MOMENTUM_TOLERANCE = 1e-4;
+export const HEATING_SEED = 5115;
+
+// ---- The noise of the temperature (A3): mean fusion rate of a thermal gas against the true rate ----
+/** Particles per 3 x 3 neighborhood of the gases tried (the plan: from 100 to 6 400), and the exponents: the real ones of the proton-proton chain and the triple alpha. */
+export const NOISE_NEIGHBORHOODS = [100, 200, 400, 800, 1600, 3200, 6400] as const;
+export const NOISE_EXPONENTS = [4, 40] as const;
+/** The hydrogen rate constant of the test (1/s per rho0): the true rate is about 0.02 per second, far below the cap of the rate. */
+export const NOISE_RATE = 0.05;
+/** The gas is drawn again (a new seed) for each reading, until the standard error of the mean rate is below this fraction, or at most NOISE_MAX_READINGS. */
+export const NOISE_TARGET_ERROR = 0.01;
+export const NOISE_MIN_READINGS = 4;
+export const NOISE_MAX_READINGS = 900;
+/** Wall-clock limit of one case, seconds (a case that has not converged stops and reports its error). */
+export const NOISE_CASE_BUDGET_SECONDS = 150;
+/** The most particles of a case (the box shrinks for the densest gases). */
+export const NOISE_MAX_PARTICLES = 1_800_000;
+/** A case is judged (the corrected rate within NOISE_TOLERANCE of the true one) when its standard error is below this; the others only report. */
+export const NOISE_JUDGED_ERROR = 0.02;
+export const NOISE_TOLERANCE = 0.05;
+export const NOISE_SEED = 31337;
+
+// ---- Smoothing of the temperature over time (A3, lever 2) ----
+/** A cool gas (T in T0), so that its particles stay inside the box for the run; frames at the step of one substep per frame. */
+export const SMOOTHING_TEMPERATURE = 0.25;
+export const SMOOTHING_PARTICLES = 400000;
+export const SMOOTHING_FRAMES = 150;
+/** Time constants tried (s); 0 is no averaging. */
+export const SMOOTHING_TAUS = [0, 0.05, 0.1, 0.2, 0.4] as const;
+/** Distance (px) of the gas's box from the walls, and of the cells measured from the box's edge: the gas drifts without being replenished. */
+export const SMOOTHING_MARGIN = 120;
+/** Lags (frames) of the autocorrelation of the temperature. */
+export const SMOOTHING_LAGS = [1, 2, 4, 8, 16, 32] as const;

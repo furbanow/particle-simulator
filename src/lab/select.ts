@@ -25,5 +25,7 @@ export function parseOptions(search: string, defaults: LabOptions): LabOptions {
         baselineParticles: integer('baselineParticles', defaults.baselineParticles),
         baselineFrames: integer('baselineFrames', defaults.baselineFrames),
         perfFrames: integer('perfFrames', defaults.perfFrames),
+        noiseReadings: integer('noiseReadings', defaults.noiseReadings),
+        noiseBudgetSeconds: integer('noiseBudgetSeconds', defaults.noiseBudgetSeconds),
     };
 }

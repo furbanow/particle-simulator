@@ -9,14 +9,14 @@ import {
     fusionLawOf, ignitionKelvins, ignitionRatio, ignitionTemperatures,
 } from '../../simulation/protostar/ignition';
 import {
-    BASELINE_SERIES_POINTS, IGNITION_REFERENCE_DENSITY, IGNITION_REFERENCE_RATE, IGNITION_SENSITIVITY_DENSITIES,
+    BASELINE_SERIES_POINTS, CLOUD_VARIANT_SEEDS, LAB_SEED, IGNITION_REFERENCE_DENSITY, IGNITION_REFERENCE_RATE, IGNITION_SENSITIVITY_DENSITIES,
     IGNITION_SENSITIVITY_RATES, OMEGA_DT_LIMIT, REAL_IGNITION_RATIO,
 } from '../config';
 import { probeCore } from '../core';
-import { frameSeconds, modelStats, protostarGrids, restart, runFrames, sleep, substepsPerFrame } from '../driver';
+import { frameSeconds, modelStats, protostarGrids, protostarModel, restart, runFrames, sleep, substepsPerFrame } from '../driver';
 import { decimate, mean, significant, sumChannel } from '../numbers';
 import { readTarget } from '../readback';
-import type { JsonValue, Scenario, ScenarioOutcome } from '../types';
+import type { JsonValue, LabContext, Scenario, ScenarioOutcome } from '../types';
 
 const MEGA = 1e6;
 const SIGNIFICANT_DIGITS = 5;
@@ -40,107 +40,173 @@ interface Sample {
 
 const round = (values: readonly number[]): number[] => values.map(v => significant(v, SIGNIFICANT_DIGITS));
 
+/**
+ * Variants of the default cloud that switch parts of the physics of phase P3a off, to see what each does (the application runs
+ * none of them): the heating by the random kick of the cold cells instead of by scaling, the fusion rate without the correction
+ * of the noise of T, the average of T over time with another time constant (0: none).
+ */
+export interface CloudVariant {
+    name: string;
+    kick?: boolean;
+    uncorrected?: boolean;
+    tau?: number;
+    /** Seed of the cloud (LAB_SEED when omitted). */
+    seed?: number;
+}
+
 /** (a) The default cloud, a fixed seed, `baselineFrames` frames at the algorithm's default speed. */
+async function runDefaultCloud(context: LabContext, variant?: CloudVariant): Promise<ScenarioOutcome> {
+    const { baselineParticles: count, baselineFrames: frames } = context.options;
+    await restart(context, { count, seed: variant?.seed });
+    if (variant) {
+        // A restart gives the switches their application values back: only the ones the variant changes are set.
+        const model = protostarModel(context);
+        if (variant.kick) model.velocityUniforms.heatingTFloor.value = 1e30;
+        if (variant.uncorrected) model.debugGrids.common.noiseCorrection.value = 0;
+        if (variant.tau !== undefined) model.debugGrids.temperatureTau = variant.tau;
+    }
+    const { simulation } = context;
+    const samples: Sample[] = [];
+    const substepSeconds = frameSeconds(context) / substepsPerFrame(context);
+    const started = performance.now();
+    await runFrames(context, frames, {
+        endFrame: true,
+        async onFrame(frame) {
+            // The model has just reduced the grids (every PROTOSTAR_STATS_INTERVAL frames): read the same texel itself.
+            if (frame % PROTOSTAR_STATS_INTERVAL !== 0) return;
+            const grids = protostarGrids(context);
+            const [density, temperature, rate] = await readTarget(context.renderer, grids.reduce2);
+            const size = simulation.screenSize.value;
+            const core = probeCore(await readTarget(context.renderer, grids.gas), await readTarget(context.renderer, grids.gravity),
+                PROTOSTAR_GRID_RES, Math.max(size.x, size.y) / PROTOSTAR_GRID_RES);
+            samples.push({
+                frame, seconds: frame * frameSeconds(context), maxDensity: density,
+                coreMK: temperature * PROTOSTAR_T0_KELVIN / MEGA, fusionRate: rate,
+                omegaDt: core.omega * substepSeconds,
+            });
+        },
+    });
+    const wallSeconds = (performance.now() - started) / 1000;
+
+    // The model's own stats come back asynchronously (smoothed fusion rate); wait for them.
+    let stats = modelStats(context);
+    for (let waited = 0; stats.fusionRate === null && waited < STATS_WAIT_MS; waited += STATS_POLL_MS) {
+        await sleep(STATS_POLL_MS);
+        stats = modelStats(context);
+    }
+    const grids = protostarGrids(context);
+    const massRatio = sumChannel(await readTarget(context.renderer, grids.moments), 0) / count;
+    const counts = simulation.liveTypeCounts();
+
+    const finite = samples.length > 0 && samples.every(s => [s.maxDensity, s.coreMK, s.fusionRate, s.omegaDt].every(Number.isFinite));
+    const last = samples.at(-1);
+    const lateWindow = samples.slice(Math.floor(samples.length * 0.75));
+    const firstFusion = samples.find(s => s.fusionRate > 0);
+    const peak = (pick: (s: Sample) => number): number => samples.reduce((m, s) => Math.max(m, pick(s)), 0);
+    const peakSeconds = (pick: (s: Sample) => number): number | null =>
+        samples.reduce<Sample | null>((best, s) => best === null || pick(s) > pick(best) ? s : best, null)?.seconds ?? null;
+    const overLimit = samples.find(s => s.omegaDt > OMEGA_DT_LIMIT);
+    const series = decimate(samples, BASELINE_SERIES_POINTS);
+    const fixed = (v: number | null): JsonValue => v === null ? null : significant(v, SIGNIFICANT_DIGITS);
+    const metrics: Record<string, JsonValue> = {
+        particles: count,
+        frames,
+        timeScale: simulation.timeScale,
+        substepsPerFrame: substepsPerFrame(context),
+        simulatedSeconds: significant(frames * frameSeconds(context), SIGNIFICANT_DIGITS),
+        wallSeconds: significant(wallSeconds, 3),
+        substepSeconds: significant(substepSeconds, SIGNIFICANT_DIGITS),
+        final: last ? {
+            coreTemperatureMK: fixed(last.coreMK), maxDensity: fixed(last.maxDensity),
+            fusionRatePerSecond: fixed(last.fusionRate), coreOmegaDt: fixed(last.omegaDt),
+        } : null,
+        peak: {
+            coreTemperatureMK: fixed(peak(s => s.coreMK)), maxDensity: fixed(peak(s => s.maxDensity)),
+            fusionRatePerSecond: fixed(peak(s => s.fusionRate)), coreOmegaDt: fixed(peak(s => s.omegaDt)),
+        },
+        peakAtSeconds: {
+            coreTemperature: fixed(peakSeconds(s => s.coreMK)), maxDensity: fixed(peakSeconds(s => s.maxDensity)),
+            fusionRate: fixed(peakSeconds(s => s.fusionRate)),
+        },
+        omegaDtOverLimit: { limit: OMEGA_DT_LIMIT, firstFrame: overLimit?.frame ?? null, firstSeconds: fixed(overLimit?.seconds ?? null) },
+        lastQuarterMean: {
+            coreTemperatureMK: fixed(mean(lateWindow.map(s => s.coreMK))),
+            maxDensity: fixed(mean(lateWindow.map(s => s.maxDensity))),
+            fusionRatePerSecond: fixed(mean(lateWindow.map(s => s.fusionRate))),
+            coreOmegaDt: fixed(mean(lateWindow.map(s => s.omegaDt))),
+        },
+        firstFusion: firstFusion ? { frame: firstFusion.frame, seconds: fixed(firstFusion.seconds) } : null,
+        modelStats: {
+            coreTemperatureMK: fixed(stats.coreTemperature === null ? null : stats.coreTemperature * PROTOSTAR_T0_KELVIN / MEGA),
+            coreDensity: fixed(stats.coreDensity),
+            fusionRateSmoothed: fixed(stats.fusionRate),
+        },
+        typeCountsAtEnd: Object.fromEntries(PROTOSTAR.particleTypes.defaults.map((type, k) => [type.symbol, counts[k] ?? 0])),
+        depositedMassOverCount: fixed(massRatio),
+        series: {
+            frame: series.map(s => s.frame),
+            seconds: round(series.map(s => s.seconds)),
+            coreTemperatureMK: round(series.map(s => s.coreMK)),
+            maxDensity: round(series.map(s => s.maxDensity)),
+            fusionRatePerSecond: round(series.map(s => s.fusionRate)),
+            coreOmegaDt: round(series.map(s => s.omegaDt)),
+        },
+    };
+    return {
+        status: finite ? 'pass' : 'fail',
+        metrics,
+        details: finite
+            ? `${samples.length} readings over ${frames} frames; peak core ${fixed(peak(s => s.coreMK))} MK, peak density ${fixed(peak(s => s.maxDensity))} rho0`
+            : 'a reading was not finite, or none was taken',
+    };
+}
+
 export const defaultCloud: Scenario = {
     id: 'baseline.protostar.default-cloud',
     title: 'Baseline: protostar default cloud, core temperature, density and fusion rate over time',
     tags: ['baseline', 'protostar', 'slow'],
+    run: context => runDefaultCloud(context),
+};
+
+/**
+ * The variants of the ablation: what each part of P3a does to the default cloud. The first is the physics before it, which
+ * must be reproduced. Each is run with a few seeds: the burn history of the star is chaotic, one run does not tell its plateau.
+ */
+const CLOUD_VARIANTS: readonly Omit<CloudVariant, 'seed'>[] = [
+    { name: 'before P3a (kick, no correction, no average)', kick: true, uncorrected: true, tau: 0 },
+    { name: 'scaling only', uncorrected: true, tau: 0 },
+    { name: 'scaling + correction', tau: 0 },
+    { name: 'scaling + correction + average, tau 0.05 s', tau: 0.05 },
+    { name: 'scaling + correction + average, tau 0.1 s', tau: 0.1 },
+    { name: 'scaling + correction + average, tau 0.2 s', tau: 0.2 },
+];
+
+/** The default cloud under each variant of phase P3a and each of a few seeds (about 15 s per run): summaries, and the whole series of the first seed. */
+export const defaultCloudVariants: Scenario = {
+    id: 'baseline.protostar.default-cloud-variants',
+    title: 'Baseline: the default cloud with the parts of phase P3a (heating by scaling, correction of the noise of T, average of T) switched on one by one, three seeds each',
+    tags: ['baseline', 'protostar', 'slow'],
     async run(context): Promise<ScenarioOutcome> {
-        const { baselineParticles: count, baselineFrames: frames } = context.options;
-        await restart(context, { count });
-        const { simulation } = context;
-        const samples: Sample[] = [];
-        const substepSeconds = frameSeconds(context) / substepsPerFrame(context);
-        const started = performance.now();
-        await runFrames(context, frames, {
-            endFrame: true,
-            async onFrame(frame) {
-                // The model has just reduced the grids (every PROTOSTAR_STATS_INTERVAL frames): read the same texel itself.
-                if (frame % PROTOSTAR_STATS_INTERVAL !== 0) return;
-                const grids = protostarGrids(context);
-                const [density, temperature, rate] = await readTarget(context.renderer, grids.reduce2);
-                const size = simulation.screenSize.value;
-                const core = probeCore(await readTarget(context.renderer, grids.gas), await readTarget(context.renderer, grids.gravity),
-                    PROTOSTAR_GRID_RES, Math.max(size.x, size.y) / PROTOSTAR_GRID_RES);
-                samples.push({
-                    frame, seconds: frame * frameSeconds(context), maxDensity: density,
-                    coreMK: temperature * PROTOSTAR_T0_KELVIN / MEGA, fusionRate: rate,
-                    omegaDt: core.omega * substepSeconds,
+        const runs: Record<string, JsonValue>[] = [];
+        let finite = true;
+        for (const variant of CLOUD_VARIANTS) {
+            for (let k = 0; k < CLOUD_VARIANT_SEEDS; k++) {
+                const seed = LAB_SEED + k;
+                const outcome = await runDefaultCloud(context, { ...variant, seed });
+                finite &&= outcome.status === 'pass';
+                const { metrics } = outcome;
+                runs.push({
+                    variant: variant.name, seed,
+                    peak: metrics.peak, peakAtSeconds: metrics.peakAtSeconds, firstFusion: metrics.firstFusion,
+                    lastQuarterMean: metrics.lastQuarterMean, final: metrics.final, typeCountsAtEnd: metrics.typeCountsAtEnd,
+                    series: k === 0 ? metrics.series : null,
                 });
-            },
-        });
-        const wallSeconds = (performance.now() - started) / 1000;
-
-        // The model's own stats come back asynchronously (smoothed fusion rate); wait for them.
-        let stats = modelStats(context);
-        for (let waited = 0; stats.fusionRate === null && waited < STATS_WAIT_MS; waited += STATS_POLL_MS) {
-            await sleep(STATS_POLL_MS);
-            stats = modelStats(context);
+            }
         }
-        const grids = protostarGrids(context);
-        const massRatio = sumChannel(await readTarget(context.renderer, grids.moments), 0) / count;
-        const counts = simulation.liveTypeCounts();
-
-        const finite = samples.length > 0 && samples.every(s => [s.maxDensity, s.coreMK, s.fusionRate, s.omegaDt].every(Number.isFinite));
-        const last = samples.at(-1);
-        const lateWindow = samples.slice(Math.floor(samples.length * 0.75));
-        const firstFusion = samples.find(s => s.fusionRate > 0);
-        const peak = (pick: (s: Sample) => number): number => samples.reduce((m, s) => Math.max(m, pick(s)), 0);
-        const peakSeconds = (pick: (s: Sample) => number): number | null =>
-            samples.reduce<Sample | null>((best, s) => best === null || pick(s) > pick(best) ? s : best, null)?.seconds ?? null;
-        const overLimit = samples.find(s => s.omegaDt > OMEGA_DT_LIMIT);
-        const series = decimate(samples, BASELINE_SERIES_POINTS);
-        const fixed = (v: number | null): JsonValue => v === null ? null : significant(v, SIGNIFICANT_DIGITS);
-        const metrics: Record<string, JsonValue> = {
-            particles: count,
-            frames,
-            timeScale: simulation.timeScale,
-            substepsPerFrame: substepsPerFrame(context),
-            simulatedSeconds: significant(frames * frameSeconds(context), SIGNIFICANT_DIGITS),
-            wallSeconds: significant(wallSeconds, 3),
-            substepSeconds: significant(substepSeconds, SIGNIFICANT_DIGITS),
-            final: last ? {
-                coreTemperatureMK: fixed(last.coreMK), maxDensity: fixed(last.maxDensity),
-                fusionRatePerSecond: fixed(last.fusionRate), coreOmegaDt: fixed(last.omegaDt),
-            } : null,
-            peak: {
-                coreTemperatureMK: fixed(peak(s => s.coreMK)), maxDensity: fixed(peak(s => s.maxDensity)),
-                fusionRatePerSecond: fixed(peak(s => s.fusionRate)), coreOmegaDt: fixed(peak(s => s.omegaDt)),
-            },
-            peakAtSeconds: {
-                coreTemperature: fixed(peakSeconds(s => s.coreMK)), maxDensity: fixed(peakSeconds(s => s.maxDensity)),
-                fusionRate: fixed(peakSeconds(s => s.fusionRate)),
-            },
-            omegaDtOverLimit: { limit: OMEGA_DT_LIMIT, firstFrame: overLimit?.frame ?? null, firstSeconds: fixed(overLimit?.seconds ?? null) },
-            lastQuarterMean: {
-                coreTemperatureMK: fixed(mean(lateWindow.map(s => s.coreMK))),
-                maxDensity: fixed(mean(lateWindow.map(s => s.maxDensity))),
-                fusionRatePerSecond: fixed(mean(lateWindow.map(s => s.fusionRate))),
-                coreOmegaDt: fixed(mean(lateWindow.map(s => s.omegaDt))),
-            },
-            firstFusion: firstFusion ? { frame: firstFusion.frame, seconds: fixed(firstFusion.seconds) } : null,
-            modelStats: {
-                coreTemperatureMK: fixed(stats.coreTemperature === null ? null : stats.coreTemperature * PROTOSTAR_T0_KELVIN / MEGA),
-                coreDensity: fixed(stats.coreDensity),
-                fusionRateSmoothed: fixed(stats.fusionRate),
-            },
-            typeCountsAtEnd: Object.fromEntries(PROTOSTAR.particleTypes.defaults.map((type, k) => [type.symbol, counts[k] ?? 0])),
-            depositedMassOverCount: fixed(massRatio),
-            series: {
-                frame: series.map(s => s.frame),
-                seconds: round(series.map(s => s.seconds)),
-                coreTemperatureMK: round(series.map(s => s.coreMK)),
-                maxDensity: round(series.map(s => s.maxDensity)),
-                fusionRatePerSecond: round(series.map(s => s.fusionRate)),
-                coreOmegaDt: round(series.map(s => s.omegaDt)),
-            },
-        };
         return {
             status: finite ? 'pass' : 'fail',
-            metrics,
-            details: finite
-                ? `${samples.length} readings over ${frames} frames; peak core ${fixed(peak(s => s.coreMK))} MK, peak density ${fixed(peak(s => s.maxDensity))} rho0`
-                : 'a reading was not finite, or none was taken',
+            metrics: { particles: context.options.baselineParticles, frames: context.options.baselineFrames, runs },
+            details: `${runs.length} runs of the default cloud`,
         };
     },
 };

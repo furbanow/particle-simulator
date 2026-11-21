@@ -143,7 +143,7 @@ describe('lab: scenario selection', () => {
 });
 
 describe('lab: page options and renderer', () => {
-    const defaults: LabOptions = { baselineParticles: 400000, baselineFrames: 1200, perfFrames: 120 };
+    const defaults: LabOptions = { baselineParticles: 400000, baselineFrames: 1200, perfFrames: 120, noiseReadings: 900, noiseBudgetSeconds: 150 };
 
     it('reads positive integers from the query and ignores the rest', () => {
         expect(parseOptions('', defaults)).toEqual(defaults);

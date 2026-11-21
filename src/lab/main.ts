@@ -3,13 +3,13 @@
 // <pre id="lab-json"> and as window.__labResults, then sets window.__labDone.
 //
 // Query string: ?scenarios=a,b (ids, groups or tags, see select.ts), ?autorun=0 (wait for the
-// button), ?baselineFrames=, ?baselineParticles=, ?perfFrames= (quick experiments).
+// button), ?baselineFrames=, ?baselineParticles=, ?perfFrames=, ?noiseReadings=, ?noiseBudgetSeconds= (quick experiments).
 
 import * as THREE from 'three';
 import { createRenderer } from '../gl/createRenderer';
 import { Simulation } from '../simulation/Simulation';
 import {
-    BASELINE_FRAMES, BASELINE_FRAMES_SOFTWARE, BASELINE_PARTICLES, BASELINE_PARTICLES_SOFTWARE, LAB_AREA, PERF_FRAMES,
+    BASELINE_FRAMES, BASELINE_FRAMES_SOFTWARE, BASELINE_PARTICLES, BASELINE_PARTICLES_SOFTWARE, LAB_AREA, NOISE_CASE_BUDGET_SECONDS, NOISE_MAX_READINGS, PERF_FRAMES,
 } from './config';
 import { GpuSync } from './gpuSync';
 import { SCENARIOS } from './registry';
@@ -63,6 +63,8 @@ function createContext(): LabContext {
             baselineParticles: software ? BASELINE_PARTICLES_SOFTWARE : BASELINE_PARTICLES,
             baselineFrames: software ? BASELINE_FRAMES_SOFTWARE : BASELINE_FRAMES,
             perfFrames: PERF_FRAMES,
+            noiseReadings: NOISE_MAX_READINGS,
+            noiseBudgetSeconds: NOISE_CASE_BUDGET_SECONDS,
         }),
         log,
     };

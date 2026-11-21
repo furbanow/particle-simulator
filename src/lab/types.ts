@@ -23,6 +23,9 @@ export interface LabOptions {
     baselineParticles: number;
     baselineFrames: number;
     perfFrames: number;
+    /** Most readings, and seconds, of a case of protostar.temperature-noise. */
+    noiseReadings: number;
+    noiseBudgetSeconds: number;
 }
 
 /** What a scenario is given: the renderer, the real simulation and the helpers that go with them. */
