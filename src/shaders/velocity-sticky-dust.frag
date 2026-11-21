@@ -1,20 +1,19 @@
 // GPGPU velocity step of the "sticky dust" algorithm: multi-scale gravity, threshold pressure,
 // viscosity toward the local flow, force of the static drawings (drawing.glsl, included before).
-// Defines: MAX_SPECIES, DRAWING_RES. Provided by GPUComputationRenderer: resolution.
+// Defines: MAX_SPECIES, DRAWING_RES, DENSITY_RES (dust-gravity-lattice.glsl, included before). Provided by GPUComputationRenderer: resolution.
 // The state samplers are bound by GpuPipeline (the velocity pass declares no dependencies).
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
 uniform sampler2D textureDensity;
 uniform sampler2D textureSupernova;
+uniform sampler2D textureGravity;       // gravity of the coarse levels per density texel (DustGravityField)
 uniform vec2 screenSize;
 uniform vec2 domainOffset;
 uniform float domainSize;
 uniform float densityRes;
-uniform float maxLod;
 uniform float dt;
 uniform float activeCount;
 uniform float kGravity;
-uniform float longRange;
 uniform float kPressure;
 uniform float restDensity;
 uniform float viscosityRate;
@@ -36,8 +35,6 @@ uniform float speciesInvRelDensity[MAX_SPECIES];  // mean density / species dens
 uniform float speciesEjectScale[MAX_SPECIES];     // sqrt(mean mass / species mass)
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-
-float pressureAt(vec2 uv) { return max(textureLod(textureDensity, uv, 0.0).r - restDensity, 0.0); }
 
 void main() {
     vec2 uv = gl_FragCoord.xy / resolution.xy;
@@ -82,24 +79,20 @@ void main() {
     float bound = 1.0 - clamp(eject / ejectTime, 0.0, 1.0);
     vec2 duv = (pos + domainOffset) / domainSize;
 
-    // Each mip level is the density smoothed at twice the previous scale; summing their
-    // central differences builds a multi-scale pull (equal weights ~ 1/r potential).
-    vec2 gravity = vec2(0.0);
-    for (int i = 0; i < 16; i++) {
-        float lod = float(i);
-        if (lod > maxLod) break;
-        float o = exp2(lod) / densityRes;
-        float w = exp2(lod * longRange);
-        gravity.x += w * (textureLod(textureDensity, duv + vec2(o, 0.0), lod).r
-                        - textureLod(textureDensity, duv - vec2(o, 0.0), lod).r);
-        gravity.y += w * (textureLod(textureDensity, duv + vec2(0.0, o), lod).r
-                        - textureLod(textureDensity, duv - vec2(0.0, o), lod).r);
-    }
-
+    // The four density texels around the particle: level 0's pull and the pressure both come from them.
     vec2 t = vec2(1.0 / densityRes);
-    vec2 pressure = vec2(
-        pressureAt(duv + vec2(t.x, 0.0)) - pressureAt(duv - vec2(t.x, 0.0)),
-        pressureAt(duv + vec2(0.0, t.y)) - pressureAt(duv - vec2(0.0, t.y)));
+    float dxp = textureLod(textureDensity, duv + vec2(t.x, 0.0), 0.0).r;
+    float dxm = textureLod(textureDensity, duv - vec2(t.x, 0.0), 0.0).r;
+    float dyp = textureLod(textureDensity, duv + vec2(0.0, t.y), 0.0).r;
+    float dym = textureLod(textureDensity, duv - vec2(0.0, t.y), 0.0).r;
+
+    // Multi-scale pull: each mip level is the density smoothed at twice the previous scale; summing the
+    // gradients of the levels builds a pull with weights 2^(level * LONG_RANGE) (~ 1/r potential). Level 0 is
+    // read here, from the taps above; the coarser levels were summed per texel by DustGravityField.
+    vec2 gravity = vec2(dxp - dxm, dyp - dym) + textureLod(textureGravity, gravityFieldUv(duv), 0.0).xy;
+
+    vec2 pressure = vec2(max(dxp - restDensity, 0.0) - max(dxm - restDensity, 0.0),
+                         max(dyp - restDensity, 0.0) - max(dym - restDensity, 0.0));
 
     // Buoyancy: the pressure push is divided by the species' relative density, so species
     // denser than the mean sink to the core of clumps and lighter ones float to the rim.

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
-    CONCENTRATION_RADIUS_SLIDER, EJECT_SCALE_RANGE, EJECT_TIME, GLOBAL_DRAG, INV_REL_DENSITY_RANGE, K_GRAVITY, K_PRESSURE, LONG_RANGE,
-    MAX_PARTICLES, MAX_SPECIES, MAX_SPEED, REST_DENSITY, RESTITUTION, SHOCK_STRENGTH, SUPERNOVA_COOLDOWN,
+    CONCENTRATION_RADIUS_SLIDER, DENSITY_RES, EJECT_SCALE_RANGE, EJECT_TIME, GLOBAL_DRAG, GRAVITY_WINDOW_MARGIN, INV_REL_DENSITY_RANGE,
+    K_GRAVITY, K_PRESSURE, MAX_PARTICLES, MAX_SPECIES, MAX_SPEED, REST_DENSITY, RESTITUTION, SHOCK_STRENGTH, SUPERNOVA_COOLDOWN,
     SUPERNOVA_SPEED, SUPERNOVA_THRESHOLD_SLIDER, TEX_SIZE, VISCOSITY_RATE,
 } from '../../config';
 import { withDefines } from '../../gl/withDefines';
@@ -9,9 +9,13 @@ import { clamp } from '../../util/math';
 import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
 import { analyzeConcentration } from '../concentration';
 import { DRAWING_DEFINES, drawingGlsl } from '../drawing/DrawingField';
+import type { DensityField } from '../densityField';
 import type { GpuModel, GpuModelContext } from '../gpuModel';
 import { ShockWave } from '../shockWave';
 import { STICKY_DUST_PARAM, STICKY_DUST_PROPERTY, STICKY_DUST_STAT, stickyDustDensity } from './declaration';
+import { DustGravityField } from './gravityField';
+import { gravityWindow } from './gravityWindow';
+import latticeGlsl from '../../shaders/dust-gravity-lattice.glsl?raw';
 import stickyDustFrag from '../../shaders/velocity-sticky-dust.frag?raw';
 
 const P = STICKY_DUST_PARAM;
@@ -22,10 +26,11 @@ const P = STICKY_DUST_PARAM;
  * disk; above the threshold it goes supernova (ejection, then a shock wave).
  */
 export class StickyDustModel implements GpuModel {
-    readonly velocityShader = withDefines(`${drawingGlsl}\n${stickyDustFrag}`, { MAX_SPECIES, ...DRAWING_DEFINES });
+    readonly velocityShader = withDefines(`${drawingGlsl}\n${latticeGlsl}\n${stickyDustFrag}`, {
+        MAX_SPECIES, DENSITY_RES, ...DRAWING_DEFINES,
+    });
     readonly velocityUniforms = {
         kGravity: { value: K_GRAVITY },
-        longRange: { value: LONG_RANGE },
         kPressure: { value: K_PRESSURE },
         restDensity: { value: REST_DENSITY },
         viscosityRate: { value: VISCOSITY_RATE },
@@ -33,6 +38,7 @@ export class StickyDustModel implements GpuModel {
         maxSpeed: { value: MAX_SPEED },
         restitution: { value: RESTITUTION },
         textureSupernova: { value: null as THREE.DataTexture | null },
+        textureGravity: { value: null as THREE.Texture | null },
         supernovaActive: { value: 0 },
         supernovaCenter: { value: new THREE.Vector2() },
         supernovaSpeed: { value: SUPERNOVA_SPEED },
@@ -60,11 +66,24 @@ export class StickyDustModel implements GpuModel {
     private readonly supernovaTexture = new THREE.DataTexture(this.supernovaMask, TEX_SIZE, TEX_SIZE,
         THREE.RedFormat, THREE.UnsignedByteType);
     private readonly shock = new ShockWave(this.velocityUniforms);
+    private readonly gravity: DustGravityField;
 
     constructor(private readonly context: GpuModelContext) {
         Object.assign(this.velocityUniforms, context.drawing.uniforms);   // by reference
+        this.gravity = new DustGravityField(context.renderer, context.density.target.texture);
+        this.velocityUniforms.textureGravity.value = this.gravity.target.texture;
         this.supernovaTexture.needsUpdate = true;
         this.velocityUniforms.textureSupernova.value = this.supernovaTexture;
+    }
+
+    /** Dev-only: the per-texel gravity field, for the lab page (src/lab). Not used by the app. */
+    get debugGravity(): DustGravityField {
+        return this.gravity;
+    }
+
+    /** Dev-only: the density field the gravity is computed from, for the lab page. Not used by the app. */
+    get debugDensity(): DensityField {
+        return this.context.density;
     }
 
     /** Dev-only, read-only: the values the model holds, whatever their kind. */
@@ -124,6 +143,14 @@ export class StickyDustModel implements GpuModel {
         this.shock.advance(dt);
     }
 
+    /** The density pyramid is ready: sums the gravity of its levels on the grid the velocity pass reads. */
+    afterDensity(): void {
+        const { density, screenSize } = this.context;
+        const offset = density.domainOffset.value;
+        this.gravity.render(gravityWindow(offset.x, offset.y, density.domainSize.value, screenSize.value.x, screenSize.value.y,
+            DENSITY_RES, GRAVITY_WINDOW_MARGIN));
+    }
+
     afterSubstep(): void {
         const u = this.velocityUniforms;
         if (u.supernovaActive.value !== 1) return;
@@ -163,6 +190,7 @@ export class StickyDustModel implements GpuModel {
     }
 
     dispose(): void {
+        this.gravity.dispose();
         this.supernovaTexture.dispose();
     }
 }

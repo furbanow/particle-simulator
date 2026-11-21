@@ -33,3 +33,14 @@ export class GridPass {
         (this.scene.children[0] as THREE.Mesh).geometry.dispose();
     }
 }
+
+/**
+ * A square grid of `size` x `size` cells of two half floats (R, G), read with bilinear filtering (half floats
+ * are filterable and renderable everywhere WebGL 2 runs the simulation; float32 ones are not).
+ */
+export function filteredGridTarget(size: number): THREE.WebGLRenderTarget {
+    return new THREE.WebGLRenderTarget(size, size, {
+        type: THREE.HalfFloatType, format: THREE.RGFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+        generateMipmaps: false, depthBuffer: false,
+    });
+}

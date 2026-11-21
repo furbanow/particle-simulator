@@ -27,6 +27,18 @@ export const TOTAL_MASS = 20000;
 // twice the screen size so the screen stays inside it for any shift.
 export const DENSITY_RES = 512;
 export const DENSITY_DOMAIN_SCALE = 2;
+/** Highest mip level of the density field that carries a gradient (the 1x1 level carries none). */
+export const DENSITY_TOP_LEVEL = Math.log2(DENSITY_RES) - 1;
+/**
+ * The gravity of the sticky dust is computed per texel, only where the particles can read it: the
+ * screen's window of the density field plus this margin (density texels, bilinear footprint included).
+ */
+export const GRAVITY_WINDOW_MARGIN = 2;
+/**
+ * Stencil of the gradient of each coarse level in the sticky dust's gravity: the difference across a
+ * texel is averaged over the three rows with the weights w, 1 - 2w, w. 0 is the plain central difference.
+ */
+export const DUST_GRADIENT_CORNER_WEIGHT = 0;
 export const K_GRAVITY = 3;
 // Weight of mip level L is 2^(L * LONG_RANGE): 0 gives a 1/r^2 pull, 1 gives 1/r (2D gravity).
 // In between, distant clumps still find each other and merge.

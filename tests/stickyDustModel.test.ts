@@ -1,11 +1,15 @@
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { K_GRAVITY } from '../src/config';
 import type { GpuModelContext } from '../src/simulation/gpuModel';
 import { STICKY_DUST_PARAM } from '../src/simulation/stickyDust/declaration';
 import { StickyDustModel } from '../src/simulation/stickyDust/gpuModel';
 
-// The constructor only merges the drawing uniforms; nothing needs a GPU to set parameters.
-const newModel = (): StickyDustModel => new StickyDustModel({ drawing: { uniforms: {} } } as unknown as GpuModelContext);
+// The constructor merges the drawing uniforms and builds the gravity passes (objects only: nothing
+// needs a GPU until they render), so setting parameters does not need one either.
+const newModel = (): StickyDustModel => new StickyDustModel({
+    drawing: { uniforms: {} }, renderer: {}, density: { target: new THREE.WebGLRenderTarget(1, 1) },
+} as unknown as GpuModelContext);
 
 describe('StickyDustModel.setParam', () => {
     it('applies numbers to the uniforms', () => {
