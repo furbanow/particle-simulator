@@ -20,6 +20,7 @@ The scenarios start by themselves; the table fills in as they finish. Query stri
 | `autorun=0` | Wait for the Run button. |
 | `baselineFrames=`, `baselineParticles=`, `perfFrames=` | Shorter or longer runs, for experiments. |
 | `noiseReadings=`, `noiseBudgetSeconds=` | The most gases drawn, and the seconds, per case of `protostar.temperature-noise` (900 and 150). |
+| `cloudVariants=`, `cloudSeeds=` | The variants (a URL-encoded JSON array, see below) and the number of seeds (3) of `baseline.protostar.default-cloud-tuning`. |
 
 From the console, `await __lab.run('lab,baseline')` starts a run.
 
@@ -59,7 +60,9 @@ not run. Set `LAB_NO_SANDBOX=1` where Chrome refuses to start without `--no-sand
 | `protostar.half-float-deposit` | The deposit grids in half floats (the path of the GPUs without `EXT_float_blend`) against float32. |
 | `protostar.second-deposit` | The composition deposit (second attachment of the moments pass: m/mu, count, m^2) against a CPU reference computed from the position texture, in float32 and in the forced half-float path ([spike](spikes/a1-second-deposit.md)). |
 | `protostar.second-deposit-load` | The same on the 400 000-particle cloud once its core has formed (thousands of particles in a cell); the half-float path is measured, not judged. |
-| `baseline.protostar.ignition-ratio` | Ignition temperatures of H and He from the current rate laws, and their ratio (pure TypeScript). |
+| `protostar.molecular-weight` | The mean molecular weight in the temperature (A1): thermal gases of pure hydrogen, pure helium and a mixture with the same particles at the same places with the same velocities. The helium gas must read mu_He / mu_H = 2.65 times the temperature of the hydrogen gas, the mixture in between (its factor, cell by cell, against a CPU deposit of its particles), pure hydrogen unchanged, the dispersion (the energy) not touched, and the core temperature of the stats must be the temperature, not the dispersion. [Spike](spikes/a1-mean-molecular-weight.md). |
+| `protostar.ignition-gas` | The ignition temperatures on pure thermal gases (A1): a hydrogen gas and a helium gas of 1 000 000 particles at 20 rho0, drawn at ten temperatures each, gravity, cooling and feedback off. The mean fusion rate of the particles against the temperature of the gas, compared with the rate laws' twin; the temperature at which each gas reaches a few reference rates and the ratio He/H, in temperature and in dispersion. |
+| `baseline.protostar.ignition-ratio` | Ignition temperatures of H and He from the current rate laws, and their ratio, in temperature and in velocity dispersion (pure TypeScript). |
 | `baseline.protostar.default-cloud` | The default cloud: core temperature, peak density, fusion rate and omega.dt in the core over time. |
 | `protostar.energy-reference` | The energy diagnostics (A7) against a CPU reference computed from a read-back of the positions and velocities of a 5 000-particle cloud: K against the direct sum, U against a CPU twin of the two-level grid scheme and against the direct O(N^2) Plummer sum, the grid gravity (force and potential) against the twin, and the potential kept from the previous substep. |
 | `protostar.reduction-channels` | Every channel of the multichannel reduction (peak, extremes, energies, center of mass, momentum) against a CPU sum of the grids read back, and the exact ones against sums over the particles; reports how good the speed bound is. |
@@ -68,6 +71,7 @@ not run. Set `LAB_NO_SANDBOX=1` where Chrome refuses to start without `--no-sand
 | `protostar.heating` | The fusion heating by velocity scaling (A5) on gases of known temperature, gravity and cooling off, one substep: blobs of 200 particles exactly at the center of isolated cells (each reads its cell alone: the energy gained is `q dt` per particle to rounding, the momentum does not move, cold blobs get the kick of the cold cells), and a uniform gas of 400 000 and 1 600 000 particles with the real interpolation, against the random kick it replaces (the same gas with the kick forced). [Spike](spikes/a5-a3-heating-and-t-noise.md). |
 | `protostar.temperature-noise` | The noise of the temperature (A3): the mean fusion rate of a thermal gas of dispersion T_ref against the true rate, for 100 to 6 400 particles per 3 x 3 neighborhood and the real exponents 4 and 40, with the bias correction switched off (the bias the plan predicts) and on, the gas drawn again for each reading until the standard error is small. Also fits the effective number of particles from the uncorrected bias. Slow (5 minutes: the cases of few particles at alpha = 40 need hundreds of readings). |
 | `protostar.temperature-smoothing` | What the exponential average of T over time buys: the noise of T from cell to cell of a gas that moves, instantaneous and averaged, for several time constants, and the autocorrelation of T. |
+| `baseline.protostar.default-cloud-tuning` | The default cloud under the variants of the `cloudVariants` option, each with `cloudSeeds` seeds, with the whole series (core temperature, density, fusion rate, particles of each type): `[{"name":"A1 off","molecularWeight":false},{"name":"G 8","overrides":{"gravity":8,"fusionRate":0.004},"frames":600}]`. `molecularWeight: false` is the temperature of the code before A1 (the dispersion), `overrides` set protostar parameters directly (below the sliders' minima too), `kick`, `uncorrected` and `tau` the switches of P3a. A tool for tuning the defaults; skips with no variant. |
 | `baseline.protostar.default-cloud-variants` | The default cloud with the parts of phase P3a switched on one by one (the kick instead of the scaling, no correction, no average, several time constants), three seeds each; the first variant is the physics before P3a. Slow (4 minutes). |
 | `dust.gravity.parity` | The sticky dust's per-texel gravity against the per-particle loop it replaced (the yardstick kept in `src/lab/gravityProbe.ts`), at the particles of a clumped cloud; also against the original central-difference loop. |
 | `dust.gravity.point-mass` | The pull of a point mass on rings around it against the angle: anisotropy of the central difference, of Scharr's stencil and of the stencil in use ([spikes/b1-dust-gravity.md](spikes/b1-dust-gravity.md)). |
@@ -151,13 +155,15 @@ The tools a scenario gets (`src/lab/driver.ts`, `readback.ts`):
   `readPositions()`. `dustDeposit.ts` is the CPU reference of the dust's deposit, `haffFit.ts` the fit of Haff's law.
 - **Gases of known temperature.** `protostarModel(context).debugInitialState = state => ...` replaces the
   initial cloud of the next restart (no initial acceleration): `fillThermalGas()` (a uniform gas of
-  Maxwellian velocities in a box) and `fillBlobs()` (groups of particles exactly at the center of a
+  Maxwellian velocities in a box, of any types: `typeOf`, with the population weights of `restart` to match) and `fillBlobs()` (groups of particles exactly at the center of a
   cell, with standardized velocities, which read one cell's gas state alone) in `src/lab/thermalGas.ts`,
   the CPU twin of what a particle reads in `heatingReference.ts`; set it to `null` after the restart.
   `model.debugGrids.temperatureTau` (time constant of the average of T, 0: none),
   `model.debugGrids.common.noiseCorrection.value` (0: the fusion rate is not divided by the bias of the
-  noise of T) and `model.velocityUniforms.heatingTFloor.value` (a huge value: the random kick for every
-  particle) switch parts of the physics of P3a off; a restart gives them their values back.
+  noise of T), `model.velocityUniforms.heatingTFloor.value` (a huge value: the random kick for every
+  particle) and `model.debugGrids.molecularWeightEnabled = false` (the temperature is the dispersion, as before A1)
+  switch parts of the physics of P3a and P3b off; a restart gives them their values back. `boxForDensity()`
+  (`src/lab/ignitionScan.ts`) gives the square that holds all the mass at a given density, the densest uniform gas.
 - `runFrames(context, n, { endFrame, onFrame, step })` steps the simulation and synchronizes with
   the GPU every few frames; `GpuSync` (`context.sync`) waits for the GPU on demand.
 

@@ -2,11 +2,13 @@
 // can be compared with it. These scenarios do not judge the physics (a status of `pass` means they
 // ran and produced finite numbers); the numbers go to docs/lab-baseline.md.
 
-import { PROTOSTAR_GRID_RES, PROTOSTAR_STATS_INTERVAL, PROTOSTAR_T0_KELVIN } from '../../config';
+import { MAX_SPECIES, PROTOSTAR_GRID_RES, PROTOSTAR_STATS_INTERVAL, PROTOSTAR_T0_KELVIN } from '../../config';
+import type { ParamValues } from '../../simulation/algorithm';
 import { defaultParams } from '../../simulation/params';
-import { HELIUM, HYDROGEN, PROTOSTAR, PROTOSTAR_REACTIONS } from '../../simulation/protostar/declaration';
+import { molecularWeightFactors } from '../../simulation/protostar/composition';
+import { HELIUM, HYDROGEN, PROTOSTAR, PROTOSTAR_REACTIONS, PROTOSTAR_TYPES } from '../../simulation/protostar/declaration';
 import {
-    fusionLawOf, ignitionKelvins, ignitionRatio, ignitionTemperatures,
+    fusionLawOf, ignitionKelvins, ignitionRatio, ignitionTemperatures, kineticIgnitionRatio,
 } from '../../simulation/protostar/ignition';
 import {
     BASELINE_SERIES_POINTS, CLOUD_VARIANT_SEEDS, LAB_SEED, IGNITION_REFERENCE_DENSITY, IGNITION_REFERENCE_RATE, IGNITION_SENSITIVITY_DENSITIES,
@@ -34,6 +36,8 @@ interface Sample {
     coreMK: number;
     /** Expected fusions per second in the whole cloud. */
     fusionRate: number;
+    /** Live particles of each of the first three types (hydrogen, helium, carbon), from the model's last read-back; -1 before the first. */
+    counts: readonly number[];
     /** Oscillation frequency in the core (1/s) times the substep: the Verlet integrator needs it well below 1. */
     omegaDt: number;
 }
@@ -41,29 +45,38 @@ interface Sample {
 const round = (values: readonly number[]): number[] => values.map(v => significant(v, SIGNIFICANT_DIGITS));
 
 /**
- * Variants of the default cloud that switch parts of the physics of phase P3a off, to see what each does (the application runs
- * none of them): the heating by the random kick of the cold cells instead of by scaling, the fusion rate without the correction
- * of the noise of T, the average of T over time with another time constant (0: none).
+ * Variants of the default cloud that switch parts of the physics of phases P3a and P3b off, or tune its parameters, to see what
+ * each does (the application runs none of them): the heating by the random kick of the cold cells instead of by scaling, the fusion
+ * rate without the correction of the noise of T, the average of T over time with another time constant (0: none), the temperature
+ * without the molecular weight (the dispersion, as before A1), protostar parameters set directly (below the sliders' minima too).
  */
 export interface CloudVariant {
     name: string;
     kick?: boolean;
     uncorrected?: boolean;
     tau?: number;
+    /** False: the temperature is the velocity dispersion, as before the mean molecular weight (A1). */
+    molecularWeight?: boolean;
+    /** Protostar parameters (gravity, fusionRate, feedback, ...) set on the model, whatever the sliders' ranges. */
+    overrides?: ParamValues;
+    /** Frames to run instead of the option's. */
+    frames?: number;
     /** Seed of the cloud (LAB_SEED when omitted). */
     seed?: number;
 }
 
 /** (a) The default cloud, a fixed seed, `baselineFrames` frames at the algorithm's default speed. */
 async function runDefaultCloud(context: LabContext, variant?: CloudVariant): Promise<ScenarioOutcome> {
-    const { baselineParticles: count, baselineFrames: frames } = context.options;
-    await restart(context, { count, seed: variant?.seed });
+    const { baselineParticles: count } = context.options;
+    const frames = variant?.frames ?? context.options.baselineFrames;
+    await restart(context, { count, seed: variant?.seed, overrides: variant?.overrides });
     if (variant) {
         // A restart gives the switches their application values back: only the ones the variant changes are set.
         const model = protostarModel(context);
         if (variant.kick) model.velocityUniforms.heatingTFloor.value = 1e30;
         if (variant.uncorrected) model.debugGrids.common.noiseCorrection.value = 0;
         if (variant.tau !== undefined) model.debugGrids.temperatureTau = variant.tau;
+        if (variant.molecularWeight === false) model.debugGrids.molecularWeightEnabled = false;
     }
     const { simulation } = context;
     const samples: Sample[] = [];
@@ -83,6 +96,7 @@ async function runDefaultCloud(context: LabContext, variant?: CloudVariant): Pro
                 frame, seconds: frame * frameSeconds(context), maxDensity: density,
                 coreMK: temperature * PROTOSTAR_T0_KELVIN / MEGA, fusionRate: rate,
                 omegaDt: core.omega * substepSeconds,
+                counts: [0, 1, 2].map(k => simulation.liveTypeCounts()?.[k] ?? -1),
             });
         },
     });
@@ -150,6 +164,9 @@ async function runDefaultCloud(context: LabContext, variant?: CloudVariant): Pro
             maxDensity: round(series.map(s => s.maxDensity)),
             fusionRatePerSecond: round(series.map(s => s.fusionRate)),
             coreOmegaDt: round(series.map(s => s.omegaDt)),
+            hydrogen: series.map(s => s.counts[0]),
+            helium: series.map(s => s.counts[1]),
+            carbon: series.map(s => s.counts[2]),
         },
     };
     return {
@@ -211,7 +228,11 @@ export const defaultCloudVariants: Scenario = {
     },
 };
 
-/** (b) The ignition temperature of each fusion reaction at a reference rate and density, and their ratio He / H. */
+/**
+ * (b) The ignition temperature of each fusion reaction at a reference rate and density, and their ratio He / H. The temperatures
+ * are those the rate laws read, the gas's temperature (the dispersion times mu / mu_H since A1); the same ratio of the velocity
+ * dispersions of the two pure gases at their ignition is the temperatures' ratio over the molecular weights' (2.65).
+ */
 export const ignitionRatioBaseline: Scenario = {
     id: 'baseline.protostar.ignition-ratio',
     title: 'Baseline: ignition temperature ratio He/H of the current rate laws',
@@ -224,6 +245,7 @@ export const ignitionRatioBaseline: Scenario = {
         const temperatures = ignitionTemperatures(PROTOSTAR_REACTIONS, params, IGNITION_REFERENCE_DENSITY, IGNITION_REFERENCE_RATE);
         const kelvins = ignitionKelvins(temperatures);
         const ratio = ratioAt(IGNITION_REFERENCE_RATE, IGNITION_REFERENCE_DENSITY);
+        const factors = molecularWeightFactors(PROTOSTAR_TYPES, 'mass', MAX_SPECIES);
         const law = (i: number): JsonValue => {
             const l = fusionLawOf(PROTOSTAR_REACTIONS[i], params);
             return { lambda: l.rate, alpha: l.exponent, densityExponent: l.densityExponent, referenceMK: significant(l.reference * PROTOSTAR_T0_KELVIN / MEGA, SIGNIFICANT_DIGITS) };
@@ -238,12 +260,77 @@ export const ignitionRatioBaseline: Scenario = {
                 hydrogenIgnitionMK: significant(kelvins[h] / MEGA, SIGNIFICANT_DIGITS),
                 heliumIgnitionMK: significant(kelvins[he] / MEGA, SIGNIFICANT_DIGITS),
                 ratioHeOverH: significant(ratio, 4),
+                kineticRatioHeOverH: significant(kineticIgnitionRatio(ratio, factors[HYDROGEN], factors[HELIUM]), 4),
                 realRatio: significant(REAL_IGNITION_RATIO, 3),
                 meetsRealRatio: ratio >= REAL_IGNITION_RATIO,
                 laws: { hydrogen: law(h), helium: law(he) },
                 sensitivity,
             },
             details: `He/H = ${ratio.toFixed(2)} at ${IGNITION_REFERENCE_RATE}/s and ${IGNITION_REFERENCE_DENSITY} rho0 (real physics: ${REAL_IGNITION_RATIO.toFixed(1)}); baseline only, the target is for P3b`,
+        };
+    },
+};
+
+
+/** The variants of the `cloudVariants` option: a JSON array of objects (see CloudVariant), the invalid ones left out. */
+export function parseCloudVariants(json: string): Omit<CloudVariant, 'seed'>[] {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(json);
+    } catch {
+        return [];
+    }
+    if (!Array.isArray(parsed)) return [];
+    const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+    return parsed.filter(isRecord).map((v, i): Omit<CloudVariant, 'seed'> => {
+        const overrides: ParamValues = {};
+        if (isRecord(v.overrides)) {
+            for (const [key, value] of Object.entries(v.overrides)) if (typeof value === 'number' && Number.isFinite(value)) overrides[key] = value;
+        }
+        return {
+            name: typeof v.name === 'string' ? v.name : `variant ${i + 1}`,
+            kick: v.kick === true, uncorrected: v.uncorrected === true,
+            tau: typeof v.tau === 'number' ? v.tau : undefined,
+            molecularWeight: v.molecularWeight === false ? false : undefined,
+            overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
+            frames: typeof v.frames === 'number' && v.frames > 0 ? Math.round(v.frames) : undefined,
+        };
+    });
+}
+
+/**
+ * The default cloud under the variants the page URL gives (`?cloudVariants=[{"name":"G 8","overrides":{"gravity":8}}]`), each with
+ * `cloudSeeds` seeds: a tool for tuning the defaults (phase P3b-1's minimal recalibration) and for the ablation of the molecular
+ * weight (`molecularWeight: false` is the temperature of the code before A1). Skips when no variant is given.
+ */
+export const defaultCloudTuning: Scenario = {
+    id: 'baseline.protostar.default-cloud-tuning',
+    title: 'Baseline: the default cloud under the variants of the cloudVariants option (parameters, molecular weight on or off), a few seeds each',
+    tags: ['baseline', 'protostar', 'slow', 'tuning'],
+    async run(context): Promise<ScenarioOutcome> {
+        const variants = parseCloudVariants(context.options.cloudVariants);
+        if (variants.length === 0) return { status: 'skip', metrics: {}, details: 'no variant: give the cloudVariants option (a JSON array)' };
+        const runs: Record<string, JsonValue>[] = [];
+        let finite = true;
+        for (const variant of variants) {
+            for (let k = 0; k < context.options.cloudSeeds; k++) {
+                const seed = LAB_SEED + k;
+                const outcome = await runDefaultCloud(context, { ...variant, seed });
+                finite &&= outcome.status === 'pass';
+                const { metrics } = outcome;
+                runs.push({
+                    variant: variant.name, seed, overrides: variant.overrides ?? null, molecularWeight: variant.molecularWeight ?? true,
+                    frames: variant.frames ?? context.options.baselineFrames,
+                    peak: metrics.peak, peakAtSeconds: metrics.peakAtSeconds, firstFusion: metrics.firstFusion,
+                    lastQuarterMean: metrics.lastQuarterMean, final: metrics.final, typeCountsAtEnd: metrics.typeCountsAtEnd,
+                    series: metrics.series,
+                });
+            }
+        }
+        return {
+            status: finite ? 'pass' : 'fail',
+            metrics: { particles: context.options.baselineParticles, runs },
+            details: `${runs.length} runs of the default cloud`,
         };
     },
 };

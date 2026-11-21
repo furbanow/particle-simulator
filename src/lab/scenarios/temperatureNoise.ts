@@ -15,14 +15,14 @@ import { PROTOSTAR_GRID_RES } from '../../config';
 import { logGammaRatio, logNoiseBias, noiseBias } from '../../simulation/protostar/noiseBias';
 import {
     LAB_AREA, NOISE_EXPONENTS, NOISE_JUDGED_ERROR, NOISE_MAX_PARTICLES, NOISE_MIN_READINGS,
-    NOISE_NEIGHBORHOODS, NOISE_RATE, NOISE_SEED, NOISE_TARGET_ERROR, NOISE_TOLERANCE, THERMAL_GAS_INTERIOR_CELLS, THERMAL_GAS_MARGIN,
+    NOISE_NEIGHBORHOODS, NOISE_RATE, NOISE_SEED, NOISE_TARGET_ERROR, NOISE_TOLERANCE, THERMAL_GAS_MARGIN,
     THERMAL_GAS_OVERRIDES, THERMAL_GAS_TEMPERATURE,
 } from '../config';
 import { protostarGrids, protostarModel, restart } from '../driver';
 import { significant } from '../numbers';
 import { mulberry32 } from '../random';
 import { readAttachment, readTarget } from '../readback';
-import { fillThermalGas, LAB_CELL, thermalSigma, type Box } from '../thermalGas';
+import { fillThermalGas, interiorCells, LAB_CELL, thermalSigma, type Box } from '../thermalGas';
 import type { JsonValue, LabContext, Scenario, ScenarioOutcome } from '../types';
 
 const DIGITS = 4;
@@ -45,15 +45,6 @@ export function noiseBox(neighborhood: number): { box: Box; count: number } {
     const [cx, cy] = [LAB_AREA.width / 2, LAB_AREA.height / 2];
     const box = { x0: cx - w / 2, y0: cy - h / 2, x1: cx + w / 2, y1: cy + h / 2 };
     return { box, count: Math.round(perCell * w * h / (LAB_CELL * LAB_CELL)) };
-}
-
-/** The cells at least THERMAL_GAS_INTERIOR_CELLS inside the box, as [x0, x1) and [y0, y1) in cells. */
-function interiorCells(box: Box): { x0: number; x1: number; y0: number; y1: number } {
-    const m = THERMAL_GAS_INTERIOR_CELLS;
-    return {
-        x0: Math.ceil(box.x0 / LAB_CELL) + m, x1: Math.floor(box.x1 / LAB_CELL) - m,
-        y0: Math.ceil(box.y0 / LAB_CELL) + m, y1: Math.floor(box.y1 / LAB_CELL) - m,
-    };
 }
 
 interface Reading {

@@ -456,3 +456,29 @@ export const SUPERNOVA_SEEDS_RUNS = 3;
 export const CONCENTRATION_COST_COUNTS = [400000, 1000000, 3000000] as const;
 export const CONCENTRATION_COST_FRAMES = 150;
 export const CONCENTRATION_COST_REPEATS = 5;
+
+// ---- Mean molecular weight (proposal A1) ----
+/** Equal-dispersion check: particles, density (rho0) and seed of the thermal gases of pure hydrogen, pure helium and a mixture. */
+export const MU_GAS_PARTICLES = 400_000;
+export const MU_GAS_DENSITY = 4;
+export const MU_GAS_SEED = 7771;
+/** Number of helium atoms per hundred atoms in the mixed gas. */
+export const MU_MIXED_HELIUM_PERCENT = 20;
+/** The mixture's dispersion against the hydrogen gas's (the same velocities, other weights: a statistical difference, about 0.2 %). */
+export const MU_MIXED_DISPERSION_TOLERANCE = 0.01;
+/** The factor mu / mu_H of each gas against its reference (the pure ones are exact to rounding, the mixture to the sums' rounding). */
+export const MU_FACTOR_TOLERANCE = 1e-4;
+/** The same where the deposit sums are half floats (a device without EXT_float_blend): see docs/spikes/a1-second-deposit.md. */
+export const MU_FACTOR_TOLERANCE_HALF_FLOAT = 0.06;
+/**
+ * Ignition on thermal gases: particles of each gas and its density (rho0: the densest uniform gas that leaves interior
+ * cells, all the mass of the simulation in a square of 14 cells), the temperatures (in T0, as the gas reads them, the
+ * dispersion of a helium gas being 2.65 times lower) it is drawn at, the reference rates of the ignition and the tolerance of
+ * the rate against the law's twin.
+ */
+export const IGNITION_GAS_PARTICLES = 1_000_000;
+export const IGNITION_GAS_DENSITY = 20;
+export const IGNITION_GAS_TEMPERATURES = [0.4, 0.6, 0.9, 1.3, 1.9, 2.8, 4, 6, 9, 13] as const;
+export const IGNITION_GAS_RATES = [0.01, 0.1, 0.5] as const;
+export const IGNITION_GAS_SEED = 4242;
+export const IGNITION_GAS_TOLERANCE = 0.1;

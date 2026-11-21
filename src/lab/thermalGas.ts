@@ -7,7 +7,7 @@
 
 import { PROTOSTAR_FUSION_T_REF, PROTOSTAR_GRID_RES } from '../config';
 import type { InitialState } from '../simulation/gpuModel';
-import { LAB_AREA } from './config';
+import { LAB_AREA, THERMAL_GAS_INTERIOR_CELLS } from './config';
 
 /**
  * The scales of the lab's area (1024 x 768 px): T0 (px^2/s^2) and the cell size of the grids (px).
@@ -26,6 +26,14 @@ export interface Box {
     y1: number;
 }
 
+/** The cells at least `margin` (THERMAL_GAS_INTERIOR_CELLS by default) inside the box, as [x0, x1) and [y0, y1) in cells: they read a uniform gas alone. */
+export function interiorCells(box: Box, margin = THERMAL_GAS_INTERIOR_CELLS): { x0: number; x1: number; y0: number; y1: number } {
+    return {
+        x0: Math.ceil(box.x0 / LAB_CELL) + margin, x1: Math.floor(box.x1 / LAB_CELL) - margin,
+        y0: Math.ceil(box.y0 / LAB_CELL) + margin, y1: Math.floor(box.y1 / LAB_CELL) - margin,
+    };
+}
+
 /** Two independent standard normal numbers from two uniforms in (0, 1] and [0, 1) (Box-Muller). */
 export function gaussianPair(u1: number, u2: number): [number, number] {
     const radius = Math.sqrt(-2 * Math.log(1 - u1));
@@ -33,12 +41,12 @@ export function gaussianPair(u1: number, u2: number): [number, number] {
     return [radius * Math.cos(angle), radius * Math.sin(angle)];
 }
 
-/** Writes particle `i`: position, type 0 (the first type: hydrogen) and w = 1 (alive); velocity (vx, vy). */
-function place(state: InitialState, i: number, x: number, y: number, vx: number, vy: number): void {
+/** Writes particle `i`: position, type (0, the first type: hydrogen, unless the caller says otherwise) and w = 1 (alive); velocity (vx, vy). */
+function place(state: InitialState, i: number, x: number, y: number, vx: number, vy: number, type = 0): void {
     const { positions, velocities } = state;
     positions[i * 4] = x;
     positions[i * 4 + 1] = y;
-    positions[i * 4 + 2] = 0;
+    positions[i * 4 + 2] = type;
     positions[i * 4 + 3] = 1;
     velocities[i * 4] = vx;
     velocities[i * 4 + 1] = vy;
@@ -47,20 +55,21 @@ function place(state: InitialState, i: number, x: number, y: number, vx: number,
 }
 
 /**
- * `state.count` particles of the first type, uniform in `box`, with velocities drawn from a normal
- * distribution of standard deviation `sigma` (px/s) per component around `bulk`: a gas of dispersion
- * T = 2 sigma^2 at rest (or moving as a whole).
+ * `state.count` particles, uniform in `box`, with velocities drawn from a normal distribution of standard deviation `sigma`
+ * (px/s) per component around `bulk`: a gas of dispersion T = 2 sigma^2 at rest (or moving as a whole). Of the first type
+ * (hydrogen), or of the type `typeOf(i)` gives to the i-th particle: positions and velocities do not depend on it, so two gases
+ * of different composition drawn from the same random source have the same particles at the same places with the same velocities.
  */
 export function fillThermalGas(state: InitialState, box: Box, sigma: number, random: () => number,
-                               bulk: readonly [number, number] = [0, 0]): void {
+                               bulk: readonly [number, number] = [0, 0], typeOf: (index: number) => number = () => 0): void {
     for (let i = 0; i < state.count; i += 2) {
         const [gx, gy] = gaussianPair(random(), random());
         const [hx, hy] = gaussianPair(random(), random());
         place(state, i, box.x0 + random() * (box.x1 - box.x0), box.y0 + random() * (box.y1 - box.y0),
-            bulk[0] + sigma * gx, bulk[1] + sigma * gy);
+            bulk[0] + sigma * gx, bulk[1] + sigma * gy, typeOf(i));
         if (i + 1 < state.count) {
             place(state, i + 1, box.x0 + random() * (box.x1 - box.x0), box.y0 + random() * (box.y1 - box.y0),
-                bulk[0] + sigma * hx, bulk[1] + sigma * hy);
+                bulk[0] + sigma * hx, bulk[1] + sigma * hy, typeOf(i + 1));
         }
     }
 }

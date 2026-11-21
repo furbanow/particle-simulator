@@ -26,6 +26,9 @@ export interface LabOptions {
     /** Most readings, and seconds, of a case of protostar.temperature-noise. */
     noiseReadings: number;
     noiseBudgetSeconds: number;
+    /** Seeds of each variant of baseline.protostar.default-cloud-tuning, and its variants as JSON (an array of objects, see CloudVariant). */
+    cloudSeeds: number;
+    cloudVariants: string;
 }
 
 /** What a scenario is given: the renderer, the real simulation and the helpers that go with them. */

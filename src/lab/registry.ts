@@ -1,7 +1,7 @@
 // The scenarios of the lab, in the order they run. To add one: write a `Scenario` (see
 // docs/lab.md) in src/lab/scenarios/ and list it here.
 
-import { defaultCloud, defaultCloudVariants, ignitionRatioBaseline } from './scenarios/baseline';
+import { defaultCloud, defaultCloudTuning, defaultCloudVariants, ignitionRatioBaseline } from './scenarios/baseline';
 import { diagnosticsCost } from './scenarios/diagnosticsCost';
 import { dustCloudScenarios } from './scenarios/dustCloud';
 import { dustConcentrationScenarios } from './scenarios/dustConcentration';
@@ -14,6 +14,7 @@ import { dustSupernovaHistoryScenarios } from './scenarios/dustSupernovaHistory'
 import { energyDrift, energyDriftAttribution, energyReference, reductionChannels } from './scenarios/energy';
 import { halfFloatDeposit } from './scenarios/halfFloat';
 import { heating } from './scenarios/heating';
+import { ignitionGas, molecularWeight } from './scenarios/molecularWeight';
 import { temperatureNoise } from './scenarios/temperatureNoise';
 import { temperatureSmoothing } from './scenarios/temperatureSmoothing';
 import { perfScenarios } from './scenarios/perf';
@@ -29,11 +30,14 @@ export const SCENARIOS: readonly Scenario[] = [
     secondDeposit,
     secondDepositLoad,
     heating,
+    molecularWeight,
+    ignitionGas,
     temperatureNoise,
     temperatureSmoothing,
     ignitionRatioBaseline,
     defaultCloud,
     defaultCloudVariants,
+    defaultCloudTuning,
     energyReference,
     reductionChannels,
     energyDrift,
