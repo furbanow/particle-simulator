@@ -3,7 +3,6 @@
 // twin of the reduction (protostar-reduce.frag), and the statistics of an energy series. Pure
 // (tested in tests/lab.test.ts): no GPU, no DOM.
 
-import { circularSpeed } from '../simulation/protostar/initialConditions';
 import { ENERGY_OSCILLATION_WINDOW_ORBITS } from './config';
 import { quantile } from './numbers';
 
@@ -226,9 +225,14 @@ export function reductionReference(g: ReductionGrids): ReductionSums {
 
 // ---- Orbits and energy series ----
 
-/** Period of a circular orbit of radius `radius` around `enclosed` mass, s (the softened law of the cloud). */
+/**
+ * Period of a circular orbit of radius `radius` around `enclosed` mass taken as one softened point, s: v^2 / r = G M r / (r^2 + eps^2)^(3/2).
+ * The lab's unit of time for the energy runs (an orbit at the half-mass radius), kept as it was when the cloud's own circular speed was
+ * this law's: the disc's (disc.ts) is not what the unit stands for.
+ */
 export function orbitalPeriod(gravity: number, enclosed: number, radius: number, softening: number): number {
-    return 2 * Math.PI * radius / circularSpeed(gravity, enclosed, radius, softening);
+    const speed = Math.sqrt(gravity * enclosed * radius * radius / (radius * radius + softening * softening) ** 1.5);
+    return 2 * Math.PI * radius / speed;
 }
 
 export interface DriftStatistics {

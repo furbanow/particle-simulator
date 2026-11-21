@@ -118,8 +118,8 @@ The tools a scenario gets (`src/lab/driver.ts`, `readback.ts`):
   conservative run. `Simulation.reset()` hands the model the slider-validated values back, so
   `restart` sets them before (the initial cloud reads the gravity) and after the reset.
   `weights: [0.6, 0.3, 0.1]` sets the population weights of the first types for that restart (a
-  cloud of hydrogen, helium and carbon instead of hydrogen alone). `params: { rotation: 1,
-  agitation: 0 }` sets panel parameters through the `Simulation` (so within the sliders' ranges)
+  cloud of hydrogen, helium and carbon instead of hydrogen alone). `params: { alphaVir: 0.96,
+  betaRot: 0.48 }` sets panel parameters through the `Simulation` (so within the sliders' ranges)
   before the restart: the initial conditions.
 - **Half-float deposit.** `forceHalfFloatDeposit(true)` (`src/simulation/protostar/grids.ts`)
   makes the grids created from then on deposit in half floats; `rebuildPipeline(context)` creates

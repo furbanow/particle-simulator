@@ -219,12 +219,13 @@ export const ENERGY_DRIFT_FRAMES_SOFTWARE = 40;
  * The runs of the drift scenario, each with the wall-clock budget (a run that does not reach its orbits in time stops and says how many it
  * did) and the restitution of the walls (`ELASTIC_WALLS`: a conservative run has walls that return all of the speed; the application's
  * return half of it, and the energy that goes there is not the scheme's). The criterion is judged on the first: the default cloud in a
- * conservative configuration. The second is a cold cloud with rotation at the circular speed and no agitation. The third is the
+ * conservative configuration. The second is a cold cloud with rotation at the circular speed (the disc's: beta_rot 0.48 is 1.003 times the circular speed at the
+ * default softening, alpha_vir twice that leaves no agitation) and no agitation. The third is the
  * first with the application's walls, to measure what they take.
  */
 export const ENERGY_DRIFT_CLOUDS = [
     { name: 'default', params: {}, budgetMs: 600_000, elasticWalls: true },
-    { name: 'circular', params: { rotation: 1, agitation: 0 }, budgetMs: 120_000, elasticWalls: true },
+    { name: 'circular', params: { alphaVir: 0.96, betaRot: 0.48 }, budgetMs: 120_000, elasticWalls: true },
     { name: 'default, application walls', params: {}, budgetMs: 100_000, elasticWalls: false },
 ] as const;
 /**

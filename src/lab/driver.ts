@@ -44,7 +44,7 @@ export interface RunOptions {
     overrides?: ParamValues;
     /**
      * Panel parameters set through the Simulation before the restart, so they pass the sliders' validation (the initial
-     * conditions: `{ rotation: 1, agitation: 0 }` for a cold cloud on circular orbits).
+     * conditions: `{ alphaVir: 0.96, betaRot: 0.48 }` for a cold cloud on circular orbits).
      */
     params?: ParamValues;
     /** Simulation speed (time scale) after the restart; the algorithm's default when omitted. It sets the time step: dt = BASE_DT x speed / ceil(speed). */

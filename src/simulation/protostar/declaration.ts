@@ -5,11 +5,11 @@
 
 import {
     CARBON_12_MASS, HYDROGEN_1_MASS, MASS_RANGE, MASS_SLIDER_STEPS, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP,
-    PROTOSTAR_AGITATION_SLIDER, PROTOSTAR_ALPHA_SLIDER, PROTOSTAR_C_SIZE, PROTOSTAR_COOLING_SLIDER,
+    PROTOSTAR_ALPHA_SLIDER, PROTOSTAR_C_SIZE, PROTOSTAR_COOLING_SLIDER,
     PROTOSTAR_COUNT_SLIDER, PROTOSTAR_FEEDBACK_SLIDER, PROTOSTAR_GRAVITY_SLIDER, PROTOSTAR_H_SIZE,
     PROTOSTAR_HE_ALPHA_SLIDER, PROTOSTAR_HE_IGNITION_KELVIN, PROTOSTAR_HE_LAMBDA_SLIDER, PROTOSTAR_HE_SIZE,
-    PROTOSTAR_LAMBDA_SLIDER, PROTOSTAR_OPACITY_SLIDER, PROTOSTAR_ROTATION_SLIDER, PROTOSTAR_SOFTENING_SLIDER,
-    PROTOSTAR_T0_KELVIN, SIZE_RANGE, SIZE_STEP, type SliderSpec,
+    PROTOSTAR_LAMBDA_SLIDER, PROTOSTAR_OPACITY_SLIDER, PROTOSTAR_ROTATION_ENERGY_SLIDER, PROTOSTAR_SOFTENING_SLIDER,
+    PROTOSTAR_T0_KELVIN, PROTOSTAR_VIRIAL_SLIDER, SIZE_RANGE, SIZE_STEP, type SliderSpec,
 } from '../../config';
 import { formatNumber, localizeDecimal, t } from '../../i18n';
 import { randomPopulationWeights } from '../../population';
@@ -19,13 +19,17 @@ import { clamp } from '../../util/math';
 import {
     linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type ParamDef, type ParticleType,
 } from '../algorithm';
+import { DENSITY_PROFILES } from './disc';
+import { TURBULENCE_KINDS } from './initialConditions';
 import { reactionTransitions, type FusionReaction } from './reactions';
 
 /** Keys of the parameters, shared with the GPU model. */
 export const PROTOSTAR_PARAM = {
     count: PARTICLE_COUNT_PARAM,
-    rotation: 'rotation',
-    agitation: 'agitation',
+    alphaVir: 'alphaVir',
+    betaRot: 'betaRot',
+    profile: 'profile',
+    turbulence: 'turbulence',
     gravity: 'gravity',
     softening: 'softening',
     cooling: 'cooling',
@@ -87,12 +91,18 @@ const params: readonly ParamDef[] = [
     { ...sliderFields(PROTOSTAR_COUNT_SLIDER), key: PROTOSTAR_PARAM.count, tab: 'initial', label: t('algo.protostar.param.count.label'),
         doc: t('algo.protostar.param.count.doc'),
         format: formatInt },
-    { ...sliderFields(PROTOSTAR_ROTATION_SLIDER), key: PROTOSTAR_PARAM.rotation, tab: 'initial', label: t('algo.protostar.param.rotation.label'),
-        doc: t('algo.protostar.param.rotation.doc'),
-        format: v => `${fixed(2)(v)} × v_circ` },
-    { ...sliderFields(PROTOSTAR_AGITATION_SLIDER), key: PROTOSTAR_PARAM.agitation, tab: 'initial', label: t('algo.protostar.param.agitation.label'),
-        doc: t('algo.protostar.param.agitation.doc'),
-        format: v => `${fixed(2)(v)} × v_circ` },
+    { ...sliderFields(PROTOSTAR_VIRIAL_SLIDER), key: PROTOSTAR_PARAM.alphaVir, tab: 'initial', label: t('algo.protostar.param.alphaVir.label'),
+        doc: t('algo.protostar.param.alphaVir.doc'),
+        format: v => `α = ${fixed(2)(v)}` },
+    { ...sliderFields(PROTOSTAR_ROTATION_ENERGY_SLIDER), key: PROTOSTAR_PARAM.betaRot, tab: 'initial', label: t('algo.protostar.param.betaRot.label'),
+        doc: t('algo.protostar.param.betaRot.doc'),
+        format: v => `β = ${fixed(2)(v)}` },
+    { kind: 'choice', key: PROTOSTAR_PARAM.profile, tab: 'initial', label: t('algo.protostar.param.profile.label'), default: 'uniform',
+        options: DENSITY_PROFILES.map(value => ({ value, label: t(`algo.protostar.option.profile.${value}`) })),
+        doc: t('algo.protostar.param.profile.doc') },
+    { kind: 'choice', key: PROTOSTAR_PARAM.turbulence, tab: 'initial', label: t('algo.protostar.param.turbulence.label'), default: 'white',
+        options: TURBULENCE_KINDS.map(value => ({ value, label: t(`algo.protostar.option.turbulence.${value}`) })),
+        doc: t('algo.protostar.param.turbulence.doc') },
     { ...sliderFields(PROTOSTAR_GRAVITY_SLIDER), key: PROTOSTAR_PARAM.gravity, tab: 'physics', label: t('algo.protostar.param.gravity.label'),
         doc: t('algo.protostar.param.gravity.doc'),
         format: v => `G = ${fixed(2)(v)}` },

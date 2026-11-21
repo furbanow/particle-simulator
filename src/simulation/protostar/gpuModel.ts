@@ -14,7 +14,7 @@ import { EnergyBalance, type EnergyStats } from './energy';
 import { PROTOSTAR_PARAM, PROTOSTAR_PROPERTY, PROTOSTAR_REACTIONS, PROTOSTAR_STAT } from './declaration';
 import { inverseMolecularWeights } from './composition';
 import { ProtostarGrids, withProtostarCommon, type ProtostarGridTargets } from './grids';
-import { fillCloud } from './initialConditions';
+import { fillCloud, type CloudSummary } from './initialConditions';
 import { reactionArrays } from './reactions';
 import { REDUCTION_FLOATS, REDUCTION_TEXELS, unpackReduction, type Reduction, type ReductionScales } from './reduction';
 import velocityFrag from '../../shaders/protostar-velocity.frag?raw';
@@ -99,11 +99,16 @@ export class ProtostarModel implements GpuModel {
     private lastCenter: Vec2 | null = null;
     private sinceLastCenter = 0;                       // s
     private pendingKick: Vec2 | null = null;
+    private initialCloud: CloudSummary | null = null;
     /**
-     * Dev-only (the lab): fills the initial positions and velocities instead of the cloud (see fillCloud), with no initial
-     * acceleration; for gases of known temperature. Null in the application.
+     * Dev-only (the lab): fills the initial positions and velocities instead of the cloud (see fillCloud); for gases of known temperature. Null in the application.
      */
     debugInitialState: ((state: InitialState) => void) | null = null;
+
+    /** Dev-only, read-only: what the initial cloud of the latest restart was made of (its disc's table, the energies it set); null with a debug initial state. */
+    get debugInitialCloud(): CloudSummary | null {
+        return this.initialCloud;
+    }
 
     constructor(private readonly context: GpuModelContext) {
         this.grids = new ProtostarGrids(context.renderer, context.geometry, context.speciesUniforms.splatMass,
@@ -184,15 +189,18 @@ export class ProtostarModel implements GpuModel {
     }
 
     initialize(state: InitialState): void {
+        this.initialCloud = null;
         if (this.debugInitialState) {
             this.debugInitialState(state);
             return;
         }
         const length = Math.max(1, Math.min(state.width, state.height));
         const radius = PROTOSTAR_CLOUD_RADIUS * length;
-        fillCloud(state, {
+        this.initialCloud = fillCloud(state, {
             radius, gravity: this.gravity(length), totalMass: TOTAL_MASS, softening: this.softening(length),
-            rotation: numberOr(state.params[P.rotation], 0), agitation: numberOr(state.params[P.agitation], 0),
+            profile: state.params[P.profile] === 'maclaurin' ? 'maclaurin' : 'uniform',
+            virial: numberOr(state.params[P.alphaVir], 0), rotation: numberOr(state.params[P.betaRot], 0),
+            turbulence: state.params[P.turbulence] === 'correlated' ? 'correlated' : 'white',
         });
     }
 

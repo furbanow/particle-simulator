@@ -14,9 +14,7 @@ import {
 } from '../src/simulation/protostar/composition';
 import { centerOfMass, driftCorrection } from '../src/simulation/protostar/drift';
 import { noiseBias } from '../src/simulation/protostar/noiseBias';
-import {
-    circularSpeed, enclosedMassFractions, fillCloud, softenedPull,
-} from '../src/simulation/protostar/initialConditions';
+import { fillCloud, type CloudOptions } from '../src/simulation/protostar/initialConditions';
 import {
     defectFraction, expectedMassAfter, fusionProbability, fusionRate, massDefect, reactionArrays, reactionTransitions,
     survivalProbability, type FusionLaw,
@@ -44,7 +42,7 @@ describe('protostar declaration', () => {
 
     it('declares the required parameters with their defaults', () => {
         const params = defaultParams(PROTOSTAR);
-        for (const key of ['count', 'gravity', 'softening', 'rotation', 'cooling', 'fusionRate', 'fusionExponent', 'heFusionRate', 'heFusionExponent', 'feedback']) {
+        for (const key of ['count', 'gravity', 'softening', 'alphaVir', 'betaRot', 'profile', 'turbulence', 'cooling', 'fusionRate', 'fusionExponent', 'heFusionRate', 'heFusionExponent', 'feedback']) {
             expect(params).toHaveProperty(key);
         }
         const byKey = Object.fromEntries(PROTOSTAR.params.map(p => [p.key, p]));
@@ -52,7 +50,7 @@ describe('protostar declaration', () => {
         expect(byKey.feedback.kind === 'number' && byKey.feedback.scale).toBe('log');
         expect(byKey.heFusionRate.kind === 'number' && byKey.heFusionRate.scale).toBe('log');
         expect(tabsOf(PROTOSTAR.params).map(t => t.id)).toEqual(['initial', 'physics', 'fusion', 'features']);
-        expect(PROTOSTAR.params.filter(p => p.tab === 'initial').map(p => p.key)).toEqual(['count', 'rotation', 'agitation']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'initial').map(p => p.key)).toEqual(['count', 'alphaVir', 'betaRot', 'profile', 'turbulence']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'cooling', 'opacity']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'fusion').map(p => p.key)).toEqual(['fusionRate', 'fusionExponent', 'heFusionRate', 'heFusionExponent', 'feedback']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics']);
@@ -238,27 +236,38 @@ describe('fusion reactions', () => {
 });
 
 describe('initial cloud', () => {
-    it('enclosed mass: fraction of the particles inside each radius', () => {
-        const f = enclosedMassFractions([3, 1, 2, 4]);
-        expect([...f]).toEqual([2.5 / 4, 0.5 / 4, 1.5 / 4, 3.5 / 4]);
-    });
-
-    it('circular speed: sqrt(G M_enc / r) far from the softening length, 0 at the center', () => {
-        expect(circularSpeed(2, 50, 100, 0)).toBeCloseTo(Math.sqrt(2 * 50 / 100), 12);
-        expect(circularSpeed(2, 50, 100, 1)).toBeCloseTo(Math.sqrt(2 * 50 / 100), 3);
-        expect(circularSpeed(2, 50, 0, 1)).toBe(0);
-        expect(softenedPull(2, 50, 3, 4)).toBeCloseTo(2 * 50 * 3 / 125, 12);
-    });
-
     const makeState = (count: number, typeCounts: number[]): InitialState => ({
         positions: new Float32Array(count * 4), velocities: new Float32Array(count * 4),
         count, typeCounts, width: 800, height: 600, params: {},
     });
-    const options = { radius: 200, gravity: 3, totalMass: 1000, softening: 5, rotation: 0.3, agitation: 0 };
+    const options: CloudOptions = {
+        radius: 200, gravity: 3, totalMass: 1000, softening: 5, profile: 'uniform', virial: 0.6, rotation: 0.2, turbulence: 'white',
+    };
+    /** Per-particle statistics of a filled cloud: radius, the speed along and across it, and the energies (every particle weighs M / N). */
+    function measure(state: InitialState, totalMass: number) {
+        const { positions: p, velocities: v, count } = state;
+        let kinetic = 0, rotation = 0, momentumX = 0, momentumY = 0;
+        const radii: number[] = [], tangential: number[] = [], radial: number[] = [];
+        for (let i = 0; i < count; i++) {
+            const dx = p[i * 4] - 400, dy = p[i * 4 + 1] - 300, r = Math.hypot(dx, dy);
+            const vx = v[i * 4], vy = v[i * 4 + 1];
+            radii.push(r); tangential.push((dx * vy - dy * vx) / r); radial.push((dx * vx + dy * vy) / r);
+            kinetic += 0.5 * (totalMass / count) * (vx * vx + vy * vy);
+            momentumX += vx; momentumY += vy;
+        }
+        // The rotation is the mean tangential speed at each radius: bins of 200 particles by radius.
+        const order = radii.map((_, i) => i).sort((a, b) => radii[a] - radii[b]);
+        for (let b = 0; b + 200 <= count; b += 200) {
+            const bin = order.slice(b, b + 200);
+            const mean = bin.reduce((sum, i) => sum + tangential[i], 0) / bin.length;
+            rotation += 0.5 * (totalMass / count) * bin.length * mean * mean;
+        }
+        return { radii, tangential, radial, kinetic, rotation, momentum: [momentumX / count, momentumY / count] };
+    }
 
     it('fills a rotating disk centered on the area, types in contiguous blocks', () => {
         const state = makeState(2000, [1500, 500]);
-        fillCloud(state, options, seeded(1));
+        fillCloud(state, { ...options, virial: 0.4, rotation: 0.2 }, seeded(1));       // all the energy in rotation: no noise
         const { positions: p, velocities: v } = state;
         for (let i = 0; i < 2000; i++) {
             const dx = p[i * 4] - 400, dy = p[i * 4 + 1] - 300;
@@ -273,28 +282,146 @@ describe('initial cloud', () => {
         }
     });
 
-    it('tangential speed is the rotation fraction of v_circ(r) from the enclosed mass', () => {
-        const state = makeState(1000, [1000]);
-        fillCloud(state, options, seeded(2));
+    it('spreads the mass as the profile says: the same seed gives the uniform positions of before, Maclaurin\'s are more central', () => {
+        const count = 20000;
+        const share = (profile: 'uniform' | 'maclaurin', x: number): number => {
+            const state = makeState(count, [count]);
+            fillCloud(state, { ...options, profile }, seeded(5));
+            let inside = 0;
+            for (let i = 0; i < count; i++) if (Math.hypot(state.positions[i * 4] - 400, state.positions[i * 4 + 1] - 300) < x * 200) inside++;
+            return inside / count;
+        };
+        expect(share('uniform', 0.5)).toBeCloseTo(0.25, 1);
+        expect(share('maclaurin', 0.5)).toBeCloseTo(1 - 0.75 ** 1.5, 1);
+        // the first particle of the seed, as the code before this phase drew it: r = R sqrt(u1), angle = 2 pi u2
+        const reference = seeded(5), first = makeState(1, [1]);
+        fillCloud(first, options, seeded(5));
+        const r = 200 * Math.sqrt(reference()), angle = reference() * 2 * Math.PI;
+        expect(first.positions[0]).toBeCloseTo(400 + r * Math.cos(angle), 3);
+        expect(first.positions[1]).toBeCloseTo(300 + r * Math.sin(angle), 3);
+    });
+
+    it('rotates at one fraction of the circular speed of the disc, whatever the radius', () => {
+        const count = 5000;
+        const state = makeState(count, [count]);
+        const summary = fillCloud(state, { ...options, virial: 0.4, rotation: 0.2 }, seeded(2));
         const { positions: p, velocities: v } = state;
-        const radii = Array.from({ length: 1000 }, (_, i) => Math.hypot(p[i * 4] - 400, p[i * 4 + 1] - 300));
-        const enclosed = enclosedMassFractions(radii);
-        for (let i = 0; i < 1000; i += 37) {
-            const expected = 0.3 * circularSpeed(3, enclosed[i] * 1000, radii[i], 5);
-            expect(Math.hypot(v[i * 4], v[i * 4 + 1])).toBeCloseTo(expected, 3);
+        expect(summary.rotationFactor).toBeGreaterThan(0.3);
+        for (let i = 0; i < count; i += 37) {
+            const r = Math.hypot(p[i * 4] - 400, p[i * 4 + 1] - 300);
+            expect(Math.hypot(v[i * 4], v[i * 4 + 1])).toBeCloseTo(summary.rotationFactor * summary.table.circularSpeedAt(r), 3);
+        }
+        // the disc is not a sphere: its pull is not the one of the mass inside (4/pi times it near the edge, more with a thin disc's edge)
+        const sphere = Math.sqrt(options.gravity * options.totalMass / 200);
+        expect(summary.table.circularSpeedAt(190)).toBeGreaterThan(1.2 * sphere);
+    });
+
+    it('sets the energies the sliders ask for: E_rot = beta |U|, K = alpha |U| / 2', () => {
+        const count = 40000;
+        for (const turbulence of ['white', 'correlated'] as const) {
+            const state = makeState(count, [count]);
+            const summary = fillCloud(state, { ...options, virial: 0.9, rotation: 0.15, turbulence }, seeded(3));
+            const { kinetic, rotation } = measure(state, options.totalMass);
+            expect(summary.potentialEnergy).toBeGreaterThan(0);
+            expect(summary.rotationEnergy).toBeCloseTo(0.15 * summary.potentialEnergy, 8);
+            expect(summary.randomEnergy).toBeCloseTo(0.3 * summary.potentialEnergy, 8);
+            // the realised rotation (the mean tangential speed in bins) and the whole kinetic energy; what is left is the sampling's
+            expect(rotation / summary.potentialEnergy).toBeCloseTo(0.15, 1);
+            expect(Math.abs(2 * kinetic / summary.potentialEnergy / 0.9 - 1)).toBeLessThan(1e-4);
         }
     });
 
-    it('agitation has the requested spread and no net momentum', () => {
-        const state = makeState(20000, [20000]);
-        fillCloud(state, { ...options, rotation: 0, agitation: 0.5 }, seeded(4));
-        const { velocities: v } = state;
-        let sx = 0, sy = 0, s2 = 0;
-        for (let i = 0; i < 20000; i++) { sx += v[i * 4]; sy += v[i * 4 + 1]; s2 += v[i * 4] ** 2; }
-        expect(Math.abs(sx / 20000)).toBeLessThan(1e-4);
-        expect(Math.abs(sy / 20000)).toBeLessThan(1e-4);
-        const sigma = 0.5 * circularSpeed(3, 1000, 200, 5);
-        expect(Math.sqrt(s2 / 20000)).toBeCloseTo(sigma, 1);
+    it('circular orbits: the rotation that equals the circular energy runs at exactly the circular speed', () => {
+        const state = makeState(4000, [4000]);
+        const probe = fillCloud(makeState(10, [10]), options, seeded(1));
+        const beta = probe.table.circularEnergy / -probe.table.potentialEnergy;
+        expect(beta).toBeGreaterThan(0.4);
+        expect(beta).toBeLessThan(0.52);
+        const summary = fillCloud(state, { ...options, virial: 2 * beta, rotation: beta }, seeded(4));
+        expect(summary.rotationFactor).toBeCloseTo(1, 1);
+        expect(summary.randomEnergy).toBeCloseTo(0, 8);
+    });
+
+    it('a cold cloud has no velocities; a rotation larger than the kinetic energy raises it', () => {
+        const state = makeState(500, [500]);
+        fillCloud(state, { ...options, virial: 0, rotation: 0 }, seeded(1));
+        expect(state.velocities.every(x => x === 0)).toBe(true);
+        const hot = makeState(500, [500]);
+        const summary = fillCloud(hot, { ...options, virial: 0.1, rotation: 0.2 }, seeded(1));
+        expect(summary.randomEnergy).toBe(0);
+        expect(summary.rotationEnergy).toBeCloseTo(0.2 * summary.potentialEnergy, 8);
+    });
+
+    it('agitation of either kind has the dispersion the energy gives and no net momentum', () => {
+        const count = 20000;
+        for (const turbulence of ['white', 'correlated'] as const) {
+            const state = makeState(count, [count]);
+            const summary = fillCloud(state, { ...options, virial: 0.5, rotation: 0, turbulence }, seeded(4));
+            const { velocities: v } = state;
+            let sx = 0, sy = 0, s2 = 0;
+            for (let i = 0; i < count; i++) { sx += v[i * 4]; sy += v[i * 4 + 1]; s2 += v[i * 4] ** 2 + v[i * 4 + 1] ** 2; }
+            expect(summary.dispersion).toBeCloseTo(Math.sqrt(0.25 * summary.potentialEnergy / options.totalMass), 8);
+            expect(Math.abs(sx / count)).toBeLessThan(1e-4 * summary.dispersion);
+            expect(Math.abs(sy / count)).toBeLessThan(1e-4 * summary.dispersion);
+            expect(Math.sqrt(s2 / (2 * count))).toBeCloseTo(summary.dispersion, 4);
+        }
+    });
+
+    it('correlated agitation is alike between neighbors; white noise is not', () => {
+        const count = 20000;
+        const neighborCorrelation = (turbulence: 'white' | 'correlated'): number => {
+            const state = makeState(count, [count]);
+            fillCloud(state, { ...options, virial: 0.5, rotation: 0, turbulence }, seeded(6));
+            const { positions: p, velocities: v } = state;
+            // pair each particle with its next one in a sort by x then y on a coarse grid: neighbors within about 10 px
+            const cells = new Map<number, number[]>();
+            for (let i = 0; i < count; i++) {
+                const key = Math.floor(p[i * 4] / 10) * 1000 + Math.floor(p[i * 4 + 1] / 10);
+                cells.set(key, [...(cells.get(key) ?? []), i]);
+            }
+            let dot = 0, norm = 0;
+            for (const members of cells.values()) {
+                for (let k = 0; k + 1 < members.length; k += 2) {
+                    const a = members[k], b = members[k + 1];
+                    dot += v[a * 4] * v[b * 4] + v[a * 4 + 1] * v[b * 4 + 1];
+                    norm += 0.5 * (v[a * 4] ** 2 + v[a * 4 + 1] ** 2 + v[b * 4] ** 2 + v[b * 4 + 1] ** 2);
+                }
+            }
+            return dot / norm;
+        };
+        expect(Math.abs(neighborCorrelation('white'))).toBeLessThan(0.1);
+        expect(neighborCorrelation('correlated')).toBeGreaterThan(0.9);
+    });
+
+    it('is replayable: the same stream gives the same cloud', () => {
+        const a = makeState(300, [300]), b = makeState(300, [300]);
+        fillCloud(a, { ...options, turbulence: 'correlated' }, seeded(9));
+        fillCloud(b, { ...options, turbulence: 'correlated' }, seeded(9));
+        expect(a.velocities).toEqual(b.velocities);
+        expect(a.positions).toEqual(b.positions);
+    });
+
+    it('the defaults keep the energies of the old cloud: the old recipe on the disc is alpha 0.33 and beta 0.08', () => {
+        // The cloud before this phase: tangential speed 0.44 v_circ of the sphere inside r (the mass inside r is the share x^2 of the
+        // cloud's), white noise of 0.26 v_circ(R) of the sphere per component; its energies against the potential energy of the disc.
+        const gravity = 3, totalMass = 1000, radius = 200, softening = 0.016 * 768 * 200 / (0.38 * 768);
+        const sphere = (enclosed: number, r: number): number => Math.sqrt(gravity * enclosed * r * r / (r * r + softening * softening) ** 1.5);
+        let rotation = 0;
+        const n = 20000;
+        for (let i = 0; i < n; i++) {
+            const share = (i + 0.5) / n, speed = 0.44 * sphere(share * totalMass, radius * Math.sqrt(share));
+            rotation += 0.5 * (totalMass / n) * speed * speed;
+        }
+        const random = totalMass * (0.26 * sphere(totalMass, radius)) ** 2;
+        const probe = fillCloud(makeState(10, [10]), { ...options, gravity, totalMass, radius, softening }, seeded(1));
+        const virial = 2 * (rotation + random) / probe.potentialEnergy, beta = rotation / probe.potentialEnergy;
+        const sliders = defaultParams(PROTOSTAR);
+        expect(virial).toBeGreaterThan(0.31);
+        expect(virial).toBeLessThan(0.34);
+        expect(beta).toBeGreaterThan(0.075);
+        expect(beta).toBeLessThan(0.085);
+        expect(Math.abs(sliders.alphaVir as number - virial) / virial).toBeLessThan(0.03);
+        expect(Math.abs(sliders.betaRot as number - beta) / beta).toBeLessThan(0.03);
     });
 });
 
