@@ -679,12 +679,42 @@ Acceptance checks of the phase (numbers and method in the spike): the local expo
 neighborhood (1.015 +- 0.010 at 200, 1.003 at 400, 0.987 at 800; 1.053 +- 0.019 at 100, not judged), where dividing by the bias left 3.54 at 100 and 1.16 at 400;
 `protostar.reduction-channels` passes again (its twin read the dispersion instead of the temperature, and the gas grid of the wrong substep).
 
+## After phase P5c: the adaptive time step
+
+The record of the scenarios of [spike B5](spikes/b5-adaptive-time-step.md) (`baseline.protostar.adaptive-step`, `protostar.adaptive-maclaurin`, `cost.protostar.adaptive-step`, the energy drift with the
+time step changing), on the code rebased on the Gamow rates of phase P3b-2. Same machine and area as above, 400 000 particles, speed 1.7, seeds 20240611 to 20240613. The flag is **off by default**: every other
+baseline in this file is unchanged (`protostar.energy-reference` and `protostar.reduction-channels` give identical metrics, digit for digit, on the head of the improvements branch and on this one).
+
+| | fixed count (2 substeps) | adaptive (2 or 3) |
+|---|---|---|
+| substeps per frame, mean over the run | 2.00 | 2.69, 2.66, 2.59 (35 % of the frames at 2, 65 % at 3) |
+| omega dt in the core, largest of a run | 0.171, 0.158, 0.176 | 0.138, 0.116, 0.113 |
+| omega dt, median; share of the readings above 0.1 | 0.112, 0.106, 0.106; 71, 73, 70 % | 0.081, 0.077, 0.086; 15, 12, 23 % |
+| first burst of the fusion rate against the reference at 1/8 of the substep: height | +12.8, +12.2, +11.2 % | +10.9, +9.5, +8.6 % (1/4 of the substep: +2.5, +4.2, +2.6 %) |
+| the same: timing | +11.1, +8.9, +9.7 ms | +12.8, +9.8, +10.8 ms (1/4 of the substep: +2.2, +2.9, +2.6 ms) |
+| cold Maclaurin disc: free-fall time at 0.75, 0.5, 0.25, 0.1 of the radius, over the analytic one | 1.0125, 1.0169, 1.0233, 1.0251 | the same to 1e-4 (and at 1/4 and 1/8 of the substep) |
+| cost, whole run, ms / frame at 400 000 and 1 000 000 particles (5 alternated pairs, the adaptive count replayed) | 18.0, 34.1 | 23.4, 44.1: ratios 1.30 (1.25 to 1.31) and 1.29 (1.27 to 1.29) |
+| substeps per simulated second | 70.6 | 94.9 (+34 %) |
+
+The omega dt of the core by time of the run, the three seeds together (median / largest):
+
+| t (s) | 0-2 | 2-4 | 4-8 | 8-12 | 12-16 | 16-20 | 20-24 | 24-28 | 28-34 |
+|---|---|---|---|---|---|---|---|---|---|
+| fixed | .014 / .037 | .056 / .103 | .085 / .101 | .103 / .118 | .108 / .145 | .110 / .145 | .112 / .144 | .127 / .176 | .147 / .169 |
+| adaptive | .014 / .037 | .048 / .089 | .085 / .120 | .100 / .108 | .073 / .116 | .073 / .092 | .074 / .103 | .084 / .102 | .098 / .138 |
+| substeps per frame | 2.00 | 2.27 | 2.00 | 2.07 | 2.78 | 3.00 | 3.00 | 3.00 | 3.00 |
+
+**Energy drift of a conservative run** (100 000 particles, elastic walls, cooling, feedback and fusion off, the GPU shared and the run held to its wall-clock budget, hence `skip` with the 1 % target met; before
+A2, which does not enter a run with the fusion off): the default cloud, K + U after 1, 3, 10 and 30 orbits and at the end (largest excursion): fixed step, 95 orbits: -0.170, -0.171, -0.165, -0.170, -0.17 % (0.80 %);
+adaptive step as shipped, 96 orbits, 2.0002 substeps a frame (the conservative cloud almost never asks for a third): -0.245, -0.240, -0.231, -0.244, -0.24 % (0.80 %); the count changing every frame between 1 and 4
+(2.25 on average), 86 orbits: -0.158, -0.151, -0.148, -0.159, -0.13 % (0.91 %), slope +0.0002 % per orbit. The cold cloud on circular orbits: +0.09 % (0.52 to 0.58 %) in all three.
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a; it was a documented
   known failure (K + U +39.5 % over 100 orbits, against a target of 1 %) and passes since phase P5a, which
   removed the first-order error of the walls. The omega.dt column above is the precursor of the criterion that
-  the adaptive time step (B5) will use. Re-record its table, with the commit, whenever the integration or the gravity change.
+  the adaptive time step (B5, phase P5c, off by default) uses. Re-record its table, with the commit, whenever the integration or the gravity change.
 - The ignition ratio is 5.41 at the reference point (0.5 per second, 60 rho0) since P3b-2 (5.57 with the P3b-1 power laws, 1.72 before), and 6.3
   at 20 rho0 and 0.1 per second, where lambda_He is normalised; it is a property of the point (4.1 to 10.9 over 20 to 100 rho0 and 0.03 to 0.5 per
   second), not of the model. The reference point is a lab convention.

@@ -179,7 +179,20 @@ The positions then obey xₙ₊₁ = 2 xₙ − xₙ₋₁ + aₙ Δt², the seq
 
 - **First substep of a run.** The initial velocities are those at the initial positions, so nothing is owed for the missing half kick: the acceleration texture starts with z = 1, which switches the kick off in both passes for that substep (the acceleration pass writes 0 there afterwards). Before P5a the first substep gave every particle a full kick `a Δt` too many.
 - **Walls.** A particle whose step ends outside the area bounces: the position pass mirrors the end of the step about the wall, and the velocity pass stores the velocity that makes the next substep's kicks give the speed the particle has after bouncing at the instant it reaches the wall, `−e (v + a s Δt) − a s Δt` (s the share of the step before the wall, e the restitution, 0.5 in the application). Before P5a the velocity vₙ alone was reversed and the position clamped on the wall, which gave every bounce about 1.5 u a Δt of energy (u the normal speed, a the pull towards the inside): first order in Δt and always positive.
-- **Operator splitting.** Cooling and heating modify the velocity after the half kick; they act on the next displacement. A new Δt (the speed slider) enters the half kick of the previous step with the new value, an error of ½ a (Δt − Δt′) once per change: phase B5, which will change Δt between frames, must keep the previous Δt for that half kick.
+- **Operator splitting.** Cooling and heating modify the velocity after the half kick; they act on the next displacement. Cooling and heating use the current Δt (they are first order in Δt by construction, consistent in the rate: `exp(−k Δt)`).
+- **A time step that changes.** The two half kicks of vₙ belong to the step that ended at xₙ, so they take *its* length Δtₚ (the `dtPrev` uniform, kept by the model in `beforeSubstep()`, which ignores the calls with Δt = 0 of the lab); the drift takes the length Δt of the step that starts at xₙ: vₙ = vₙ₋₁ + ½ (aₙ₋₁ + aₙ) Δtₚ, xₙ₊₁ = xₙ + vₙ Δt + ½ aₙ Δt². Written as the map (xₙ, vₙ) → (xₙ₊₁, vₙ₊₁), that is velocity Verlet with a step of any length at each step: of the second order whatever the sequence of steps (and symplectic as long as the sequence does not depend on the state), and the velocity stored after a bounce is exact whatever the next step. Before phase B5 both kicks took the current Δt, which makes an error of ½ a (Δt − Δt′) at every change of the time step (the speed slider's, now the adaptive step's). The twin takes `dtPrev` too: on a Kepler orbit with a step cut into 1 to 4 substeps from one frame to the next the energy error falls by 4 when the step is halved and does not drift, where the kicks over the current Δt are of the first order (`tests/leapfrog.test.ts`); on the GPU, ten steps of 20 000 particles, six of them of changing lengths, 1 131 bounces, agree with the twin to 1.2·10⁻⁴ px and 1.6·10⁻⁴ px/s (`protostar.integration`).
+
+### Adaptive time step
+
+Proposal B5, the `adaptiveTimeStep` flag (Features tab). The frame still simulates `BASE_DT` × the speed slider; what adapts is the number of substeps it is cut into (`Simulation.step()` asks the model, `ProtostarModel.substepCount()`), between frames only: the substep is the same within a frame. Off (the default: the default cloud's run costs a fifth more with it on), the count is ⌈speed⌉ as it has always been.
+
+The criterion (`timeStep.ts`, pure and tested) is the accuracy of the dense core, from the two maxima of the multichannel reduction (the speed and the acceleration bounds, [above](#the-multichannel-reduction)):
+
+    dt_crit = min( COURANT · cell / |v|max , OMEGA · sqrt( max(ε, cell) / |a|max ) )
+
+For a core of oscillation frequency ω the pull is at most ω² ε, so the second term is OMEGA / ω at the end of its range: it keeps ω Δt near `PROTOSTAR_STEP_OMEGA`; the first keeps the gas from crossing more than `PROTOSTAR_STEP_COURANT` cells of the grid in a substep. The count is the smallest one that keeps every substep within dt_crit, between the fixed count (`PROTOSTAR_MIN_SUBSTEP_RATIO` = 1: a coarser substep in the calm phases delays the first burst, so the step only refines) and ⌈`PROTOSTAR_MAX_SUBSTEP_RATIO` × the fixed count⌉: the work of a frame is bounded by that ratio of what the fixed count (and the GPU benchmark) costs. It goes up at once and comes down one count at a time, and only when the lower count keeps `PROTOSTAR_STEP_RELEASE` of dt_crit: the count of the default cloud changes about ten times in 34 s. The maxima are read every `PROTOSTAR_STEP_READ_INTERVAL` frames while the flag is on (the other readings of the reduction stay at the stats' cadence), with the lag of an asynchronous read (zero to three frames): the constants carry the margin for it. While a drawing or the point force acts the count is at least the fixed one (their pull is not in the maxima). The velocity caps (`PROTOSTAR_MAX_SPEED`) are kept. Numbers, constants and what they cost: [spike B5](spikes/b5-adaptive-time-step.md).
+
+The GPU benchmark runs with the flag off (`BENCHMARK_PARAMS`): it times the calm first frames of a restart, where the adaptive step would run fewer substeps than it does later, and its count depends on the instant the asynchronous reads land; the fixed count is a deterministic load.
 
 ### Energy diagnostics
 
@@ -205,7 +218,7 @@ Proposal A7. The energy of the cloud is measured on the GPU, with the same grids
 
 #### The multichannel reduction
 
-One two-stage reduction (128² cells → 16² blocks of 8 × 8 → 4 × 1 texels) and one asynchronous read give everything below; it runs at the end of every `PROTOSTAR_STATS_INTERVAL`-th frame and of the first (diagnostics on). Stage 1 writes four attachments (the block's partial result), stage 2 one texel of the final RGBA32F target `reduce2` per attachment. The model unpacks the floats with `unpackReduction()` (`reduction.ts`, tested) and keeps the latest result:
+One two-stage reduction (128² cells → 16² blocks of 8 × 8 → 4 × 1 texels) and one asynchronous read give everything below; it runs at the end of every `PROTOSTAR_STATS_INTERVAL`-th frame and of the first (diagnostics on), and of every `PROTOSTAR_STEP_READ_INTERVAL`-th while the adaptive time step is on. Stage 1 writes four attachments (the block's partial result), stage 2 one texel of the final RGBA32F target `reduce2` per attachment. The model unpacks the floats with `unpackReduction()` (`reduction.ts`, tested) and keeps the latest result:
 
 | Texel | x | y | z | w |
 |---|---|---|---|---|
@@ -220,7 +233,7 @@ Texel 0 keeps the layout the statistics always read (ρ, T, rate first; the cons
 - **Acceleration bound**: the maximum of |a| of the gravity grid over the cells that hold mass (the force on a particle is the bilinear interpolation of four cells, so it never exceeds it); the drawings' force is not in it.
 - **Center of mass and momentum**: first moments of the cloud-in-cell deposit. The weights reproduce a particle's position exactly, so these are the particles' own sums (to 4·10⁻⁵ px and 10⁻⁸ in the lab), not a grid approximation, except for the footprints clipped at the edge.
 
-Typed getters of `ProtostarModel`, for the phases that consume them: `reduction` (everything, `Reduction`), `maxSpeed`, `maxAcceleration`, `peakPosition`, `centerOfMass`, `energy` (`ProtostarEnergy`: K, U, total, drift, virial ratio; null with the diagnostics off). They hold the latest reading (every 10 frames, about 0.3 s of simulated time at the default speed), in px, px/s, px/s² and simulation mass units; `null` before the first.
+Typed getters of `ProtostarModel`, for the phases that consume them: `reduction` (everything, `Reduction`), `maxSpeed`, `maxAcceleration`, `peakPosition`, `centerOfMass`, `energy` (`ProtostarEnergy`: K, U, total, drift, virial ratio; null with the diagnostics off). They hold the latest reading (every 10 frames, about 0.3 s of simulated time at the default speed; every 3 with the adaptive time step), in px, px/s, px/s² and simulation mass units; `null` before the first.
 
 #### What the scheme does with it
 
@@ -322,6 +335,7 @@ The color comes from the type (editor). The model declares `glow: 'state'`: each
 | He → C rate λ (/s, log) | `heFusionRate` | 2.5e-4 | live |
 | Feedback (log) | `feedback` | 0.146 | live |
 | Energy diagnostics | `diagnostics` | on | live (Features tab) |
+| Adaptive time step | `adaptiveTimeStep` | off | live (Features tab) |
 
 Types: hydrogen (1.00783 u, cool blue-white, the entire initial population), helium (4.0026 u, yellow) and carbon (12 u, grey), none at the start; a share can be given to them. Statistics: particles per type, core temperature (densest cell, in MK), maximum density (in ρ₀), fusions per second, of both reactions together (expected, smoothed), and, with the diagnostics on, the energy drift and the virial ratio.
 
