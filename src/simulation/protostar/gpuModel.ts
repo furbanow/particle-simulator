@@ -511,6 +511,11 @@ export class ProtostarModel implements GpuModel {
         return this.reductionScales;
     }
 
+    /** Dev-only: queues the GPU count of the particles of each type without reading it back, to time the passes (the lab's cost scenario). */
+    debugRenderTypeCount(): void {
+        this.typeReduction.render(this.context.positionTexture(), this.context.activeCount());
+    }
+
     /** Dev-only: counts the particles of each type on the GPU right now and reads the counts back (one per type slot), for the lab page. */
     debugCountTypes(): Promise<number[]> {
         this.typeReduction.render(this.context.positionTexture(), this.context.activeCount());

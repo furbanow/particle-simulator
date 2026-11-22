@@ -9,10 +9,11 @@
 //    back every 12 frames, the new one a few texels every 10), each frame followed by a wait for the GPU: median, p95, p99 and the worst.
 
 import {
+    TYPE_COUNT_COST_BATCHES, TYPE_COUNT_COST_COUNTS, TYPE_COUNT_COST_FRAMES, TYPE_COUNT_COST_QUEUED,
     PROTOSTAR_HITCH_COUNTS, PROTOSTAR_HITCH_FRAMES, PROTOSTAR_HITCH_WARMUP_FRAMES, PROTOSTAR_PHASE_CHUNK_FRAMES, PROTOSTAR_PHASE_CHUNKS,
     PROTOSTAR_PHASE_COUNTS, PROTOSTAR_PHASES,
 } from '../config';
-import { restart } from '../driver';
+import { protostarModel, restart, runFrames } from '../driver';
 import { mean, quantile, significant } from '../numbers';
 import type { JsonValue, Scenario, ScenarioOutcome } from '../types';
 import { timeChunks } from './perf';
@@ -87,4 +88,34 @@ export const protostarHitchScenarios: Scenario[] = PROTOSTAR_HITCH_COUNTS.map((c
     },
 }));
 
-export const perfProtostarScenarios: Scenario[] = [...protostarPhaseScenarios, ...protostarHitchScenarios];
+/** What one GPU count of the types costs (A4: it replaced the read-back of the positions): TYPE_COUNT_COST_QUEUED counts queued back to back, the GPU waited for at the end, per count of particles. */
+export const typeCountCostScenarios: Scenario[] = TYPE_COUNT_COST_COUNTS.map((count): Scenario => ({
+    id: `cost.protostar.type-count.${label(count)}`,
+    title: `Cost: one GPU count of the types at ${count.toLocaleString('en-US')} particles (ms)`,
+    tags: ['perf', 'protostar'],
+    async run(context): Promise<ScenarioOutcome> {
+        const { simulation, software, sync } = context;
+        if (software) return { status: 'skip', metrics: { valid: false }, details: 'INVALID: software renderer, timings are meaningless.' };
+        await restart(context, { count });
+        await runFrames(context, TYPE_COUNT_COST_FRAMES);
+        const model = protostarModel(context) as unknown as { debugRenderTypeCount?: () => void };
+        const render = model.debugRenderTypeCount?.bind(model);
+        if (!render) return { status: 'skip', metrics: { valid: false }, details: 'this build counts the types on the CPU from a read-back of the positions' };
+        const batches: number[] = [];
+        for (let batch = 0; batch < TYPE_COUNT_COST_BATCHES + 1; batch++) {
+            await sync.wait(simulation.positionTexture);
+            const start = performance.now();
+            for (let i = 0; i < TYPE_COUNT_COST_QUEUED; i++) render();
+            await sync.wait(simulation.positionTexture);
+            if (batch > 0) batches.push((performance.now() - start) / TYPE_COUNT_COST_QUEUED);     // the first batch compiles and warms
+        }
+        const median = quantile(batches, 0.5);
+        return {
+            status: 'pass',
+            metrics: { valid: true, renderer: context.rendererName, particles: simulation.activeCount, queued: TYPE_COUNT_COST_QUEUED, batchesMsPerCount: batches.map(round), medianMsPerCount: round(median) },
+            details: `${simulation.activeCount} particles: ${median.toFixed(3)} ms per count (median of ${batches.length} batches of ${TYPE_COUNT_COST_QUEUED}, range ${Math.min(...batches).toFixed(3)} to ${Math.max(...batches).toFixed(3)})`,
+        };
+    },
+}));
+
+export const perfProtostarScenarios: Scenario[] = [...protostarPhaseScenarios, ...protostarHitchScenarios, ...typeCountCostScenarios];

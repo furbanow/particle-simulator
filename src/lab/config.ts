@@ -607,6 +607,11 @@ export const CONSTANT_MASS_CORE_RADIUS = 40;
 export const PROTOSTAR_HITCH_COUNTS = [400_000, 1_000_000, 2_000_000] as const;
 export const PROTOSTAR_HITCH_WARMUP_FRAMES = 30;
 export const PROTOSTAR_HITCH_FRAMES = 360;
+/** The cost of one GPU count of the types (cost.protostar.type-count.<count>): the counts, the frames of the default cloud run first, the counts queued back to back per batch, the batches. */
+export const TYPE_COUNT_COST_COUNTS = [400_000, 1_000_000, 2_000_000, 3_000_000] as const;
+export const TYPE_COUNT_COST_FRAMES = 30;
+export const TYPE_COUNT_COST_QUEUED = 10;
+export const TYPE_COUNT_COST_BATCHES = 5;
 /** The cost of the protostar in two phases of the default cloud (perf.protostarPhases.<count>): the counts, the window timed in chunks of this many frames, the early and the late phase (the frames run before it: the hydrogen is mostly burnt by the late one). */
 export const PROTOSTAR_PHASE_COUNTS = [400_000, 1_000_000] as const;
 export const PROTOSTAR_PHASE_CHUNK_FRAMES = 10;
