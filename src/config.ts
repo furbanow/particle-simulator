@@ -198,6 +198,23 @@ export const PROTOSTAR_NOISE_EXACT_MARGIN = 2;
 export const PROTOSTAR_TEMPERATURE_TAU = 0.1;
 export const PROTOSTAR_RESTITUTION = 0.5;          // walls
 export const PROTOSTAR_MAX_SPEED = 2;              // L/s
+// Adaptive time step (protostar/timeStep.ts, the `adaptiveTimeStep` flag): the number of substeps of a frame follows the criterion
+//   dt_crit = min(COURANT cell / |v|max, OMEGA sqrt(softening / |a|max))
+// from the maxima of the GPU reduction (the speed slider's simulated time per frame is kept; only the count changes). STEP_OMEGA is
+// about the omega.dt the criterion lets the core have, STEP_COURANT the cells the fastest gas may cross in a substep. A count is
+// given up (one at a time) only when the lower one keeps STEP_RELEASE of dt_crit, so that the count does not flicker. The count stays
+// within [ceil(MIN_SUBSTEP_RATIO x the fixed count of the speed), ceil(MAX_SUBSTEP_RATIO x it)] (at most MAX_SUBSTEPS): the work of a frame
+// is bounded by that ratio of what the GPU benchmark measured at the fixed count, and a minimum of 1 never runs a coarser substep than
+// the fixed step does (a lower one saves work in the calm phases and delays the first collapse's burst: docs/spikes/b5-adaptive-time-step.md). While the flag is on the reduction is read every STEP_READ_INTERVAL
+// frames, with at most STEP_MAX_READINGS reads in flight.
+export const PROTOSTAR_STEP_OMEGA = 0.12;
+export const PROTOSTAR_STEP_COURANT = 1;
+export const PROTOSTAR_STEP_RELEASE = 0.85;
+export const PROTOSTAR_MIN_SUBSTEP_RATIO = 1;
+export const PROTOSTAR_MAX_SUBSTEP_RATIO = 1.5;
+export const PROTOSTAR_MAX_SUBSTEPS = 8;
+export const PROTOSTAR_STEP_READ_INTERVAL = 3;
+export const PROTOSTAR_STEP_MAX_READINGS = 3;
 export const PROTOSTAR_DRIFT_GAIN = 0.5;           // fraction of the measured drift of the star taken off at each read-back
 export const PROTOSTAR_STATS_INTERVAL = 10;        // frames between two GPU reductions of the stats
 export const PROTOSTAR_STATS_REDUCE_RES = 16;      // first reduction stage (GRID_RES / 16 = 8 x 8 cells each)

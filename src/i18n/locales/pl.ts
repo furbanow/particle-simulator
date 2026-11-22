@@ -220,6 +220,8 @@ export const pl: Record<MessageKey, string> = {
     'algo.protostar.param.feedback.doc': 'Mnoży energię fuzji zwracaną gazowi w postaci ciepła. To ciepło wytwarza ciśnienie, które hamuje zapadanie jądra.',
     'algo.protostar.param.diagnostics.label': 'Diagnostyka energii',
     'algo.protostar.param.diagnostics.doc': 'Co kilka klatek mierzy energię chmury (kinetyczną i grawitacyjną) i pokazuje w statystykach jej dryf od początku oraz stosunek wirialny. Kosztuje kilka małych przebiegów GPU co dziesięć klatek. Po wyłączeniu obie statystyki pozostają puste.',
+    'algo.protostar.param.adaptiveTimeStep.label': 'Adaptacyjny krok czasowy',
+    'algo.protostar.param.adaptiveTimeStep.doc': 'Dobiera liczbę kroków obliczeń w każdej klatce do tego, co robi chmura: nigdy mniej, niż wymaga prędkość, więcej (do półtora raza więcej), gdy jej jądro się kurczy, a cząstki drgają szybciej, aby jądro pozostało dokładne. Suwak prędkości zachowuje swoje znaczenie (klatka symuluje ten sam czas); zmienia się tylko liczba kroków w jej wnętrzu. Kosztuje mały odczyt z GPU co kilka klatek oraz, dopóki jądro jest gęste, do połowy więcej kroków. Po wyłączeniu każda klatka wykonuje tyle samo kroków, wyznaczonych przez prędkość.',
     'algo.protostar.prop.weight.label': 'Rozkład początkowy',
     'algo.protostar.prop.weight.resetTitle': 'Czysty wodór, bez pierwotnego helu ani węgla',
     'algo.protostar.prop.weight.randomTitle': 'Losowy rozkład',

@@ -220,6 +220,8 @@ export const de: Record<MessageKey, string> = {
     'algo.protostar.param.feedback.doc': 'Multipliziert die als Wärme an das Gas zurückgegebene Fusionsenergie. Diese Wärme erzeugt einen Druck, der den Kollaps des Kerns bremst.',
     'algo.protostar.param.diagnostics.label': 'Energiediagnose',
     'algo.protostar.param.diagnostics.doc': 'Misst alle paar Bilder die Energie der Wolke (kinetisch und gravitativ) und zeigt in den Statistiken ihre Drift seit dem Start und ihr Virialverhältnis. Das kostet alle zehn Bilder einige kleine GPU-Durchgänge. Ausgeschaltet bleiben die beiden Statistiken leer.',
+    'algo.protostar.param.adaptiveTimeStep.label': 'Adaptiver Zeitschritt',
+    'algo.protostar.param.adaptiveTimeStep.doc': 'Wählt die Zahl der Rechenschritte jedes Bildes nach dem, was die Wolke gerade tut: nie weniger, als die Geschwindigkeit verlangt, mehr (bis zum Eineinhalbfachen), wenn sich ihr Kern zusammenzieht und ihre Teilchen schneller schwingen, damit der Kern genau bleibt. Der Geschwindigkeitsregler behält seine Bedeutung (ein Bild simuliert dieselbe Zeit); nur die Zahl der Schritte darin ändert sich. Das kostet alle paar Bilder ein kleines Auslesen der GPU und, solange der Kern dicht ist, bis zur Hälfte mehr Schritte. Ausgeschaltet führt jedes Bild gleich viele Schritte aus, festgelegt durch die Geschwindigkeit.',
     'algo.protostar.prop.weight.label': 'Anfangsverteilung',
     'algo.protostar.prop.weight.resetTitle': 'Reiner Wasserstoff, ohne primordiales Helium oder Kohlenstoff',
     'algo.protostar.prop.weight.randomTitle': 'Zufällige Verteilung',

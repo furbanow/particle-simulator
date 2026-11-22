@@ -247,6 +247,11 @@ export class GpuPipeline {
         model.updateSpecies(types, typeCounts);
     }
 
+    /** Substeps the next frame of `frameTime` seconds runs: the model's choice, else `fixedSteps` (see GpuModel.substepCount). */
+    substepCount(frameTime: number, fixedSteps: number): number {
+        return this.model.substepCount?.(frameTime, fixedSteps) ?? fixedSteps;
+    }
+
     /** Advances `steps` substeps of `dt`. */
     step(dt: number, steps: number): void {
         const { model } = this;

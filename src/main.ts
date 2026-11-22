@@ -14,7 +14,7 @@ import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
 import { defaultTypeCount, PARTICLE_COUNT_PARAM, type ParamValues } from './simulation/algorithm';
 import {
-    ALGORITHMS, BENCHMARK_ALGORITHM, DEFAULT_ALGORITHM, isAlgorithmId, type AlgorithmId,
+    ALGORITHMS, BENCHMARK_ALGORITHM, BENCHMARK_PARAMS, DEFAULT_ALGORITHM, isAlgorithmId, type AlgorithmId,
 } from './simulation/algorithms';
 import { findParam, validParamValue } from './simulation/params';
 import { Simulation } from './simulation/Simulation';
@@ -258,7 +258,7 @@ async function benchmarkGpu(): Promise<void> {
     if (countParam?.kind !== 'number') throw new Error(`${BENCHMARK_ALGORITHM} has no particle count parameter`);
     // At the default speed: its substeps are part of the load.
     const speed = parseFloat(byId<HTMLInputElement>('speedSlider').defaultValue);
-    const restore = simulation.borrowAlgorithm(BENCHMARK_ALGORITHM, speed);
+    const restore = simulation.borrowAlgorithm(BENCHMARK_ALGORITHM, speed, BENCHMARK_PARAMS);
     let cap: number | null = null;
     try {
         cap = await runBenchmark({

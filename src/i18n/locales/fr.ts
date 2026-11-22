@@ -220,6 +220,8 @@ export const fr: Record<MessageKey, string> = {
     'algo.protostar.param.feedback.doc': 'Multiplie l\'énergie de fusion rendue au gaz sous forme de chaleur. Cette chaleur crée une pression qui freine l\'effondrement du cœur.',
     'algo.protostar.param.diagnostics.label': 'Diagnostics d\'énergie',
     'algo.protostar.param.diagnostics.doc': 'Mesure l\'énergie du nuage (cinétique et gravitationnelle) toutes les quelques images, et affiche sa dérive depuis le départ et son rapport du viriel dans les statistiques. Cela coûte quelques petites passes GPU toutes les dix images. Désactivé, les deux statistiques restent vides.',
+    'algo.protostar.param.adaptiveTimeStep.label': 'Pas de temps adaptatif',
+    'algo.protostar.param.adaptiveTimeStep.doc': 'Choisit le nombre de pas de calcul de chaque image d\'après ce que fait le nuage : jamais moins que ne le demande la vitesse, davantage (jusqu\'à une fois et demie plus) quand son cœur se contracte et que ses particules oscillent plus vite, pour que le cœur reste précis. Le curseur de vitesse garde son sens (une image simule le même temps) ; seul le nombre de pas à l\'intérieur change. Cela coûte une petite lecture GPU toutes les quelques images et, tant que le cœur est dense, jusqu\'à la moitié de pas en plus. Désactivé, chaque image exécute le même nombre de pas, fixé par la vitesse.',
     'algo.protostar.prop.weight.label': 'Répartition initiale',
     'algo.protostar.prop.weight.resetTitle': 'Hydrogène pur, sans hélium primordial ni carbone',
     'algo.protostar.prop.weight.randomTitle': 'Répartition aléatoire',

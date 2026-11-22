@@ -52,6 +52,7 @@ export class Simulation {
     activeCount = 0;
     activeTypeCount = 0;
     private algorithmId: AlgorithmId = DEFAULT_ALGORITHM;
+    private substepsOfLastFrame = 0;
     private readonly states = new Map<AlgorithmId, AlgorithmState>();
     /** Parameter values at the last restart. */
     private appliedParams: ParamValues = {};
@@ -112,18 +113,18 @@ export class Simulation {
     }
 
     /**
-     * Switches to algorithm `id` at its default parameters, at `timeScale` and with no particle
-     * cap: a reproducible load for the GPU benchmark. Nothing runs until reset(). The returned
-     * function brings back the previous algorithm, parameters, time scale and cap (a restart is
-     * then needed).
+     * Switches to algorithm `id` at its default parameters (but for `overrides`), at `timeScale`
+     * and with no particle cap: a reproducible load for the GPU benchmark. Nothing runs until
+     * reset(). The returned function brings back the previous algorithm, parameters, time scale
+     * and cap (a restart is then needed).
      */
-    borrowAlgorithm(id: AlgorithmId, timeScale: number): () => void {
+    borrowAlgorithm(id: AlgorithmId, timeScale: number, overrides: ParamValues = {}): () => void {
         const previous = { id: this.algorithmId, timeScale: this.timeScale, cap: this.cap };
         this.useAlgorithm(id);
         const saved = { ...this.state.params };
         this.cap = MAX_PARTICLES;
         this.timeScale = timeScale;
-        for (const [key, value] of Object.entries(defaultParams(this.algorithm))) this.setParam(key, value);
+        for (const [key, value] of Object.entries({ ...defaultParams(this.algorithm), ...overrides })) this.setParam(key, value);
         return () => {
             this.cap = previous.cap;
             for (const [key, value] of Object.entries(saved)) this.setParam(key, value);
@@ -220,8 +221,16 @@ export class Simulation {
     step(): void {
         if (this.paused || this.timeScale <= 0) return;
         this.drawing.prepare();
-        const steps = Math.max(1, Math.ceil(this.timeScale - 1e-6));
-        this.pipeline.step(BASE_DT * this.timeScale / steps, steps);
+        // The frame simulates BASE_DT x the speed whatever the count: a model may adapt the number of substeps (between frames), not the time.
+        const frameTime = BASE_DT * this.timeScale;
+        const steps = this.pipeline.substepCount(frameTime, Math.max(1, Math.ceil(this.timeScale - 1e-6)));
+        this.substepsOfLastFrame = steps;
+        this.pipeline.step(frameTime / steps, steps);
+    }
+
+    /** Substeps the latest frame ran (0 before the first): the fixed count of the speed, or the model's adaptive one. */
+    get lastSubsteps(): number {
+        return this.substepsOfLastFrame;
     }
 
     /** Frame bookkeeping after rendering (periodic read-back of the positions). */

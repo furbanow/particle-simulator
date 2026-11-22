@@ -109,6 +109,12 @@ export interface GpuModel {
     reset(params: ParamValues): void;
     /** Per-type uniforms of the model, after the types or the split changed. */
     updateSpecies(types: readonly ParticleType[], typeCounts: readonly number[]): void;
+    /**
+     * How many substeps the next frame of `frameTime` seconds runs; `fixedSteps` is the count the speed slider alone gives
+     * (ceil of the speed). The substeps of a frame share its time equally, so the model may change the count between frames only
+     * (an adaptive time step): the frame's simulated time is the speed slider's. The count of `fixedSteps` when omitted.
+     */
+    substepCount?(frameTime: number, fixedSteps: number): number;
     /** Before each substep's density splat and GPGPU pass: extra passes go here. */
     beforeSubstep?(dt: number): void;
     /**

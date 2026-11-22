@@ -87,6 +87,110 @@ describe('the protostar time integration (twin of the velocity and position pass
     });
 });
 
+// ---- A time step that changes between substeps (phase B5) ----
+
+describe('the time step changing between substeps', () => {
+    /**
+     * Runs the orbit for `periods` periods in frames of PERIOD / `framesPerPeriod`, each cut into the number of substeps the pattern
+     * gives (cycling, as the adaptive step's counts do); the largest relative energy error. `naive`: the two half kicks are taken
+     * over the current substep's length, as the shaders did before the time step could change.
+     */
+    function runFrames(framesPerPeriod: number, periods: number, pattern: readonly number[], naive = false): { maxEnergyError: number; end: StoredState } {
+        const frameTime = PERIOD / framesPerPeriod;
+        let state: StoredState = { position: START, velocity: START_VELOCITY, accel: { x: 0, y: 0 } };
+        let previous = 0;
+        let maxEnergyError = 0;
+        const frames = Math.round(periods * framesPerPeriod);
+        for (let frame = 0; frame < frames; frame++) {
+            const count = pattern[frame % pattern.length];
+            const dt = frameTime / count;
+            for (let k = 0; k < count; k++) {
+                const here = state.position;
+                const { state: next, velocity } = substep(state, kepler, dt, null, frame === 0 && k === 0, naive || previous === 0 ? dt : previous);
+                maxEnergyError = Math.max(maxEnergyError, Math.abs(orbitEnergy(here, velocity) - ENERGY) / Math.abs(ENERGY));
+                state = next;
+                previous = dt;
+            }
+        }
+        return { maxEnergyError, end: state };
+    }
+    const PATTERN = [2, 2, 3, 3, 4, 3, 2, 2, 1, 1, 2, 3];
+
+    it('is the same as a fixed step when the step does not change', () => {
+        const fixed = runKepler(100, 3);
+        const same = runFrames(100, 3, [1]);
+        expect(same.maxEnergyError).toBeCloseTo(fixed.maxEnergyError, 12);
+        expect(same.end.position.x).toBeCloseTo(fixed.end.position.x, 10);
+    });
+
+    it('keeps the second order when the number of substeps of a frame changes from a frame to the next', () => {
+        const errors = [80, 160, 320, 640].map(frames => runFrames(frames, 10, PATTERN).maxEnergyError);
+        for (let i = 0; i + 1 < errors.length; i++) {
+            const order = observedOrder(errors[i], errors[i + 1]);
+            expect(order).toBeGreaterThan(1.8);
+            expect(order).toBeLessThan(2.4);
+        }
+    });
+
+    it('does not drift: ten times more periods leave the energy error where it was', () => {
+        const short = runFrames(120, 10, PATTERN).maxEnergyError;
+        const long = runFrames(120, 100, PATTERN).maxEnergyError;
+        expect(long).toBeLessThan(1.2 * short);
+        expect(long).toBeLessThan(0.01);
+    });
+
+    it('is first order only when the half kicks forget the step changed (the shaders before B5): the speed slider\'s error, a (dt - dt\') / 2 per change', () => {
+        const right = [160, 320, 640].map(frames => runFrames(frames, 10, PATTERN).maxEnergyError);
+        const naive = [160, 320, 640].map(frames => runFrames(frames, 10, PATTERN, true).maxEnergyError);
+        expect(naive[2]).toBeGreaterThan(100 * right[2]);
+        expect(observedOrder(naive[1], naive[2])).toBeLessThan(1.4);
+    });
+
+    it('stays accurate with a step that follows the orbit (small close to the center, as the criterion makes it)', () => {
+        // dt proportional to r^(3/2): an equal angle at each step
+        const run = (base: number, periods: number): number => {
+            let state: StoredState = { position: START, velocity: START_VELOCITY, accel: { x: 0, y: 0 } };
+            let previous = 0;
+            let worst = 0;
+            const end = periods * PERIOD;
+            for (let t = 0, n = 0; t < end; n++) {
+                const dt = base * Math.hypot(state.position.x, state.position.y) ** 1.5;
+                const here = state.position;
+                const { state: next, velocity } = substep(state, kepler, dt, null, n === 0, previous === 0 ? dt : previous);
+                worst = Math.max(worst, Math.abs(orbitEnergy(here, velocity) - ENERGY) / Math.abs(ENERGY));
+                state = next;
+                previous = dt;
+                t += dt;
+            }
+            return worst;
+        };
+        const errors = [PERIOD / 100, PERIOD / 200, PERIOD / 400].map(base => run(base, 10));
+        for (let i = 0; i + 1 < errors.length; i++) expect(observedOrder(errors[i], errors[i + 1])).toBeGreaterThan(1.7);
+        // A step chosen from the state is not symplectic: the error then grows slowly with time (here +1.8e-6 per period), never fast.
+        // The application's count is the same for every particle and follows the cloud's maxima, not each orbit.
+        expect(run(PERIOD / 200, 100)).toBeLessThan(3 * errors[1]);
+    });
+
+    it('stores the velocity after a bounce so that the next substep, whatever its length, gives the speed after the bounce', () => {
+        const walls: Walls = { width: 100, height: 100, restitution: 1 };
+        const uniform = (): Vec2 => ({ x: 0, y: 0 });
+        // a free particle reaches the wall in the middle of a substep of 0.1 and the next substep is three times shorter
+        const bounced = substep({ position: { x: 99, y: 50 }, velocity: { x: 20, y: 0 }, accel: { x: 0, y: 0 } }, uniform, 0.1, walls, true);
+        expect(bounced.state.velocity.x).toBeCloseTo(-20, 12);
+        const next = substep(bounced.state, uniform, 0.1 / 3, walls, false, 0.1);
+        expect(next.velocity.x).toBeCloseTo(-20, 12);
+        // in a uniform pull of g towards the inside the next substep's kicks (over the length of the one that bounced) give the right speed
+        const g = 30;
+        const pull = (): Vec2 => ({ x: -g, y: 0 });
+        const start = substep({ position: { x: 99, y: 50 }, velocity: { x: 20, y: 0 }, accel: { x: 0, y: 0 } }, pull, 0.1, walls, true);
+        const after = substep(start.state, pull, 0.04, walls, false, 0.1);
+        // reaches the wall at share s of the step with 20 - g s dt, leaves with the opposite and is pulled for the rest of the step
+        const s = (100 - 99) / (99 + 20 * 0.1 + 0.5 * -g * 0.01 - 99);
+        const atWall = 20 - g * s * 0.1;
+        expect(after.velocity.x).toBeCloseTo(-atWall - g * (1 - s) * 0.1, 8);
+    });
+});
+
 // ---- The walls ----
 
 describe('the walls of the area', () => {

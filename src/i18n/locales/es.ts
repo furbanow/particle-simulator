@@ -220,6 +220,8 @@ export const es: Record<MessageKey, string> = {
     'algo.protostar.param.feedback.doc': 'Multiplica la energía de fusión devuelta al gas en forma de calor. Este calor crea una presión que frena el colapso del núcleo.',
     'algo.protostar.param.diagnostics.label': 'Diagnóstico de energía',
     'algo.protostar.param.diagnostics.doc': 'Mide la energía de la nube (cinética y gravitatoria) cada pocos fotogramas y muestra en las estadísticas su deriva desde el inicio y su razón virial. Cuesta unas pocas pasadas pequeñas de GPU cada diez fotogramas. Desactivado, las dos estadísticas quedan vacías.',
+    'algo.protostar.param.adaptiveTimeStep.label': 'Paso de tiempo adaptativo',
+    'algo.protostar.param.adaptiveTimeStep.doc': 'Elige cuántos pasos de cálculo ejecuta cada fotograma según lo que hace la nube: nunca menos de los que pide la velocidad, más (hasta una vez y media) cuando su núcleo se contrae y sus partículas oscilan más deprisa, para que el núcleo siga siendo preciso. El control de velocidad conserva su significado (un fotograma simula el mismo tiempo); solo cambia el número de pasos dentro de él. Cuesta una pequeña lectura de GPU cada pocos fotogramas y, mientras el núcleo es denso, hasta la mitad de pasos más. Desactivado, cada fotograma ejecuta el mismo número de pasos, fijado por la velocidad.',
     'algo.protostar.prop.weight.label': 'Distribución inicial',
     'algo.protostar.prop.weight.resetTitle': 'Hidrógeno puro, sin helio primordial ni carbono',
     'algo.protostar.prop.weight.randomTitle': 'Distribución aleatoria',

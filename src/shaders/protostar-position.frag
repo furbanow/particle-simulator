@@ -4,6 +4,7 @@
 // textureVelocity, textureAccel. Defines: MAX_SPECIES, GRID_RES, REMOVED_W. The twin of the
 // integration is leapfrog.ts.
 uniform float dt;
+uniform float dtPrev;                   // s, the previous substep's length (see protostar-velocity.frag)
 uniform vec2 screenSize;
 uniform float activeCount;
 
@@ -18,12 +19,12 @@ void main() {
     float index = floor(gl_FragCoord.y) * resolution.x + floor(gl_FragCoord.x);
     if (index >= activeCount || pos.w < 0.0) { gl_FragColor = pos; return; }
 
-    // The same expression as the velocity pass (v(t) = v(t - dt) + (a(t - dt) + a(t)) dt / 2, nothing owed on the first step: z = 1):
+    // The same expression as the velocity pass (v(t) = v(t - dtPrev) + (a(t - dtPrev) + a(t)) dtPrev / 2, nothing owed on the first step: z = 1):
     // the two passes must agree on which particles leave the area.
     vec2 vel = texture2D(textureVelocity, uv).xy;
     vec4 accelState = texture2D(textureAccel, uv);
     vec2 a = forceAt(pos.xy);
-    vec2 kicked = vel + (1.0 - accelState.z) * 0.5 * (accelState.xy + a) * dt;
+    vec2 kicked = vel + (1.0 - accelState.z) * 0.5 * (accelState.xy + a) * dtPrev;
     vec2 next = pos.xy + kicked * dt + 0.5 * a * dt * dt;
 
     float type = pos.z;

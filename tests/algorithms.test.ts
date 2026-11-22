@@ -7,7 +7,9 @@ import {
     appliesOnRestart, defaultTypeCount, numberProperties, PANEL_TABS, PARTICLE_COUNT_PARAM, populationProperty, populationWeights,
     tabsOf, type PanelTabId, type ParamDef,
 } from '../src/simulation/algorithm';
-import { ALGORITHM_IDS, ALGORITHMS, algorithmList, DEFAULT_ALGORITHM, isAlgorithmId } from '../src/simulation/algorithms';
+import {
+    ALGORITHM_IDS, ALGORITHMS, algorithmList, BENCHMARK_ALGORITHM, BENCHMARK_PARAMS, DEFAULT_ALGORITHM, isAlgorithmId,
+} from '../src/simulation/algorithms';
 import { defaultParams } from '../src/simulation/params';
 import { PROTOSTAR } from '../src/simulation/protostar/declaration';
 import { STICKY_DUST, STICKY_DUST_TYPES } from '../src/simulation/stickyDust/declaration';
@@ -189,8 +191,23 @@ describe('panel tabs', () => {
         expect(Object.fromEntries(flags)).toEqual({
             count: true, alphaVir: true, betaRot: true, profile: true, turbulence: true, gravity: false, softening: false, cooling: false,
             opacity: false, fusionRate: false, heFusionRate: false, feedback: false,
-            diagnostics: false,
+            diagnostics: false, adaptiveTimeStep: false,
         });
+    });
+});
+
+describe('the GPU benchmark', () => {
+    it('runs the adaptive time step off: a deterministic load at the fixed count of substeps', () => {
+        expect(BENCHMARK_PARAMS).toEqual({ adaptiveTimeStep: false });
+    });
+
+    it('only sets parameters that its algorithm declares, with valid values', () => {
+        const declared = new Map(ALGORITHMS[BENCHMARK_ALGORITHM].params.map(p => [p.key, p]));
+        for (const [key, value] of Object.entries(BENCHMARK_PARAMS)) {
+            const param = declared.get(key);
+            expect(param, key).toBeDefined();
+            expect(typeof value).toBe(param?.kind === 'boolean' ? 'boolean' : typeof param?.default);
+        }
     });
 });
 

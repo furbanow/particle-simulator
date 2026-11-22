@@ -54,7 +54,7 @@ describe('protostar declaration', () => {
         expect(PROTOSTAR.params.filter(p => p.tab === 'initial').map(p => p.key)).toEqual(['count', 'alphaVir', 'betaRot', 'profile', 'turbulence']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'cooling', 'opacity']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'fusion').map(p => p.key)).toEqual(['fusionRate', 'heFusionRate', 'feedback']);
-        expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics', 'adaptiveTimeStep']);
         // the temperature exponents are not parameters any more: they are Gamow's (3.9 at 15 MK for pp, 41 at 100 MK for the triple alpha)
         expect(params).not.toHaveProperty('fusionExponent');
         expect(params).not.toHaveProperty('heFusionExponent');
@@ -87,6 +87,16 @@ describe('protostar declaration', () => {
         expect(flag?.tab).toBe('features');
         expect(flag?.kind === 'boolean' && flag.default).toBe(true);
         expect(defaultParams(PROTOSTAR).diagnostics).toBe(true);
+    });
+
+    it('has the adaptive time step switch in the features tab, applied live', () => {
+        const flag = PROTOSTAR.params.find(p => p.key === PROTOSTAR_PARAM.adaptiveTimeStep);
+        expect(flag?.kind).toBe('boolean');
+        expect(flag?.tab).toBe('features');
+        expect(flag?.doc.length).toBeGreaterThan(flag?.label.length ?? 0);
+        // off by default: the measured cost (a fifth more substeps over the default cloud's run) is above the plan's tenth of a frame
+        expect(flag?.kind === 'boolean' && flag.default).toBe(false);
+        expect(defaultParams(PROTOSTAR).adaptiveTimeStep).toBe(false);
     });
 
     it('explains the two energy tiles', () => {

@@ -9,6 +9,7 @@ uniform sampler2D textureVelocity;
 uniform sampler2D textureAccel;
 uniform vec2 screenSize;
 uniform float dt;
+uniform float dtPrev;                   // s, the previous substep's length: the two half kicks of v(t) belong to that step (the time step may change)
 uniform float activeCount;
 uniform float coolingRate;              // 1/s
 uniform float opacityDensity;           // rho / rho0 above which the gas traps its heat
@@ -30,7 +31,7 @@ float wallHit(float x, float next, float size) {
 /**
  * The velocity stored for an axis that bounced (twin: bounceVelocity() in leapfrog.ts): the particle reaches the wall with
  * v + a hit dt, leaves it with restitution times that reversed, and is pulled by a for the rest of the step; the next step adds its two
- * half kicks (a and the next a, taken equal) to what is stored here.
+ * half kicks (a and the next a, taken equal, over this step's dt: its dtPrev) to what is stored here.
  */
 float bounced(float v, float a, float hit) {
     return -restitution * (v + a * hit * dt) - a * hit * dt;
@@ -44,13 +45,14 @@ void main() {
     vec4 pos = texture2D(texturePosition, uv);
     if (pos.w < 0.0) { gl_FragColor = vec4(0.0); return; }
 
-    // Velocity Verlet: v(t) = v(t - dt) + (a(t - dt) + a(t)) dt / 2, the second half kick of the last
-    // step and the first of this one; the position pass moves the particle to x + v(t) dt + a(t) dt^2 / 2
+    // Velocity Verlet: v(t) = v(t - dtPrev) + (a(t - dtPrev) + a(t)) dtPrev / 2, the second half kick of the last
+    // step and the first of this one (both over the last step's length: the step may have changed since);
+    // the position pass moves the particle to x + v(t) dt + a(t) dt^2 / 2
     // from the same inputs (the same expression: both must see the same `next`). On the first step of a
     // run the velocity stored is v(t) itself and nothing is owed (textureAccel.z = 1).
     vec4 accelState = texture2D(textureAccel, uv);
     vec2 a = forceAt(pos.xy);
-    vec2 kicked = vel.xy + (1.0 - accelState.z) * 0.5 * (accelState.xy + a) * dt;
+    vec2 kicked = vel.xy + (1.0 - accelState.z) * 0.5 * (accelState.xy + a) * dtPrev;
     vec2 next = pos.xy + kicked * dt + 0.5 * a * dt * dt;
     vec2 v = kicked - driftKick;
 

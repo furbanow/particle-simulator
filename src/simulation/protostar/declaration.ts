@@ -38,6 +38,7 @@ export const PROTOSTAR_PARAM = {
     heFusionRate: 'heFusionRate',
     feedback: 'feedback',
     diagnostics: 'diagnostics',
+    adaptiveTimeStep: 'adaptiveTimeStep',
 } as const;
 
 export const PROTOSTAR_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -124,6 +125,8 @@ const params: readonly ParamDef[] = [
         format: v => `× ${formatSmall(v)}` },
     { kind: 'boolean', key: PROTOSTAR_PARAM.diagnostics, tab: 'features', label: t('algo.protostar.param.diagnostics.label'),
         doc: t('algo.protostar.param.diagnostics.doc'), default: true },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.adaptiveTimeStep, tab: 'features', label: t('algo.protostar.param.adaptiveTimeStep.label'),
+        doc: t('algo.protostar.param.adaptiveTimeStep.doc'), default: false },
 ];
 
 const element = (symbol: string) => {

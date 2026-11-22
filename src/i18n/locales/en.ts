@@ -236,6 +236,8 @@ export const en = {
     'algo.protostar.param.feedback.doc': 'Multiplies the fusion energy returned to the gas as heat. This heat creates a pressure that slows the collapse of the core.',
     'algo.protostar.param.diagnostics.label': 'Energy diagnostics',
     'algo.protostar.param.diagnostics.doc': 'Measures the energy of the cloud every few frames (kinetic and gravitational) and shows its drift since the start and its virial ratio in the statistics. It costs a few small GPU passes every ten frames. Off, the two statistics stay blank.',
+    'algo.protostar.param.adaptiveTimeStep.label': 'Adaptive time step',
+    'algo.protostar.param.adaptiveTimeStep.doc': 'Chooses how many calculation steps each frame runs from what the cloud is doing: never fewer than the speed asks for, more (up to one and a half times as many) when its core contracts and its particles oscillate faster, so that the core stays accurate. The speed slider keeps its meaning (a frame simulates the same time); only the number of steps inside it changes. It costs a small GPU read every few frames and, while the core is dense, up to half as many more steps. Off, every frame runs the same number of steps, set by the speed.',
     'algo.protostar.prop.weight.label': 'Initial distribution',
     'algo.protostar.prop.weight.resetTitle': 'Pure hydrogen, with no primordial helium or carbon',
     'algo.protostar.prop.weight.randomTitle': 'Random distribution',

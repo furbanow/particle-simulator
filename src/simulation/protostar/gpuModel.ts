@@ -3,7 +3,8 @@ import {
     MAX_SPECIES, PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_DRIFT_GAIN, PROTOSTAR_ENERGY_FIRST_FRAME, PROTOSTAR_FUSION_C2,
     PROTOSTAR_FUSION_T_REF, PROTOSTAR_GLOW_FUSION, PROTOSTAR_GLOW_HEATING_REF, PROTOSTAR_GLOW_MAX, PROTOSTAR_GLOW_T_RANGE,
     PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_HEATING_T_FLOOR, PROTOSTAR_MAX_SPEED,
-    PROTOSTAR_RATE_SMOOTHING, PROTOSTAR_RESTITUTION, PROTOSTAR_STATS_INTERVAL, REMOVED_PARTICLE_W, TOTAL_MASS,
+    PROTOSTAR_MAX_SUBSTEP_RATIO, PROTOSTAR_MAX_SUBSTEPS, PROTOSTAR_MIN_SUBSTEP_RATIO, PROTOSTAR_RATE_SMOOTHING, PROTOSTAR_RESTITUTION, PROTOSTAR_STATS_INTERVAL, PROTOSTAR_STEP_COURANT,
+    PROTOSTAR_STEP_MAX_READINGS, PROTOSTAR_STEP_OMEGA, PROTOSTAR_STEP_READ_INTERVAL, PROTOSTAR_STEP_RELEASE, REMOVED_PARTICLE_W, TOTAL_MASS,
 } from '../../config';
 import { glslFloat } from '../../gl/withDefines';
 import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
@@ -17,6 +18,7 @@ import { ProtostarGrids, withProtostarCommon, type ProtostarGridTargets } from '
 import { fillCloud, type CloudSummary } from './initialConditions';
 import { reactionArrays } from './reactions';
 import { REDUCTION_FLOATS, REDUCTION_TEXELS, unpackReduction, type Reduction, type ReductionScales } from './reduction';
+import { criticalStep, substepBounds, SubstepController } from './timeStep';
 import velocityFrag from '../../shaders/protostar-velocity.frag?raw';
 import positionFrag from '../../shaders/protostar-position.frag?raw';
 import accelFrag from '../../shaders/protostar-accel.frag?raw';
@@ -39,6 +41,17 @@ const numberOr = (value: ParamValue | undefined, fallback: number): number => ty
 
 /** The scales of a reduction when no substep has drawn the grids yet: the sums are all zero then. */
 const NO_SCALES: ReductionScales = { massPerDeposit: 1, depositVelScale: 1, gravityPerDeposit: 0, softening: 0 };
+
+/** What the adaptive step saw and decided in a frame (the lab records it). */
+export interface StepInfo {
+    steps: number;
+    /** The criterion's longest substep, s; null before the first reading. */
+    dtCritical: number | null;
+    maxSpeed: number | null;
+    maxAcceleration: number | null;
+    /** Frames between the reading's frame and this one. */
+    age: number | null;
+}
 
 /** The energy of the cloud as the diagnostics see it, in simulation units (mass x px^2/s^2). */
 export interface ProtostarEnergy extends EnergyStats {
@@ -74,6 +87,8 @@ export class ProtostarModel implements GpuModel {
         restitution: { value: PROTOSTAR_RESTITUTION },
         driftKick: { value: new THREE.Vector2() },
     };
+    /** The previous substep's length (s), read by the velocity and the position passes for the two half kicks of the step that ended. */
+    private readonly dtPrev = { value: 0 };
 
     private params: ParamValues = {};
     private types: readonly ParticleType[] = [];
@@ -86,7 +101,13 @@ export class ProtostarModel implements GpuModel {
     private readingSequence = 0;                       // numbers the reductions as they are read...
     private readingApplied = 0;                        // ...so that a late one never replaces a newer one
     private latestReduction: Reduction | null = null;
+    private latestReductionFrame = 0;                  // the frame whose end the latest reduction describes
+    private readingsInFlight = 0;
     private diagnostics = true;
+    private adaptiveStep = false;
+    private readonly stepController = new SubstepController(PROTOSTAR_STEP_RELEASE);
+    private lastDt = 0;                                // the length of the previous substep of this run, 0 before the first
+    private stepInfo: StepInfo | null = null;
     private readonly energyBalance = new EnergyBalance();
     private currentEnergy: ProtostarEnergy | null = null;
     private reductionScales: ReductionScales | null = null;     // those of the last substep's grids
@@ -119,6 +140,12 @@ export class ProtostarModel implements GpuModel {
         this.updateReactions();
     }
 
+    /** Dev-only (the lab): a number of substeps per frame that replaces the fixed and the adaptive counts (a reference run at a smaller step); null in the application. */
+    debugSubsteps: number | null = null;
+
+    /** Dev-only (the lab): other constants of the adaptive step (omega, courant, the bounds' ratios to the fixed count, frames between reads), to tune them; null in the application. */
+    debugCriterion: { omega?: number; courant?: number; minRatio?: number; ratio?: number; readInterval?: number } | null = null;
+
     /** Dev-only, read-only: what the initial cloud of the latest restart was made of (its disc's table, the energies it set); null with a debug initial state. */
     get debugInitialCloud(): CloudSummary | null {
         return this.initialCloud;
@@ -135,8 +162,8 @@ export class ProtostarModel implements GpuModel {
             GLOW_HEATING_REF: glslFloat(PROTOSTAR_GLOW_HEATING_REF), GLOW_MAX: glslFloat(PROTOSTAR_GLOW_MAX),
         });
         this.positionShader = withProtostarCommon(positionFrag, { REMOVED_W: glslFloat(REMOVED_PARTICLE_W), GAS_THERMO: 1 });
-        this.velocityUniforms = { ...common, ...this.own };
-        this.positionUniforms = { ...common };
+        this.velocityUniforms = { ...common, ...this.own, dtPrev: this.dtPrev };
+        this.positionUniforms = { ...common, dtPrev: this.dtPrev };
         this.variables = [{
             name: ACCEL,
             shader: withProtostarCommon(accelFrag),
@@ -177,6 +204,7 @@ export class ProtostarModel implements GpuModel {
         if (key === P.cooling && typeof value === 'number') this.own.coolingRate.value = value;
         if (key === P.opacity && typeof value === 'number') this.own.opacityDensity.value = value;
         if (key === P.diagnostics) this.setDiagnostics(value === true);
+        if (key === P.adaptiveTimeStep) this.setAdaptiveStep(value === true);
         if (REACTION_PARAMS.has(key)) this.updateReactions();
     }
 
@@ -184,6 +212,13 @@ export class ProtostarModel implements GpuModel {
         if (on === this.diagnostics) return;
         this.diagnostics = on;
         this.clearEnergy();
+    }
+
+    private setAdaptiveStep(on: boolean): void {
+        if (on === this.adaptiveStep) return;
+        this.adaptiveStep = on;
+        this.stepController.reset();
+        this.stepInfo = null;
     }
 
     /** The energy readings start again: a restart, or the diagnostics switched on or off. */
@@ -226,14 +261,19 @@ export class ProtostarModel implements GpuModel {
         this.flatRates = false;
         this.updateReactions();
         this.generation++;
+        this.readingsInFlight = 0;
         this.frame = 0;
         this.substep = 0;                              // a restart replays the same random stream (the lab relies on it)
         this.coreTemperature = null;
         this.coreDensity = null;
         this.fusionRate = null;
         this.latestReduction = null;
+        this.latestReductionFrame = 0;
         this.reductionScales = null;
         this.gridsDrawn = false;
+        this.lastDt = 0;                               // the first substep of the run owes no half kick (z = 1), whatever dtPrev holds
+        this.stepController.reset();
+        this.stepInfo = null;
         this.clearEnergy();
         this.typeCounts = null;
         this.lastCenter = null;
@@ -271,8 +311,42 @@ export class ProtostarModel implements GpuModel {
         this.grids.setFuelChannels(arrays.fuel);
     }
 
+    /**
+     * How many substeps the next frame of `frameTime` seconds runs (the pipeline gives them all frameTime / count seconds). The count
+     * the speed slider alone gives (`fixedSteps`) unless the adaptive step is on (the flag) and a reduction has been read: then the
+     * criterion of timeStep.ts on its maxima. The static drawings' and the point force's pull are not in those maxima: while one acts,
+     * the count is at least the fixed one.
+     */
+    substepCount(frameTime: number, fixedSteps: number): number {
+        if (this.debugSubsteps !== null) return Math.max(1, Math.round(this.debugSubsteps));
+        if (!this.adaptiveStep) return fixedSteps;
+        const reading = this.latestReduction;
+        const size = this.context.screenSize.value;
+        const tuned = this.debugCriterion;
+        const criterion = {
+            cell: Math.max(size.x, size.y, 1) / PROTOSTAR_GRID_RES, softening: this.softening(this.scales.length),
+            courant: tuned?.courant ?? PROTOSTAR_STEP_COURANT, omega: tuned?.omega ?? PROTOSTAR_STEP_OMEGA,
+        };
+        const dtCritical = reading ? criticalStep(reading.maxSpeed, reading.maxAcceleration, criterion) : null;
+        const bounds = substepBounds(fixedSteps, tuned?.minRatio ?? PROTOSTAR_MIN_SUBSTEP_RATIO, tuned?.ratio ?? PROTOSTAR_MAX_SUBSTEP_RATIO,
+            PROTOSTAR_MAX_SUBSTEPS);
+        let steps = this.stepController.next(frameTime, dtCritical, fixedSteps, bounds);
+        if (this.context.drawing.active) steps = Math.max(steps, fixedSteps);
+        this.stepInfo = {
+            steps, dtCritical, maxSpeed: reading?.maxSpeed ?? null, maxAcceleration: reading?.maxAcceleration ?? null,
+            age: reading ? this.frame - this.latestReductionFrame : null,
+        };
+        return steps;
+    }
+
     beforeSubstep(dt: number): void {
         const { context, grids } = this;
+        // The previous substep's length, for the two half kicks that belong to it. A call with no time (the lab draws the grids that way)
+        // is not a substep: it leaves the lengths alone. The first substep of a run owes no half kick, so its dtPrev is not used.
+        if (dt > 0) {
+            this.dtPrev.value = this.lastDt > 0 ? this.lastDt : dt;
+            this.lastDt = dt;
+        }
         // The kick lasts one substep.
         this.own.driftKick.value.set(this.pendingKick?.x ?? 0, this.pendingKick?.y ?? 0);
         this.pendingKick = null;
@@ -315,27 +389,36 @@ export class ProtostarModel implements GpuModel {
     endFrame(): void {
         this.frame++;
         const statsDue = this.frame % PROTOSTAR_STATS_INTERVAL === 0;
+        // The adaptive step reads the maxima more often than the stats do, as long as the reads in flight do not pile up.
+        const stepDue = this.adaptiveStep && this.frame % (this.debugCriterion?.readInterval ?? PROTOSTAR_STEP_READ_INTERVAL) === 0
+            && this.readingsInFlight < PROTOSTAR_STEP_MAX_READINGS;
         // The stats' frames wait for the previous stats' reading to be over (as they always did); the
         // first frame's reading, for the energy, is on its own and does not hold the stats back.
-        if (statsDue ? this.readingStats : !(this.diagnostics && this.readingDue(this.frame))) return;
+        if (statsDue ? this.readingStats : !((this.diagnostics && this.readingDue(this.frame)) || stepDue)) return;
         const { renderer } = this.context;
         if (!renderer.readRenderTargetPixelsAsync) return;
         this.grids.reduceStats();
         const gen = this.generation;
         const sequence = ++this.readingSequence;
+        const frame = this.frame;
         const scales = this.gridsDrawn ? this.reductionScales : null;
         // The potential kept in this frame's substeps goes with the kinetic energy the reduction sums now.
         const synchronized = this.diagnostics && this.stashedFrame === this.frame - 1;
         const buffer = new Float32Array(REDUCTION_FLOATS);           // the read is issued now: a later one can overlap it
         if (statsDue) this.readingStats = true;
+        this.readingsInFlight++;
         this.pendingReading = renderer.readRenderTargetPixelsAsync(this.grids.reduce2.target, 0, 0, REDUCTION_TEXELS, 1, buffer)
             .then(() => {
                 if (gen !== this.generation || sequence < this.readingApplied) return;
                 this.readingApplied = sequence;
+                this.latestReductionFrame = frame;
                 this.takeReading(buffer, statsDue, scales, synchronized);
             })
             .catch(err => console.error(err))
-            .finally(() => { if (statsDue) this.readingStats = false; });
+            .finally(() => {
+                if (statsDue) this.readingStats = false;
+                if (gen === this.generation) this.readingsInFlight--;
+            });
     }
 
     /** The reduction has been read back: updates the stats (on their frames) and the energy diagnostics. */
@@ -410,6 +493,11 @@ export class ProtostarModel implements GpuModel {
      */
     get energy(): ProtostarEnergy | null {
         return this.diagnostics ? this.currentEnergy : null;
+    }
+
+    /** Dev-only, read-only: what the adaptive step decided in the latest frame (null with the flag off); for the lab page. */
+    get debugStepInfo(): StepInfo | null {
+        return this.stepInfo;
     }
 
     /** Dev-only: the reading in flight (resolves once it is in `reduction`), for the lab page. */
