@@ -14,10 +14,11 @@ import {
     BASELINE_SERIES_POINTS, CLOUD_VARIANT_SEEDS, LAB_SEED, IGNITION_REFERENCE_DENSITY, IGNITION_REFERENCE_RATE, IGNITION_SENSITIVITY_DENSITIES,
     IGNITION_SENSITIVITY_RATES, OMEGA_DT_LIMIT, REAL_IGNITION_RATIO,
 } from '../config';
-import { probeCore } from '../core';
+import { burnTemperature, probeCore } from '../core';
 import { frameSeconds, modelStats, protostarGrids, protostarModel, restart, runFrames, sleep, substepsPerFrame } from '../driver';
 import { decimate, mean, significant, sumChannel } from '../numbers';
 import { readTarget } from '../readback';
+import { LAB_T0 } from '../thermalGas';
 import type { JsonValue, LabContext, Scenario, ScenarioOutcome } from '../types';
 
 const MEGA = 1e6;
@@ -36,6 +37,8 @@ interface Sample {
     coreMK: number;
     /** Expected fusions per second in the whole cloud. */
     fusionRate: number;
+    /** Temperature of the burning gas (weighted by the fusion heating), MK; 0 when nothing burns. */
+    burnMK: number;
     /** Live particles of each of the first three types (hydrogen, helium, carbon), from the model's last read-back; -1 before the first. */
     counts: readonly number[];
     /** Oscillation frequency in the core (1/s) times the substep: the Verlet integrator needs it well below 1. */
@@ -94,11 +97,13 @@ async function runDefaultCloud(context: LabContext, variant?: CloudVariant): Pro
             const grids = protostarGrids(context);
             const [density, temperature, rate] = await readTarget(context.renderer, grids.reduce2);
             const size = simulation.screenSize.value;
-            const core = probeCore(await readTarget(context.renderer, grids.gas), await readTarget(context.renderer, grids.gravity),
+            const gas = await readTarget(context.renderer, grids.gas);
+            const core = probeCore(gas, await readTarget(context.renderer, grids.gravity),
                 PROTOSTAR_GRID_RES, Math.max(size.x, size.y) / PROTOSTAR_GRID_RES);
+            const burn = burnTemperature(gas, await readTarget(context.renderer, grids.heat), PROTOSTAR_GRID_RES * PROTOSTAR_GRID_RES, LAB_T0);
             samples.push({
                 frame, seconds: frame * frameSeconds(context), maxDensity: density,
-                coreMK: temperature * PROTOSTAR_T0_KELVIN / MEGA, fusionRate: rate,
+                coreMK: temperature * PROTOSTAR_T0_KELVIN / MEGA, fusionRate: rate, burnMK: (burn ?? 0) * PROTOSTAR_T0_KELVIN / MEGA,
                 omegaDt: core.omega * frameSeconds(context) / Math.max(1, simulation.lastSubsteps),
                 counts: [0, 1, 2].map(k => simulation.liveTypeCounts()?.[k] ?? -1),
             });
@@ -168,6 +173,7 @@ async function runDefaultCloud(context: LabContext, variant?: CloudVariant): Pro
             coreTemperatureMK: round(series.map(s => s.coreMK)),
             maxDensity: round(series.map(s => s.maxDensity)),
             fusionRatePerSecond: round(series.map(s => s.fusionRate)),
+            burnTemperatureMK: round(series.map(s => s.burnMK)),
             coreOmegaDt: round(series.map(s => s.omegaDt)),
             hydrogen: series.map(s => s.counts[0]),
             helium: series.map(s => s.counts[1]),

@@ -39,3 +39,19 @@ export function probeCore(gas: ArrayLike<number>, gravity: ArrayLike<number>, re
         omega: omega2 > 0 ? Math.sqrt(omega2) : 0,
     };
 }
+
+/**
+ * The temperature at which the gas burns: the temperature of the cells (the dispersion times mu / mu_H, in the unit of `t0`) weighted by the
+ * fusion heating they hold (rho q), from the gas grid (rho / rho0, dispersion) and the heat grid (q, mu / mu_H); null when nothing burns. It is
+ * the temperature of the burning hydrogen while hydrogen burns, where the densest cell's may be that of the ash at its center.
+ */
+export function burnTemperature(gas: ArrayLike<number>, heat: ArrayLike<number>, cells: number, t0: number): number | null {
+    let weight = 0, sum = 0;
+    for (let i = 0; i < cells; i++) {
+        const w = gas[i * 4] * heat[i * 4];
+        if (!(w > 0) || !Number.isFinite(w)) continue;
+        weight += w;
+        sum += w * heat[i * 4 + 1] * gas[i * 4 + 1] / t0;
+    }
+    return weight > 0 ? sum / weight : null;
+}
