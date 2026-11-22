@@ -709,6 +709,55 @@ A2, which does not enter a run with the fusion off): the default cloud, K + U af
 adaptive step as shipped, 96 orbits, 2.0002 substeps a frame (the conservative cloud almost never asks for a third): -0.245, -0.240, -0.231, -0.244, -0.24 % (0.80 %); the count changing every frame between 1 and 4
 (2.25 on average), 86 orbits: -0.158, -0.151, -0.148, -0.159, -0.13 % (0.91 %), slope +0.0002 % per orbit. The cold cloud on circular orbits: +0.09 % (0.52 to 0.58 %) in all three.
 
+## After phase P3c: fusion of parcels of constant mass
+
+P3c (proposal A4, [the spike](spikes/a4-constant-mass-fusion.md)) changes the bookkeeping of the fusions, not their laws, and **no default**. A fusing particle changes type and keeps its mass and its
+velocity; none is removed; every type deposits the same mass; the statistical drift correction and the periodic read-back of the positions are gone; the particles of each type are counted on the GPU.
+Same GPU and protocol as above (400 000 particles, 1024 x 768 px area, 1 200 frames = 34 s, seeds 20240611 onward), on top of phase P3b-2 (`0e4fc9c`, whose default cloud is the "before" below: it reproduces the A2 table
+to the digit). The old tables count particles of different masses (H + 4 He + 12 C = the hydrogen atoms of the cloud); the figures below are **percent of the mass**, which both builds can give.
+
+| 34 s, six seeds | before (A2) | after (A4) |
+|---|---|---|
+| hydrogen burnt before 4.5 s | 35 %, 35 %, 35 %, 35 %, 34 %, 36 % | 35 %, 35 %, 36 %, 35 %, 34 %, 36 % |
+| peak fusions per second of that burst | 783 k, 807 k, 771 k, 779 k, 759 k, 785 k | 946 k, 891 k, 842 k, 856 k, 809 k, 994 k |
+| core T on the plateau, median (MK) | 38.7, 17.7, 19.2, 18.2, 14.8, 16.4 | 11.9, 18.7, 17.1, 20.9, 25.2, 11.6 |
+| core T weighted by the hydrogen burnt after (MK) | 16.7, 17.5, 23.7, 24.4, 11.9, 29.5 | 23.8, 41.6, 20.0, 33.7, 27.6, 12.1 |
+| highest core T after 6 s (MK) | 99, 196, 150, 151, 64, 114 | 285, 144, 211, 162, 113, 233 |
+| core T in the last 15 % (MK) | 79, 86, 33, 95, 41, 67 | 86, 102, 181, 123, 47, 77 |
+| hydrogen left (% of the mass) | 11.8, 6.1, 6.1, 5.8, 16.1, 6.4 | 6.3, 5.7, 1.8, 2.9, 10.2, 6.0 |
+| helium left (% of the mass) | 79, 17, 64, 33, 50, 62 | 25, 27, 1, 2, 60, 23 |
+| carbon (% of the mass) | 9, 76, 30, 61, 33, 32 | 68, 67, 98, 95, 30, 71 |
+| first helium flash (s) | none, 24.6, 17.6, 15.3, 22.9, 25.2 | 26.4, 23.2, 18.7, 24.4, 32.0, 25.5 |
+
+Six seeds, medians: first collapse 35 % in both (891 000 fusions per second against 783 000), plateau **18.7 MK** (5 seeds of 6 in 10 to 20 MK before, 4 of 6 after; twelve seeds 17.9 MK, 9 of 12, as in the A2 twelve), helium flash in
+**6 of 6** seeds (median 25.5 s; 5 of 6 at 22.9 s before; twelve seeds 12 of 12), carbon **70 %** of the mass at 34 s in the median (33 % before), core T in the last 15 % 102 MK (79).
+
+The seed of the baseline (20240611), at the rows of the first table (the readings of 10 frames nearest to each row); the three columns are particles, which are parcels of one mass:
+
+| t (s) | frame | core T (MK) | peak density (rho0) | fusions / s | H, He, C (parcels) |
+|---|---|---|---|---|---|
+| 0.28 | 10 | 2.0 | 1.1 | 0.019 | 400 000, 0, 0 |
+| 1.42 | 50 | 1.6 | 2.3 | 0.001 | 400 000, 0, 0 |
+| 1.98 | 70 | 3.7 | 6.5 | 0.247 | 400 000, 0, 0 |
+| 4.25 | 150 | 3.7 | 6.9 | 0.523 | 259 499, 105 953, 34 548 |
+| 8.22 | 290 | 10.1 | 30.5 | 3 639 | 253 127, 112 325, 34 548 |
+| 11.62 | 410 | 12.0 | 36.3 | 6 187 | 227 795, 137 657, 34 548 |
+| 14.45 | 510 | 7.8 | 37.2 | 12 351 | 185 196, 180 256, 34 548 |
+| 20.40 | 720 | 8.3 | 44.4 | 4 696 | 122 872, 242 580, 34 548 |
+| 25.50 | 900 | 56.6 | 54.5 | 9 738 | 79 615, 285 837, 34 548 |
+| 34.00 | 1200 | 119.5 | 84.4 | 2 541 | 25 272, 100 799, 273 929 |
+
+What changed against the build before, honestly:
+
+- **Nothing before the first fusions**: the rows at frames 10, 50 and 70 are the same to the printed digit, and the first collapse burns 35 % in every seed. The burst is 14 % higher (the core is not thinned by removals).
+- **The helium burns further**: carbon is 70 % of the mass at 34 s against 33 % in the median, two seeds of six ending above 95 %; the flash starts within the spread of the seeds. Switching the correction of the
+  noise of T off moves the build before from 33 to 44 % and this build from 70 to 69 %: the effective number of particles of the correction accounted for a part of it, not all ([the spike](spikes/a4-constant-mass-fusion.md)).
+- **Momentum, energy and counts**: no gravity, 10 000 substeps, the momentum of a fusing gas moves by 4.5e-9 of its thermal momentum (5.3e-3 before, with half of the particles gone); the energy the fusions
+  release is the power deposited to 0.25 %; the default cloud has its 400 000 particles at the end (54 360 before) and 193 632 of them within 40 px of the densest cell (21 771 before).
+- **The mass the grids hold is the cloud's**: `depositedMassOverCount` of the baseline scenario is 0.99993 (99.5 % before: the mass defect, which now leaves only as energy).
+
+- **Cost** (six alternated pairs on the GPU in its P5 state, [the spike](spikes/a4-constant-mass-fusion.md)): the late window of the default cloud (frames 1 000 to 1 040) costs **15.6 -> 23.3 ms/frame at 400 000 particles and 27.0 -> 41.8 at 1 000 000** (x1.5: nothing is removed any more); the early window is the same load (50.0 against 51.1 ms at 1 000 000; at 400 000 the pairs read 25.4 against 10.8 and a clocked pair 10.9 against 11.0: a state of the GPU); the worst frame over the median of the periodic readings falls from 65, 68 and 135 ms to 8, 14 and 26 ms at 400 000, 1 000 000 and 2 000 000 particles. The type count on the GPU costs 2.1, 4.2 and 5.9 ms per count at 400 000, 1 000 000 and 2 000 000 particles, every 10 frames. The first-visit benchmark's cap is 580 000 for both builds at equal early cost (replayed with a fake 60 Hz clock).
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a; it was a documented
