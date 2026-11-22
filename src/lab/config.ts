@@ -189,6 +189,11 @@ export const REDUCTION_PARTICLE_TOLERANCE = 1e-5;
  */
 export const INTEGRATION_PARTICLES = 20000;
 export const INTEGRATION_STEPS = 4;
+/**
+ * The speed (time scale, under 1: one substep a frame) of each step after the first INTEGRATION_STEPS: the time step changes from one
+ * step to the next, so the half kicks are over the previous step's length (phase B5, the shaders' dtPrev).
+ */
+export const INTEGRATION_CHANGING_SPEEDS = [0.5, 0.9, 0.25, 0.25, 0.7, 0.4] as const;
 export const INTEGRATION_SIGMA = 300;
 /** Float32 positions of about 1000 px have a unit in the last place of 6e-5 px, velocities of 1000 px/s of 6e-5 px/s: a few of them. */
 export const INTEGRATION_POSITION_TOLERANCE = 5e-4;

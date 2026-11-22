@@ -82,11 +82,13 @@ async function runDefaultCloud(context: LabContext, variant?: CloudVariant): Pro
     }
     const { simulation } = context;
     const samples: Sample[] = [];
-    const substepSeconds = frameSeconds(context) / substepsPerFrame(context);
+    // The substeps of a frame are the speed's fixed count, or the adaptive step's when the flag is on (phase B5; off by default).
+    let substepsRun = 0;
     const started = performance.now();
     await runFrames(context, frames, {
         endFrame: true,
         async onFrame(frame) {
+            substepsRun += simulation.lastSubsteps;
             // The model has just reduced the grids (every PROTOSTAR_STATS_INTERVAL frames): read the same texel itself.
             if (frame % PROTOSTAR_STATS_INTERVAL !== 0) return;
             const grids = protostarGrids(context);
@@ -97,7 +99,7 @@ async function runDefaultCloud(context: LabContext, variant?: CloudVariant): Pro
             samples.push({
                 frame, seconds: frame * frameSeconds(context), maxDensity: density,
                 coreMK: temperature * PROTOSTAR_T0_KELVIN / MEGA, fusionRate: rate,
-                omegaDt: core.omega * substepSeconds,
+                omegaDt: core.omega * frameSeconds(context) / Math.max(1, simulation.lastSubsteps),
                 counts: [0, 1, 2].map(k => simulation.liveTypeCounts()?.[k] ?? -1),
             });
         },
@@ -129,9 +131,10 @@ async function runDefaultCloud(context: LabContext, variant?: CloudVariant): Pro
         frames,
         timeScale: simulation.timeScale,
         substepsPerFrame: substepsPerFrame(context),
+        meanSubstepsPerFrame: significant(substepsRun / Math.max(1, frames), SIGNIFICANT_DIGITS),
         simulatedSeconds: significant(frames * frameSeconds(context), SIGNIFICANT_DIGITS),
         wallSeconds: significant(wallSeconds, 3),
-        substepSeconds: significant(substepSeconds, SIGNIFICANT_DIGITS),
+        meanSubstepSeconds: significant(frames * frameSeconds(context) / Math.max(1, substepsRun), SIGNIFICANT_DIGITS),
         final: last ? {
             coreTemperatureMK: fixed(last.coreMK), maxDensity: fixed(last.maxDensity),
             fusionRatePerSecond: fixed(last.fusionRate), coreOmegaDt: fixed(last.omegaDt),

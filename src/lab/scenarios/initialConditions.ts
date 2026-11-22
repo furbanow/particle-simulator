@@ -23,6 +23,7 @@ import {
 import { mulberry32 } from '../random';
 import { quantile, significant } from '../numbers';
 import { readPositions } from '../readback';
+import { applyStepMode, clearStepMode, type StepMode } from '../stepMode';
 import { drawAndReduce } from './energy';
 import type { JsonValue, LabContext, Scenario, ScenarioOutcome } from '../types';
 
@@ -185,12 +186,14 @@ export const initialGridForce: Scenario = {
 
 // ---- protostar.maclaurin-collapse ----
 
-interface CollapseRun {
+export interface CollapseRun {
     speed: number;
     dt: number;
     /** Half-mass radius over its initial value, one per frame from the start, and the time of each reading. */
     times: number[];
     radii: number[];
+    /** Substeps of each frame (the first is frame 1), as the simulation ran them. */
+    steps: number[];
 }
 
 /**
@@ -232,12 +235,26 @@ function softenedPrediction(geo: ReturnType<typeof geometry>, gm: number, levels
     return { crossings, ratioAtStart: ratio[0] };
 }
 
-async function collapseRun(context: LabContext, speed: number): Promise<CollapseRun & { tff: number; geo: ReturnType<typeof geometry>; gm: number }> {
-    const { renderer, simulation } = context;
+/**
+ * The cold disc's fall at `speed`. `mode` (phase B5, src/lab/stepMode.ts) picks the time step: the application's flag when omitted,
+ * else the fixed count, the adaptive step (the model then reads its reduction every frame, as the application does) or a reference at
+ * a smaller step.
+ */
+export async function collapseRun(context: LabContext, speed: number, mode?: StepMode): Promise<CollapseRun & { tff: number; geo: ReturnType<typeof geometry>; gm: number }> {
     await restart(context, {
         count: INITIAL_PARTICLES, params: { profile: 'maclaurin', alphaVir: 0, betaRot: 0 },
         overrides: { ...CONSERVATIVE_OVERRIDES, softening: MACLAURIN_SOFTENING }, timeScale: speed,
     });
+    if (mode) applyStepMode(context, mode);
+    try {
+        return await collapseFrames(context, speed, mode !== undefined);
+    } finally {
+        if (mode) clearStepMode(context);
+    }
+}
+
+async function collapseFrames(context: LabContext, speed: number, readsReduction: boolean): Promise<CollapseRun & { tff: number; geo: ReturnType<typeof geometry>; gm: number }> {
+    const { renderer, simulation } = context;
     const geo = geometry(context);
     const count = simulation.activeCount;
     const gm = geo.gravity * TOTAL_MASS;
@@ -246,16 +263,18 @@ async function collapseRun(context: LabContext, speed: number): Promise<Collapse
     const pipeline = simulation.debugPipeline;
     let positions = await readPositions(renderer, pipeline.debugPositionTarget, count);
     const initial = halfMassRadius(positions, count, meanPosition(positions, count));
-    const times = [0], radii = [1];
+    const times = [0], radii = [1], steps: number[] = [];
     for (let frame = 1; frame * dt < MACLAURIN_MAX_FALL_TIMES * tff; frame++) {
         simulation.step();
+        steps.push(simulation.lastSubsteps);
+        if (readsReduction) protostarModel(context).endFrame();                // the adaptive step reads the reduction
         await context.sync.wait(simulation.positionTexture);
         positions = await readPositions(renderer, pipeline.debugPositionTarget, count);
         const radius = halfMassRadius(positions, count, meanPosition(positions, count)) / initial;
         times.push(frame * dt); radii.push(radius);
         if (radius < 0.03) break;
     }
-    return { speed, dt, times, radii, tff, geo, gm };
+    return { speed, dt, times, radii, steps, tff, geo, gm };
 }
 
 export const maclaurinCollapse: Scenario = {

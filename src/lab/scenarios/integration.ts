@@ -2,13 +2,14 @@
 // time, on a gas that fills the area (so that particles bounce on the walls), compared with `substep()` (leapfrog.ts) fed with the
 // acceleration that the GPU's own acceleration pass stored. It checks the arithmetic of the scheme (the half kicks, the first step, the
 // mirror and the stored velocity of a bounce); that the scheme is of the second order, and what the walls did to the energy, are
-// the unit tests' and the energy scenarios'. See docs/spikes/p5a-integrator-order.md.
+// the unit tests' and the energy scenarios'. The last steps change the time step from one to the next (phase B5): the half kicks are then
+// over the previous step's length. See docs/spikes/p5a-integrator-order.md and b5-adaptive-time-step.md.
 
-import { PROTOSTAR_RESTITUTION } from '../../config';
+import { BASE_DT, PROTOSTAR_RESTITUTION } from '../../config';
 import type { Vec2 } from '../../simulation/protostar/drift';
 import { substep, type StoredState } from '../../simulation/protostar/leapfrog';
 import {
-    CONSERVATIVE_OVERRIDES, INTEGRATION_MIN_BOUNCES, INTEGRATION_PARTICLES, INTEGRATION_POSITION_TOLERANCE, INTEGRATION_SIGMA,
+    CONSERVATIVE_OVERRIDES, INTEGRATION_CHANGING_SPEEDS, INTEGRATION_MIN_BOUNCES, INTEGRATION_PARTICLES, INTEGRATION_POSITION_TOLERANCE, INTEGRATION_SIGMA,
     INTEGRATION_STEPS, INTEGRATION_VELOCITY_TOLERANCE, LAB_AREA,
 } from '../config';
 import { frameSeconds, protostarModel, restart } from '../driver';
@@ -63,14 +64,21 @@ export const integration: Scenario = {
         } finally {
             model.debugInitialState = null;
         }
-        const dt = frameSeconds(context);
+        const firstDt = frameSeconds(context);
         const restitution = model.velocityUniforms.restitution.value as number;
         const walls = { width, height, restitution };
 
         let previous = await readState(context, INTEGRATION_PARTICLES);
         const steps: Record<string, JsonValue>[] = [];
         let bounces = 0, mismatches = 0, worstPosition = 0, worstVelocity = 0;
-        for (let s = 1; s <= INTEGRATION_STEPS; s++) {
+        // The steps run at the speed of the restart, then each at its own: the time step changes between steps (one substep each).
+        const speeds = [...Array.from({ length: INTEGRATION_STEPS }, () => context.simulation.timeScale), ...INTEGRATION_CHANGING_SPEEDS];
+        const dts: number[] = [];
+        for (let s = 1; s <= speeds.length; s++) {
+            context.simulation.timeScale = speeds[s - 1];
+            const dt = BASE_DT * speeds[s - 1];
+            const dtPrev = s === 1 ? dt : dts[s - 2];
+            dts.push(dt);
             context.simulation.step();
             await context.sync.wait(context.simulation.positionTexture);
             const now = await readState(context, INTEGRATION_PARTICLES);
@@ -82,10 +90,10 @@ export const integration: Scenario = {
                     position: { x: before.px, y: before.py }, velocity: { x: before.vx, y: before.vy }, accel: { x: before.ax, y: before.ay },
                 };
                 const force = (): Vec2 => ({ x: after.ax, y: after.ay });         // the acceleration the pass stored for this step: a(x_n)
-                const expected = substep(state, force, dt, walls, s === 1).state;
+                const expected = substep(state, force, dt, walls, s === 1, dtPrev).state;
                 // Where the step would end without the walls: outside the area is a bounce.
                 const kick = s === 1 ? 0 : 0.5;
-                const vx = before.vx + kick * (before.ax + after.ax) * dt, vy = before.vy + kick * (before.ay + after.ay) * dt;
+                const vx = before.vx + kick * (before.ax + after.ax) * dtPrev, vy = before.vy + kick * (before.ay + after.ay) * dtPrev;
                 const nx = before.px + vx * dt + 0.5 * after.ax * dt * dt, ny = before.py + vy * dt + 0.5 * after.ay * dt * dt;
                 if (nx < 0 || nx > width || ny < 0 || ny > height) stepBounces++;
                 const positionError = Math.max(Math.abs(after.px - expected.position.x), Math.abs(after.py - expected.position.y));
@@ -105,11 +113,11 @@ export const integration: Scenario = {
             previous = now;
         }
         const metrics: Record<string, JsonValue> = {
-            particles: INTEGRATION_PARTICLES, dt: significant(dt, 5), restitution, bounces, mismatches,
+            particles: INTEGRATION_PARTICLES, dt: significant(firstDt, 5), stepsSeconds: dts.map(d => significant(d, 4)), restitution, bounces, mismatches,
             worstPositionErrorPx: significant(worstPosition, 3), worstVelocityErrorPxPerS: significant(worstVelocity, 3),
             positionTolerance: INTEGRATION_POSITION_TOLERANCE, velocityTolerance: INTEGRATION_VELOCITY_TOLERANCE, steps,
         };
-        const details = `${INTEGRATION_STEPS} steps of ${INTEGRATION_PARTICLES} particles, ${bounces} bounces: worst error ${worstPosition.toExponential(1)} px, `
+        const details = `${dts.length} steps (${INTEGRATION_STEPS} of one length, ${dts.length - INTEGRATION_STEPS} of changing lengths) of ${INTEGRATION_PARTICLES} particles, ${bounces} bounces: worst error ${worstPosition.toExponential(1)} px, `
             + `${worstVelocity.toExponential(1)} px/s, ${mismatches} particles beyond the tolerances (${INTEGRATION_POSITION_TOLERANCE} px, ${INTEGRATION_VELOCITY_TOLERANCE} px/s); `
             + `walls return ${restitution} of the speed (the application's ${PROTOSTAR_RESTITUTION})`;
         if (bounces < INTEGRATION_MIN_BOUNCES) return { status: 'fail', metrics, details: `too few bounces to check anything (${bounces}); ${details}` };

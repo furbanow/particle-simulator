@@ -330,6 +330,8 @@ interface DriftRun {
     orbitPeriod: number;
     orbitsRun: number;
     frames: number;
+    /** Substeps the frames ran in all (the fixed count of the speed, or the adaptive step's). */
+    substeps: number;
     wallSeconds: number;
     series: DriftSeries;
     synchronized: DriftStatistics | null;
@@ -337,6 +339,19 @@ interface DriftRun {
     unsynchronized: DriftStatistics | null;
     unsynchronizedSettled: DriftStatistics | null;
     initial: { kinetic: number; potential: number; total: number; virial: number | null } | null;
+}
+
+/**
+ * `?energyStep=fixed`, `adaptive` or `varying` sets the time step of these runs (phase B5), whatever the application's default (they run with the
+ * application's when the option is absent): the fixed count of substeps, the adaptive step, or a count that changes every frame (the pattern below, 1 to
+ * 4 substeps, as a stress of the half kicks over the previous step's length).
+ */
+const VARYING_SUBSTEPS = [2, 3, 1, 2, 4, 2, 3, 1] as const;
+const energyStepChoice = (): string | null => new URLSearchParams(globalThis.location?.search ?? '').get('energyStep');
+
+function stepOverride(): Record<string, boolean> {
+    const choice = energyStepChoice();
+    return choice === 'fixed' || choice === 'varying' ? { adaptiveTimeStep: false } : choice === 'adaptive' ? { adaptiveTimeStep: true } : {};
 }
 
 /** A conservative run: the cloud, its length, the time step and the walls. */
@@ -360,13 +375,14 @@ async function driftRun(context: LabContext, spec: DriftSpec): Promise<DriftRun>
         return await driftRunUnchecked(context, spec);
     } finally {
         protostarModel(context).velocityUniforms.restitution.value = PROTOSTAR_RESTITUTION;
+        protostarModel(context).debugSubsteps = null;
     }
 }
 
 async function driftRunUnchecked(context: LabContext, spec: DriftSpec): Promise<DriftRun> {
     const { name, particles, orbits, maxFrames } = spec;
     const { simulation } = context;
-    await restart(context, { count: particles, overrides: CONSERVATIVE_OVERRIDES, params: spec.params, timeScale: spec.timeScale });
+    await restart(context, { count: particles, overrides: { ...CONSERVATIVE_OVERRIDES, ...stepOverride() }, params: spec.params, timeScale: spec.timeScale });
     const model = protostarModel(context);
     model.velocityUniforms.restitution.value = spec.restitution ?? PROTOSTAR_RESTITUTION;
     const length = Math.min(LAB_AREA.width, LAB_AREA.height);
@@ -382,8 +398,11 @@ async function driftRunUnchecked(context: LabContext, spec: DriftSpec): Promise<
         frames: [], orbits: [], drift: [], driftUnsynchronized: [], virial: [], kinetic: [], potential: [], peakDensity: [],
         centerOfMassX: [], centerOfMassY: [], maxSpeed: [], maxAcceleration: [],
     };
+    const varying = energyStepChoice() === 'varying';
+    if (varying) model.debugSubsteps = VARYING_SUBSTEPS[0];
     const first: { energy: DriftRun['initial']; unsynchronized: number | null } = { energy: null, unsynchronized: null };
     let frames = 0;
+    let substeps = 0;
     const started = performance.now();
     const take = async (): Promise<void> => {
         await model.debugReading;
@@ -411,6 +430,8 @@ async function driftRunUnchecked(context: LabContext, spec: DriftSpec): Promise<
         await runFrames(context, chunk, {
             async onFrame() {
                 frames++;
+                substeps += simulation.lastSubsteps;
+                if (varying) model.debugSubsteps = VARYING_SUBSTEPS[frames % VARYING_SUBSTEPS.length];
                 model.endFrame();                                      // the model alone: the pipeline's drift correction would add a kick
                 if (frames === 1 || frames % ENERGY_DRIFT_READ_EVERY === 0) await take();
             },
@@ -419,7 +440,7 @@ async function driftRunUnchecked(context: LabContext, spec: DriftSpec): Promise<
     await take();
     const settle = ENERGY_DRIFT_SETTLE_ORBITS;
     return {
-        name, orbitPeriod, orbitsRun: frames * perFrame / orbitPeriod, frames, wallSeconds: (performance.now() - started) / 1000, series,
+        name, orbitPeriod, orbitsRun: frames * perFrame / orbitPeriod, frames, substeps, wallSeconds: (performance.now() - started) / 1000, series,
         synchronized: driftStatistics(series.orbits, series.drift),
         synchronizedSettled: driftStatistics(series.orbits, series.drift, settle),
         unsynchronized: driftStatistics(series.orbits, series.driftUnsynchronized),
@@ -446,6 +467,7 @@ function runMetrics(run: DriftRun): Record<string, JsonValue> {
         orbitPeriodSeconds: sig(run.orbitPeriod),
         orbitsRun: sig(run.orbitsRun),
         frames: run.frames,
+        meanSubstepsPerFrame: sig(run.substeps / Math.max(1, run.frames)),
         wallSeconds: significant(run.wallSeconds, 3),
         initial: run.initial ? {
             kinetic: sig(run.initial.kinetic), potential: sig(run.initial.potential), total: sig(run.initial.total),
@@ -504,6 +526,7 @@ export const energyDrift: Scenario = {
             renderer: context.rendererName,
             particles: ENERGY_DRIFT_PARTICLES,
             timeScale: context.simulation.timeScale,
+            timeStep: energyStepChoice() ?? (context.simulation.params[PROTOSTAR_PARAM.adaptiveTimeStep] === true ? 'adaptive (default)' : 'fixed (default)'),
             frameSeconds: sig(frameSeconds(context)),
             baseDt: sig(BASE_DT),
             configuration: {

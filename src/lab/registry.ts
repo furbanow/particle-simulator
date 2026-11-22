@@ -2,6 +2,7 @@
 // docs/lab.md) in src/lab/scenarios/ and list it here.
 
 import { defaultCloud, defaultCloudTuning, defaultCloudVariants, ignitionRatioBaseline } from './scenarios/baseline';
+import { adaptiveStepScenarios } from './scenarios/adaptiveStep';
 import { diagnosticsCost } from './scenarios/diagnosticsCost';
 import { dustCloudScenarios } from './scenarios/dustCloud';
 import { dustConcentrationScenarios } from './scenarios/dustConcentration';
@@ -65,4 +66,5 @@ export const SCENARIOS: readonly Scenario[] = [
     ...dustConcentrationCostScenarios,
     secondDepositCost,
     diagnosticsCost,
+    ...adaptiveStepScenarios,
 ];
