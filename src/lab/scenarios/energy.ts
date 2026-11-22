@@ -206,14 +206,15 @@ export const reductionChannels: Scenario = {
         await runFrames(context, REDUCTION_FRAMES);
         const model = protostarModel(context);
         const grids = model.debugGrids;
-        const targets = protostarGrids(context);
         const { texels, reduction } = await drawAndReduce(context);
+        const targets = protostarGrids(context);          // after the drawing: the gas pass has two targets that take turns
         const scales = model.debugReductionScales!;
         const count = simulation.activeCount;
 
         // (1) The twin of the reduction on the grids read back.
         const read = {
             gas: await readTarget(renderer, targets.gas),
+            thermo: await readAttachment(renderer, targets.gas, 1),
             moments: await readTarget(renderer, targets.moments),
             composition: await readAttachment(renderer, targets.moments, 1),
             force: await readTarget(renderer, targets.gravity),

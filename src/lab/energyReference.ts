@@ -152,6 +152,8 @@ export function gridPotentialSum(mass: ArrayLike<number>, phi: ArrayLike<number>
 /** The grids the reduction reads, as read back (RGBA per cell, row by row from the bottom). */
 export interface ReductionGrids {
     gas: ArrayLike<number>;
+    /** The gas pass's second attachment (T averaged, effective particles, mu / mu_H, 0): the factor that turns the dispersion into the temperature. */
+    thermo: ArrayLike<number>;
     moments: ArrayLike<number>;
     composition: ArrayLike<number>;
     force: ArrayLike<number>;
@@ -203,7 +205,7 @@ export function reductionReference(g: ReductionGrids): ReductionSums {
                     sums.fusionRate += g.power[k + 1];
                     if (density > sums.peakDensity) {
                         sums.peakDensity = density;
-                        sums.peakTemperature = temperature / g.fusionTRef;
+                        sums.peakTemperature = temperature * g.thermo[k + 2] / g.fusionTRef;   // the temperature (A1), not the dispersion
                         sums.peak = { x, y };
                     }
                     if (density > 0) sums.maxSpeed = Math.max(sums.maxSpeed, Math.hypot(ux, uy) + Math.sqrt(temperature));

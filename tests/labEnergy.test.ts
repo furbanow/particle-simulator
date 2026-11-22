@@ -102,7 +102,7 @@ describe('lab: the reduction twin', () => {
     const cellOf = (x: number, y: number): number => (y * res + x) * 4;
 
     function grids(): ReductionGrids & { gas: number[] } {
-        const gas = zeros(), moments = zeros(), composition = zeros(), force = zeros(), power = zeros();
+        const gas = zeros(), thermo = zeros(), moments = zeros(), composition = zeros(), force = zeros(), power = zeros();
         // cell (1, 0) in block (0, 0): density 3, temperature 8 (fusionTRef 2: T0 units 4), mean velocity (3, 4)
         gas.splice(cellOf(1, 0), 4, 3, 8, 3, 4);
         moments.splice(cellOf(1, 0), 4, 2, 0.5, -0.25, 6);
@@ -110,18 +110,19 @@ describe('lab: the reduction twin', () => {
         force.splice(cellOf(1, 0), 4, -3, 4, -7, 0);
         // cell (2, 3) in block (1, 1): a denser one
         gas.splice(cellOf(2, 3), 4, 9, 2, 0, 0);
+        thermo.splice(cellOf(2, 3), 4, 2, 100, 1.5, 0);     // the factor mu / mu_H of that cell: z
         moments.splice(cellOf(2, 3), 4, 1, 1, 1, 1);
         composition[cellOf(2, 3) + 2] = 1;
         force.splice(cellOf(2, 3), 4, 6, 8, -1, 0);
         power[cellOf(2, 3) + 1] = 5;
         power[cellOf(1, 0) + 1] = 2;
-        return { gas, moments, composition, force, power, resolution: res, block: 2, cell: 10, fusionTRef: 2 };
+        return { gas, thermo, moments, composition, force, power, resolution: res, block: 2, cell: 10, fusionTRef: 2 };
     }
 
     it('finds the densest cell, with its temperature and position', () => {
         const r = reductionReference(grids());
         expect(r.peakDensity).toBe(9);
-        expect(r.peakTemperature).toBe(1);
+        expect(r.peakTemperature).toBe(1.5);      // the dispersion 2 times the factor 1.5, over fusionTRef 2
         expect(r.peak).toEqual({ x: 25, y: 35 });
     });
 
