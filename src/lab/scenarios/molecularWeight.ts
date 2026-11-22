@@ -11,6 +11,7 @@
 
 import { MAX_SPECIES, PROTOSTAR_GRID_RES, PROTOSTAR_T0_KELVIN } from '../../config';
 import * as THREE from 'three';
+import type { ParamValues } from '../../simulation/algorithm';
 import { defaultParams } from '../../simulation/params';
 import { forceHalfFloatDeposit } from '../../simulation/protostar/grids';
 import { HELIUM, HYDROGEN, PROTOSTAR, PROTOSTAR_REACTIONS, PROTOSTAR_TYPES } from '../../simulation/protostar/declaration';
@@ -18,7 +19,7 @@ import { molecularWeightFactor, molecularWeightFactors } from '../../simulation/
 import { fusionLawOf, ignitionRatio, ignitionTemperature, kineticIgnitionRatio } from '../../simulation/protostar/ignition';
 import { fusionRate } from '../../simulation/protostar/reactions';
 import {
-    IGNITION_GAS_DENSITY, IGNITION_GAS_PARTICLES, IGNITION_GAS_RATES, IGNITION_GAS_SEED, IGNITION_GAS_TEMPERATURES,
+    IGNITION_GAS_DECADES, IGNITION_GAS_DENSITY, IGNITION_GAS_PARTICLES, IGNITION_GAS_RATES, IGNITION_GAS_SEED, IGNITION_GAS_TEMPERATURES,
     IGNITION_GAS_TOLERANCE, IGNITION_REFERENCE_DENSITY, IGNITION_REFERENCE_RATE, MU_FACTOR_TOLERANCE, MU_FACTOR_TOLERANCE_HALF_FLOAT,
     MU_GAS_DENSITY, MU_GAS_PARTICLES, MU_GAS_SEED, MU_MIXED_DISPERSION_TOLERANCE, MU_MIXED_HELIUM_PERCENT, REAL_IGNITION_RATIO, THERMAL_GAS_TEMPERATURE,
 } from '../config';
@@ -40,23 +41,23 @@ const GAS_OVERRIDES = { gravity: 0, cooling: 0, feedback: 0 } as const;
 const MEGA = 1e6;
 
 /** A gas of one or two types: the population weights of the restart (the first types) and the type of each particle. */
-interface Composition {
+export interface Composition {
     name: string;
     weights: readonly number[];
     typeOf(index: number): number;
 }
 
-const PURE_HYDROGEN: Composition = { name: 'hydrogen', weights: [1, 0, 0], typeOf: () => HYDROGEN };
-const PURE_HELIUM: Composition = { name: 'helium', weights: [0, 1, 0], typeOf: () => HELIUM };
+export const PURE_HYDROGEN: Composition = { name: 'hydrogen', weights: [1, 0, 0], typeOf: () => HYDROGEN };
+export const PURE_HELIUM: Composition = { name: 'helium', weights: [0, 1, 0], typeOf: () => HELIUM };
 /** One helium atom in every `100 / percent` particles, evenly: the number split of the weights is exact for a count divisible by it. */
-const mixed = (heliumPercent: number): Composition => ({
+export const mixed = (heliumPercent: number): Composition => ({
     name: `${100 - heliumPercent} % hydrogen, ${heliumPercent} % helium (by number)`,
     weights: [100 - heliumPercent, heliumPercent, 0],
     typeOf: index => (index % 100) < heliumPercent ? HELIUM : HYDROGEN,
 });
 
 /** What the grids hold over the interior cells of a gas, mass-weighted means (the temperatures in T0). */
-interface GasReading {
+export interface GasReading {
     particles: number;
     /** rho / rho0. */
     density: number;
@@ -77,27 +78,32 @@ interface GasReading {
     cells: { x0: number; x1: number; y0: number; y1: number };
 }
 
-interface Gas {
+export interface Gas {
     reading: GasReading;
     box: Box;
 }
 
 /** Draws a gas of `composition`, every particle of dispersion `dispersion` (T0), and reads its grids right away. */
-async function drawGas(context: LabContext, composition: Composition, box: Box, count: number, dispersion: number, seed: number): Promise<Gas> {
+export async function drawGas(context: LabContext, composition: Composition, box: Box, count: number, dispersion: number, seed: number,
+                               overrides: ParamValues = {}): Promise<Gas> {
     const { renderer } = context;
     const model = protostarModel(context);
     model.debugInitialState = state => fillThermalGas(state, box, thermalSigma(dispersion), mulberry32(seed), [0, 0], composition.typeOf);
     try {
-        await restart(context, { count, overrides: GAS_OVERRIDES, timeScale: 1, seed, weights: composition.weights });
+        await restart(context, { count, overrides: { ...GAS_OVERRIDES, ...overrides }, timeScale: 1, seed, weights: composition.weights });
     } finally {
         model.debugInitialState = null;
     }
     model.beforeSubstep(0);                             // the grids from the particles as they are
     const targets = protostarGrids(context);
-    const [gas, moments, comp, power, thermo] = [
-        await readTarget(renderer, targets.gas), await readTarget(renderer, targets.moments), await readAttachment(renderer, targets.moments, 1),
+    const [gas, moments, power, thermo] = [
+        await readTarget(renderer, targets.gas), await readTarget(renderer, targets.moments),
         await readTarget(renderer, targets.power), await readAttachment(renderer, targets.gas, 1),
     ];
+    // The deposit mass of an average particle of the gas: no channel of the composition counts the particles any more.
+    const inputs = model.debugGrids.debugDepositInputs;
+    const weightSum = composition.weights.reduce((sum, w) => sum + w, 0);
+    const meanDepositMass = composition.weights.reduce((sum, w, k) => sum + w * inputs.splatMass[k], 0) / weightSum * inputs.depositMassScale;
     const cells = interiorCells(box);
     const cellFactors = new Float32Array(Math.max(0, cells.x1 - cells.x0) * Math.max(0, cells.y1 - cells.y0));
     let mass = 0, density = 0, dispersionSum = 0, temperature = 0, averaged = 0, factor = 0, effective = 0, rate = 0, particles = 0, n = 0;
@@ -113,7 +119,7 @@ async function drawGas(context: LabContext, composition: Composition, box: Box, 
             factor += m * thermo[k + 2];
             effective += m * thermo[k + 1];
             rate += power[k + 1];
-            particles += comp[k + 1];
+            particles += m / meanDepositMass;
             cellFactors[n++] = thermo[k + 2];
         }
     }
@@ -341,6 +347,15 @@ export const ignitionGas: Scenario = {
                 kineticRatioHeOverH: ratio === null ? null : significant(kineticIgnitionRatio(ratio, gases[0].factor, gases[1].factor), 4),
             };
         });
+        // A decade of lambda is a decade of the rate at a given density: how much the ignition temperature moves (A2: a logarithmic function of lambda only).
+        const ignitionAt = (g: number, rate: number): number | null => interpolateIgnition(points(g), rate);
+        const decadeShifts = IGNITION_GAS_DECADES.map(([low, high]) => {
+            const shift = (g: number): number | null => {
+                const [a, b] = [ignitionAt(g, low), ignitionAt(g, high)];
+                return a === null || b === null ? null : significant(a / b, 4);
+            };
+            return { ratesPerSecond: [low, high], hydrogenTemperatureRatio: shift(0), heliumTemperatureRatio: shift(1) };
+        });
         const reference = rows.find(r => r.ratePerSecond === IGNITION_REFERENCE_RATE);
         // The exponent d ln rate / d ln T the gas shows at its ignition at the reference rate (the law's local steepness).
         const exponents = [reference?.hydrogenMK, reference?.heliumMK].map((mk, g) =>
@@ -353,9 +368,10 @@ export const ignitionGas: Scenario = {
             metrics: {
                 particles: IGNITION_GAS_PARTICLES, densityRho0: [significant(density(0), 4), significant(density(1), 4)],
                 tolerance: IGNITION_GAS_TOLERANCE, worstRateError: significant(worstRate, 3), worstIgnitionError: significant(worstIgnition, 3),
-                laws: gases.map(g => ({ gas: g.composition.name, lambda: g.law.rate, alpha: g.law.exponent, densityExponent: g.law.densityExponent, referenceMK: significant(g.law.reference * PROTOSTAR_T0_KELVIN / MEGA, 4) })),
+                laws: gases.map(g => ({ gas: g.composition.name, lambda: g.law.rate, power: significant(g.law.power, 4), barrier: significant(g.law.barrier, 4), barrierPower: significant(g.law.barrierPower, 4), densityExponent: g.law.densityExponent, referenceMK: significant(g.law.reference * PROTOSTAR_T0_KELVIN / MEGA, 4) })),
                 factors: [significant(factors[HYDROGEN], DIGITS), significant(factors[HELIUM], DIGITS)],
                 ignitionAtGasDensity: rows,
+                ignitionShiftPerDecadeOfLambda: decadeShifts,
                 localExponentAtReferenceRate: exponents.map(e => e === null ? null : significant(e, 3)),
                 lawRatioAtLabReferencePoint: { ratePerSecond: IGNITION_REFERENCE_RATE, densityRho0: IGNITION_REFERENCE_DENSITY, ratio: significant(ladder(IGNITION_REFERENCE_RATE, IGNITION_REFERENCE_DENSITY), 4) },
                 realRatio: significant(REAL_IGNITION_RATIO, 3),

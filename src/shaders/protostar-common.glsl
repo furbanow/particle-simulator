@@ -1,10 +1,11 @@
 // Shared by the protostar shaders: sampling of the grids at a particle, fusion rate, random numbers.
-// Defines: MAX_SPECIES, GRID_RES, FUSION_RATE_MAX, NOISE_N_MIN, and GAS_THERMO (0 or 1: whether gasAt() reads the
+// Defines: MAX_SPECIES, GRID_RES, FUSION_RATE_MAX, NOISE_N_MIN, NOISE_SHIFT_MAX, and GAS_THERMO (0 or 1: whether gasAt() reads the
 // temperature that feeds the fusion rate; only the shaders that compute a rate need it). Included after drawing.glsl (drawingAccel).
 uniform sampler2D gridForce;            // gravitational acceleration at the cell centers (px/s^2)
 uniform sampler2D gridGas;              // (rho / rho0, dispersion px^2/s^2, mean vx, mean vy) of the 3x3 neighborhood
 uniform sampler2D gridHeat;             // (fusion heating per unit mass T0 per s, mu / mu_H, 0, 0) of the 3x3 neighborhood
 uniform sampler2D gridThermo;           // (T averaged over time px^2/s^2, effective number of particles, mu / mu_H, 0) of the 3x3 neighborhood
+uniform sampler2D gridFuel;             // (X, Y, 0, 0): the mass fractions of the fuel of the first two reactions (hydrogen, helium) in the 3x3 neighborhood
 uniform float gridCell;                 // cell size, px
 uniform float fusionTRef;               // T0, px^2/s^2
 uniform float noiseCorrection;          // 1: the fusion rate is divided by the bias that the noise of T causes; 0: it is not (lab)
@@ -12,7 +13,10 @@ uniform float seed;                     // changes every substep
 uniform float reactionTo[MAX_SPECIES];  // rank the type fuses into, -1: none
 uniform float reactionKeep[MAX_SPECIES];
 uniform float reactionRate[MAX_SPECIES];
-uniform float reactionExponent[MAX_SPECIES];
+uniform float reactionPower[MAX_SPECIES];       // p: the power of T of the law's prefactor (2/3 proton-proton, 3 triple alpha)
+uniform float reactionBarrier[MAX_SPECIES];     // G: the Gamow term b (T_ref / unit)^-q of the law at its reference temperature
+uniform float reactionBarrierPower[MAX_SPECIES];    // q (1/3 proton-proton, 1 triple alpha)
+uniform float reactionFuel[MAX_SPECIES];        // channel of gridFuel holding the mass fraction of the type (0: X, 1: Y), -1: none
 uniform float reactionReference[MAX_SPECIES];   // temperature of the law, in T0
 uniform float reactionDensityExponent[MAX_SPECIES];
 uniform float reactionEnergy[MAX_SPECIES];
@@ -57,13 +61,14 @@ struct Gas {
     float mu;       // mu_mean / mu_H: the temperature is mu * t (the glow reads it)
     float tRate;    // the temperature mu * t averaged over time, px^2/s^2: the fusion rate uses this one (GAS_THERMO)
     float particles;    // effective number of particles behind the temperature (GAS_THERMO)
+    vec2 fuel;      // mass fractions (X, Y) of the fuel of the first two reactions: hydrogen and helium (GAS_THERMO)
 };
 
 /** Gas state at x: density interpolated bilinearly, the other fields with mass weights. */
 Gas gasAt(vec2 x) {
     ivec2 c[4]; float w[4];
     gridCorners(x, c, w);
-    Gas g = Gas(0.0, 0.0, vec2(0.0), 0.0, 0.0, 0.0, 0.0);
+    Gas g = Gas(0.0, 0.0, vec2(0.0), 0.0, 0.0, 0.0, 0.0, vec2(0.0));
     for (int k = 0; k < 4; k++) {
         vec4 s = texelFetch(gridGas, c[k], 0);
         vec4 heat = texelFetch(gridHeat, c[k], 0);
@@ -77,6 +82,7 @@ Gas gasAt(vec2 x) {
         vec4 thermo = texelFetch(gridThermo, c[k], 0);
         g.tRate += m * thermo.x;
         g.particles += m * thermo.y;
+        g.fuel += m * texelFetch(gridFuel, c[k], 0).xy;
 #endif
     }
     if (g.rho > 0.0) {
@@ -86,16 +92,23 @@ Gas gasAt(vec2 x) {
         g.mu /= g.rho;
         g.tRate /= g.rho;
         g.particles /= g.rho;
+        g.fuel /= g.rho;
     }
     return g;
 }
 
-/** ln(1 + x) for x >= 0 without the cancellation of log(1 + x) when x is small (twin: log1p() in noiseBias.ts). */
+/** ln(1 + x) for x > -1 without the cancellation of log(1 + x) when |x| is small (twin: log1p() in noiseBias.ts). */
 float log1pSeries(float x) {
-    if (x >= 0.25) return log(1.0 + x);
+    if (abs(x) >= 0.25) return log(1.0 + x);
     float y = x / (2.0 + x);
     float y2 = y * y;
     return 2.0 * y * (1.0 + y2 * (1.0 / 3.0 + y2 * (1.0 / 5.0 + y2 * (1.0 / 7.0))));
+}
+
+/** e^x - 1 - x without the cancellation for small |x| (twin: expm1Minus() in noiseBias.ts). */
+float expm1Minus(float x) {
+    if (abs(x) >= 0.25) return exp(x) - 1.0 - x;
+    return x * x / 2.0 * (1.0 + x / 3.0 * (1.0 + x / 4.0 * (1.0 + x / 5.0 * (1.0 + x / 6.0))));
 }
 
 /**
@@ -120,17 +133,70 @@ float logNoiseBias(float particles, float alpha) {
 }
 
 /**
- * Expected fusions per second of one particle of type `k`: lambda * rho^n * (T / T_ref)^alpha,
- * capped, with T the temperature (the dispersion times mu / mu_H) averaged over time and the rate divided by the bias that
- * the noise of T causes (logNoiseBias). Computed from logarithms: the powers alone would overflow (T^40).
- * Needs GAS_THERMO. Twin: fusionRate() in reactions.ts.
+ * The same bias for a rate with Gamow's temperature law, whose local exponent `alpha` varies with T (g: the barrier term at this
+ * temperature, q its power): the power law's bias plus the curvature of ln r, by Laplace's method with one Newton step.
+ * Twin: logNoiseBiasCurved() in noiseBias.ts, which derives it and gives the accuracy (0.2 % of the bias for N >= 100).
+ */
+float logNoiseBiasCurved(float particles, float alpha, float g, float q) {
+    float plain = logNoiseBias(particles, alpha);
+    if (alpha <= 0.0 || g <= 0.0) return plain;
+    float n = max(particles - 1.0, NOISE_N_MIN);
+    float power = q * g - alpha;
+    float peak = n + alpha;
+    float u0 = log1pSeries((alpha - 1.0) / (n + 1.0));
+    float e0 = exp(-q * u0);
+    float shift = clamp(g * q * (e0 - 1.0) / (peak + g * q * q * e0), -NOISE_SHIFT_MAX, NOISE_SHIFT_MAX);
+    float e1 = e0 * exp(-q * shift);
+    float grown = exp(shift);
+    return plain - n * expm1Minus(shift) - alpha * (grown - 1.0) - power * shift - g * (e1 - 1.0 + q * u0)
+         - 0.5 * log(grown + g * q * q * e1 / peak);
+}
+
+/** The Stirling correction of ln Gamma(z) (twin: stirling() in noiseBias.ts). */
+float stirlingCorrection(float z) {
+    float z2 = z * z;
+    return (1.0 / 12.0 - (1.0 / 360.0 - 1.0 / (1260.0 * z2)) / z2) / z;
+}
+
+/**
+ * ln of the unbiased estimate of f(T) / f(T_ref) for a resonant law T^-p exp(-b / T) (q = 1), from the temperature estimate tau = T / T_ref
+ * of `particles` (effective) particles, for particles - 1 > p + NOISE_EXACT_MARGIN (G: the barrier term at T_ref). A very negative number
+ * where the cell is too cold (S <= G). Twin: logUnbiasedResonant() in noiseBias.ts, which derives it.
+ */
+float logUnbiasedResonant(float particles, float tau, float p, float G) {
+    float n = particles - 1.0;
+    float s = particles * tau;
+    if (s <= G) return -1e30;
+    return G + p * log(n / s) - (n - p - 0.5) * log1pSeries(-p / n) - p + stirlingCorrection(n) - stirlingCorrection(n - p)
+         + (n - p - 1.0) * log1pSeries(-G / s);
+}
+
+/**
+ * Expected fusions per second of one particle of type `k` (A2): lambda * (rho X)^n * f(T) / f(T_ref), capped, with X the mass
+ * fraction of the type (the fuel) in the neighborhood, f Gamow's law T^-p exp(-b T^-q) of the reaction, and T the temperature (the
+ * dispersion times mu / mu_H) averaged over time, corrected for the noise of T: replaced by its exact unbiased estimate for a resonant law
+ * (logUnbiasedResonant), divided by the bias that the noise causes (logNoiseBiasCurved, at the local exponent q g - p of the law) for the others. Computed from logarithms: the law's exponential underflows far below T_ref. rho is the density of
+ * the grid, the surface density while the cloud has a fixed thickness. Needs GAS_THERMO. Twin: fusionRate() in reactions.ts.
  */
 float fusionRateOf(int k, Gas g) {
     if (reactionTo[k] < 0.0 || reactionRate[k] <= 0.0 || g.rho <= 0.0 || g.tRate <= 0.0) return 0.0;
-    float alpha = reactionExponent[k];
-    float logRate = log(reactionRate[k]) + reactionDensityExponent[k] * log(g.rho)
-                  + alpha * log(g.tRate / (fusionTRef * reactionReference[k]))
-                  - noiseCorrection * logNoiseBias(g.particles, alpha);
+    float fuel = reactionFuel[k] < 0.5 ? g.fuel.x : g.fuel.y;
+    if (fuel <= 0.0) return 0.0;
+    float logTau = log(g.tRate / (fusionTRef * reactionReference[k]));
+    float q = reactionBarrierPower[k];
+    float power = exp(-q * logTau);                         // (T / T_ref)^-q
+    float barrier = reactionBarrier[k] * power;             // the Gamow term at this temperature
+    float alpha = q * barrier - reactionPower[k];           // d ln r / d ln T
+    float logLaw = -reactionPower[k] * logTau - reactionBarrier[k] * (power - 1.0);
+    if (noiseCorrection > 0.0) {
+        // A resonant law has an exact unbiased estimate; the others divide their rate by the bias that the noise of T causes.
+        if (q == 1.0 && g.particles - 1.0 > reactionPower[k] + NOISE_EXACT_MARGIN) {
+            logLaw = logUnbiasedResonant(g.particles, exp(logTau), reactionPower[k], reactionBarrier[k]);
+        } else {
+            logLaw -= logNoiseBiasCurved(g.particles, alpha, barrier, q);
+        }
+    }
+    float logRate = log(reactionRate[k]) + reactionDensityExponent[k] * log(g.rho * fuel) + logLaw;
     return exp(min(logRate, log(FUSION_RATE_MAX)));
 }
 

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
-    MAX_SPECIES, PROTOSTAR_COARSE_FACTOR, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_NOISE_N_MIN,
-    PROTOSTAR_NOISE_N_SHAPE, PROTOSTAR_REFERENCE_INVERSE_MU, PROTOSTAR_STATS_REDUCE_RES, PROTOSTAR_TEMPERATURE_TAU,
+    MAX_SPECIES, PROTOSTAR_COARSE_FACTOR, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_NOISE_EXACT_MARGIN, PROTOSTAR_NOISE_N_MIN,
+    PROTOSTAR_NOISE_N_SHAPE, PROTOSTAR_NOISE_SHIFT_MAX, PROTOSTAR_REFERENCE_INVERSE_MU, PROTOSTAR_STATS_REDUCE_RES, PROTOSTAR_TEMPERATURE_TAU,
 } from '../../config';
 import { additiveBlending, clipSpaceCamera, type Uniform } from '../../gl/common';
 import { GridPass, gridTarget } from '../../gl/gridPass';
@@ -29,6 +29,7 @@ const REDUCE_BLOCK = PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES;
 export const PROTOSTAR_DEFINES = {
     MAX_SPECIES, GRID_RES: PROTOSTAR_GRID_RES, FUSION_RATE_MAX: glslFloat(PROTOSTAR_FUSION_RATE_MAX),
     NOISE_N_MIN: glslFloat(PROTOSTAR_NOISE_N_MIN), NOISE_N_SHAPE: glslFloat(PROTOSTAR_NOISE_N_SHAPE),
+    NOISE_SHIFT_MAX: glslFloat(PROTOSTAR_NOISE_SHIFT_MAX), NOISE_EXACT_MARGIN: glslFloat(PROTOSTAR_NOISE_EXACT_MARGIN),
     INVERSE_MU_REF: glslFloat(PROTOSTAR_REFERENCE_INVERSE_MU), GAS_THERMO: 0,
     ...DRAWING_DEFINES,
 } as const;
@@ -79,6 +80,7 @@ export interface ProtostarCommonUniforms extends DrawingUniforms {
     gridGas: Uniform<THREE.Texture | null>;
     gridHeat: Uniform<THREE.Texture | null>;
     gridThermo: Uniform<THREE.Texture | null>;
+    gridFuel: Uniform<THREE.Texture | null>;
     gridCell: Uniform<number>;
     fusionTRef: Uniform<number>;
     noiseCorrection: Uniform<number>;
@@ -86,7 +88,10 @@ export interface ProtostarCommonUniforms extends DrawingUniforms {
     reactionTo: Uniform<number[]>;
     reactionKeep: Uniform<number[]>;
     reactionRate: Uniform<number[]>;
-    reactionExponent: Uniform<number[]>;
+    reactionPower: Uniform<number[]>;
+    reactionBarrier: Uniform<number[]>;
+    reactionBarrierPower: Uniform<number[]>;
+    reactionFuel: Uniform<number[]>;
     reactionReference: Uniform<number[]>;
     reactionDensityExponent: Uniform<number[]>;
     reactionEnergy: Uniform<number[]>;
@@ -96,10 +101,11 @@ export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonU
     const perType = (fill: number): Uniform<number[]> => ({ value: new Array<number>(MAX_SPECIES).fill(fill) });
     return {
         ...drawing,
-        gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null }, gridThermo: { value: null },
+        gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null }, gridThermo: { value: null }, gridFuel: { value: null },
         gridCell: { value: 1 }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },
         reactionTo: perType(-1), reactionKeep: perType(0), reactionRate: perType(0),
-        reactionExponent: perType(0), reactionReference: perType(1), reactionDensityExponent: perType(1),
+        reactionPower: perType(0), reactionBarrier: perType(0), reactionBarrierPower: perType(1), reactionFuel: perType(-1),
+        reactionReference: perType(1), reactionDensityExponent: perType(1),
         reactionEnergy: perType(0),
     };
 }
@@ -108,16 +114,18 @@ export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonU
 export interface ProtostarGridTargets {
     /**
      * Two attachments, deposited together: `moments.texture` (attachment 0) holds (m, m v, m |v|^2),
-     * `moments.textures[1]` (attachment 1) the composition (sum m (1 + Z) / A, sum count, sum m^2, 0)
-     * with the same cloud-in-cell weights. The gas pass reads its m / mu (the mean molecular weight, so the temperature) and
-     * its m^2 (the effective number of particles behind T); nothing reads the count. Only attachment 0 can be read back
-     * directly (see lab/readback.ts).
+     * `moments.textures[1]` (attachment 1) the composition (sum m (1 + Z) / A, sum m X, sum m^2, sum m Y), with X = 1 for a particle
+     * of the fuel of the first reaction (hydrogen) and 0 for any other type, Y likewise for the second reaction (helium), with the
+     * same cloud-in-cell weights. The gas pass reads its m / mu (the mean molecular weight, so the temperature), its m^2 (the
+     * effective number of particles behind T) and its two fuel masses (the fractions X and Y of the rates of fusion). Only attachment 0
+     * can be read back directly (see lab/readback.ts).
      */
     readonly moments: THREE.WebGLRenderTarget;
     /**
-     * Two attachments: `gas.texture` (attachment 0) holds (rho / rho0, the velocity dispersion, mean v), `gas.textures[1]` the temperature
+     * Three attachments: `gas.texture` (attachment 0) holds (rho / rho0, the velocity dispersion, mean v), `gas.textures[1]` the temperature
      * (the dispersion times mu / mu_H) averaged over time, the effective number of particles and the factor mu / mu_H: (T averaged, N,
-     * mu / mu_H, 0). Two targets take turns from one substep to the next: this one is the latest drawn.
+     * mu / mu_H, 0), `gas.textures[2]` the mass fractions of the fuel (X, Y, 0, 0). Two targets take turns from one substep to the
+     * next: this one is the latest drawn.
      */
     readonly gas: THREE.WebGLRenderTarget;
     readonly power: THREE.WebGLRenderTarget;
@@ -143,6 +151,8 @@ export interface DepositInputs {
     splatMass: number[];
     /** (1 + Z) / A of each type, per u. */
     inverseMolecularWeight: number[];
+    /** Whether each type is the fuel of the first reaction (x) or of the second (y): (1, 0), (0, 1) or (0, 0). */
+    fuel: [number, number][];
 }
 
 /** Physical scales the grid passes need, set before each substep. */
@@ -194,9 +204,10 @@ class DepositPass {
  * particle state (GRID_RES x GRID_RES square cells over max(width, height)):
  *  1. moments: cloud-in-cell deposit of (m, m v, m |v|^2) and, on a second attachment of the same
  *     pass, of the composition (m (1 + Z) / A, count, m^2), for the passes that need it (the gas pass: m^2);
- *  2. gas: density, velocity dispersion and mean velocity of each 3x3 neighborhood, and on a second attachment the temperature
+ *  2. gas: density, velocity dispersion and mean velocity of each 3x3 neighborhood, on a second attachment the temperature
  *     (the dispersion times the mean molecular weight over that of hydrogen) averaged over time, the effective number of
- *     particles (the noise of T, see noiseBias.ts) and the molecular weight's factor;
+ *     particles (the noise of T, see noiseBias.ts) and the molecular weight's factor, and on a third the mass fractions of the
+ *     fuels (hydrogen, helium) that the rates of fusion read;
  *  3. power: deposit of the expected fusion power of the fusing particles;
  *  4. heat: fusion heating per unit mass of each 3x3 neighborhood, and the molecular weight's factor for the velocity pass;
  *  5. coarse + gravity: softened gravity and its Plummer potential at the cell centers, summed cell
@@ -238,6 +249,7 @@ export class ProtostarGrids {
         gravityPerDeposit: { value: 1 },
         softening2: { value: 1 },
         speciesInverseMu: { value: new Array<number>(MAX_SPECIES).fill(0) },
+        speciesFuel: { value: Array.from({ length: MAX_SPECIES }, () => new THREE.Vector2()) },
         temperatureWeight: { value: 1 },
         molecularWeight: { value: 1 },
     };
@@ -284,8 +296,9 @@ export class ProtostarGrids {
         // Both attachments blend the same way: they must have the same type (float32 or half float).
         this.moments = new DepositPass(DEPOSIT_KIND.momentsAndComposition, particleUniforms, geometry, gridTarget(res, blendType, 2));
         this.momentsTexture = { value: this.moments.target.texture };
-        // Two attachments (gas, then the averaged temperature and the effective number of particles), two targets in turn.
-        const gasTargets = [gridTarget(res, THREE.FloatType, 2), gridTarget(res, THREE.FloatType, 2)] as const;
+        // Three attachments (gas; the averaged temperature, the effective number of particles and the molecular weight's factor; the
+        // fuel fractions), two targets in turn.
+        const gasTargets = [gridTarget(res, THREE.FloatType, 3), gridTarget(res, THREE.FloatType, 3)] as const;
         const gasPass = (current: number): GridPass => new GridPass(withDefines(gasFrag, PROTOSTAR_DEFINES), {
             gridMoments: this.momentsTexture, gridComposition: { value: this.moments.target.textures[1] },
             gridThermoPrevious: { value: gasTargets[1 - current].textures[1] },
@@ -295,6 +308,7 @@ export class ProtostarGrids {
         this.gasPasses = [gasPass(0), gasPass(1)];
         common.gridGas.value = this.gasPasses[0].target.texture;
         common.gridThermo.value = this.gasPasses[0].target.textures[1];
+        common.gridFuel.value = this.gasPasses[0].target.textures[2];
         this.power = new DepositPass(DEPOSIT_KIND.power, particleUniforms, geometry, gridTarget(res, blendType));
         this.heat = new GridPass(withDefines(heatFrag, PROTOSTAR_DEFINES), {
             gridMoments: this.momentsTexture,
@@ -349,6 +363,14 @@ export class ProtostarGrids {
         for (let k = 0; k < array.length; k++) array[k] = factors[k] ?? 0;
     }
 
+    /**
+     * The fuel channel of each type (reactionArrays().fuel: 0 for the fuel of the first reaction, 1 for that of the second, -1 for
+     * a type that fuses in none), written in place: the array is shared by reference with the deposit materials.
+     */
+    setFuelChannels(channels: readonly number[]): void {
+        this.u.speciesFuel.value.forEach((fuel, k) => fuel.set(channels[k] === 0 ? 1 : 0, channels[k] === 1 ? 1 : 0));
+    }
+
     /** Dev-only, read-only: the values the deposit shader runs with, to compute the deposit again on the CPU. */
     get debugDepositInputs(): DepositInputs {
         return {
@@ -357,6 +379,7 @@ export class ProtostarGrids {
             depositMassScale: this.u.depositMassScale.value,
             splatMass: [...this.splatMass.value],
             inverseMolecularWeight: [...this.u.speciesInverseMu.value],
+            fuel: this.u.speciesFuel.value.map(fuel => [fuel.x, fuel.y]),
         };
     }
 
@@ -397,6 +420,7 @@ export class ProtostarGrids {
         gas.render(renderer);
         this.common.gridGas.value = gas.target.texture;
         this.common.gridThermo.value = gas.target.textures[1];
+        this.common.gridFuel.value = gas.target.textures[2];
         this.power.render(renderer);
         this.heat.render(renderer);
         this.coarse.render(renderer);

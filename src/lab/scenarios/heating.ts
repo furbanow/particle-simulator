@@ -65,7 +65,7 @@ async function heatOnce(context: LabContext, count: number, fill: (state: Initia
         positions = state.positions.slice(0, count * 4);
     };
     try {
-        await restart(context, { count, overrides: { ...THERMAL_GAS_OVERRIDES, fusionRate: HEATING_RATE }, timeScale: 1, seed: HEATING_SEED });
+        await restart(context, { count, overrides: { ...THERMAL_GAS_OVERRIDES, fusionRate: HEATING_RATE }, flatRates: true, timeScale: 1, seed: HEATING_SEED });
     } finally {
         model.debugInitialState = null;
     }

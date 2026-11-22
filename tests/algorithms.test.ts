@@ -188,7 +188,7 @@ describe('panel tabs', () => {
         const flags = PROTOSTAR.params.map(p => [p.key, appliesOnRestart(p)]);
         expect(Object.fromEntries(flags)).toEqual({
             count: true, alphaVir: true, betaRot: true, profile: true, turbulence: true, gravity: false, softening: false, cooling: false,
-            opacity: false, fusionRate: false, fusionExponent: false, heFusionRate: false, heFusionExponent: false, feedback: false,
+            opacity: false, fusionRate: false, heFusionRate: false, feedback: false,
             diagnostics: false,
         });
     });

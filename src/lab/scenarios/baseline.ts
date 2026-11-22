@@ -251,7 +251,7 @@ export const ignitionRatioBaseline: Scenario = {
         const kineticRatio = kineticIgnitionRatio(ratio, factors[HYDROGEN], factors[HELIUM]);
         const law = (i: number): JsonValue => {
             const l = fusionLawOf(PROTOSTAR_REACTIONS[i], params);
-            return { lambda: l.rate, alpha: l.exponent, densityExponent: l.densityExponent, referenceMK: significant(l.reference * PROTOSTAR_T0_KELVIN / MEGA, SIGNIFICANT_DIGITS) };
+            return { lambda: l.rate, power: significant(l.power, 4), barrier: significant(l.barrier, 4), barrierPower: significant(l.barrierPower, 4), densityExponent: l.densityExponent, referenceMK: significant(l.reference * PROTOSTAR_T0_KELVIN / MEGA, SIGNIFICANT_DIGITS) };
         };
         const sensitivity = IGNITION_SENSITIVITY_RATES.flatMap(rate => IGNITION_SENSITIVITY_DENSITIES.map(density => ({
             ratePerSecond: rate, density, ratio: significant(ratioAt(rate, density), 4),

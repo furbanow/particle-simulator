@@ -153,13 +153,24 @@ export const PROTOSTAR_TURBULENCE_GRID = 64;
 export const PROTOSTAR_TURBULENCE_SLOPE = 3;
 export const PROTOSTAR_TURBULENCE_K_RANGE: Range = [1, 8];
 // Temperature unit, T0 = FUSION_T_REF * (L/s)^2, which stands for T0_KELVIN (the core of the Sun);
-// densities in rho0, the initial mean density of the cloud. A reaction's rate per particle is
-// lambda * (rho/rho0)^n * (T/T_ref)^alpha, capped at FUSION_RATE_MAX (1/s): the cap is above 1 / dt, so
-// it only keeps the steepest laws finite, a capped particle fuses within a few steps anyway.
+// densities in rho0, the initial mean density of the cloud. A reaction's rate per fusing particle is
+// lambda * (rho X / rho0)^n * f(T) / f(T_ref), with X the mass fraction of the fuel in the neighborhood and f the temperature
+// dependence of the real reaction (A2: Gamow's law, below), capped at FUSION_RATE_MAX (1/s): the cap is above 1 / dt, so
+// it only keeps the steepest laws finite, a capped particle fuses within a few steps anyway. With the fixed thickness of
+// the cloud rho is the surface density; a later phase (A11) will use the volume density sigma / (2h).
 export const PROTOSTAR_FUSION_T_REF = 0.02;
 export const PROTOSTAR_T0_KELVIN = 1.5e7;
 export const PROTOSTAR_HE_IGNITION_KELVIN = 1e8;   // triple alpha
 export const PROTOSTAR_FUSION_RATE_MAX = 100;
+// The temperature laws of the reactions (A2), per nucleus: the rate goes as T^-p exp(-b (T / T_unit)^-q), with T_unit the unit in
+// which b is quoted. Proton-proton chain (non-resonant: the Coulomb barrier alone, Gamow's peak): p = 2/3, q = 1/3, b = 33.8
+// with T in MK, so that the local exponent d ln r / d ln T = b q (T / T_unit)^-q - p is 3.9 at 15 MK. Triple alpha (a resonance
+// of 8Be and of 12C): p = 3, q = 1, b = 44.0 with T in 10^8 K, an exponent of 41 at 100 MK and 19 at 200 MK.
+export const PROTOSTAR_PP_LAW = { power: 2 / 3, barrier: 33.8, barrierPower: 1 / 3, unitKelvin: 1e6 } as const;
+export const PROTOSTAR_TRIPLE_ALPHA_LAW = { power: 3, barrier: 44.0, barrierPower: 1, unitKelvin: 1e8 } as const;
+// The fuel fractions of the neighborhood (the mass fraction of the fuel of each reaction, deposited next to the composition)
+// take one channel each: two reactions at most (hydrogen X, helium Y).
+export const PROTOSTAR_FUEL_CHANNELS = 2;
 // Specific energy released by a fusion: (mass defect / fused mass) * c^2, with c^2 = FUSION_C2 * T0.
 export const PROTOSTAR_FUSION_C2 = 2000;
 // Fusion heating (A5): a cell whose velocity dispersion is below HEATING_T_FLOOR (in T0) is too cold to be heated by
@@ -178,6 +189,12 @@ export const PROTOSTAR_HEATING_T_FLOOR = 1e-3;
 // TEMPERATURE_TAU: time constant (s) of the exponential average of the temperature, well below the cooling time.
 export const PROTOSTAR_NOISE_N_SHAPE = 1.5;
 export const PROTOSTAR_NOISE_N_MIN = 1;
+// NOISE_SHIFT_MAX: bound of the Newton step of the curvature correction of the bias (noiseBias.ts, logNoiseBiasCurved): where it
+// would be larger the cell is so cold that its rate is nil anyway, and exp() must stay finite.
+export const PROTOSTAR_NOISE_SHIFT_MAX = 1;
+// NOISE_EXACT_MARGIN: the unbiased estimate of a resonant law (q = 1, noiseBias.ts, logUnbiasedResonant) needs a Gamma shape n above the
+// law's power p by more than this (it has Gamma(n - p) in it); below it, or for a law with q != 1, the bias is divided out (logNoiseBiasCurved).
+export const PROTOSTAR_NOISE_EXACT_MARGIN = 2;
 export const PROTOSTAR_TEMPERATURE_TAU = 0.1;
 export const PROTOSTAR_RESTITUTION = 0.5;          // walls
 export const PROTOSTAR_MAX_SPEED = 2;              // L/s
@@ -212,9 +229,7 @@ export const PROTOSTAR_SOFTENING_SLIDER: SliderSpec = { min: 0.2, max: 5, step: 
 export const PROTOSTAR_COOLING_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.51 };        // 1/s
 export const PROTOSTAR_OPACITY_SLIDER: SliderSpec = { min: 1, max: 1000, step: 0, default: 5.32 };         // rho0, log
 export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 4e-3 };       // 1/s, log
-export const PROTOSTAR_ALPHA_SLIDER: SliderSpec = { min: 1, max: 6, step: 0.1, default: 2.8 };            // real value: about 4 at 15 MK
 export const PROTOSTAR_HE_LAMBDA_SLIDER: SliderSpec = { min: 1e-10, max: 1e-2, step: 0, default: 3.75e-5 };  // 1/s at 100 MK and rho0, log
-export const PROTOSTAR_HE_ALPHA_SLIDER: SliderSpec = { min: 1, max: 45, step: 0.5, default: 16 };        // real value: about 40 at 100 MK
 export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 0.146 };       // log
 export const PROTOSTAR_H_SIZE = 1.6;               // px, default rendered diameters
 export const PROTOSTAR_HE_SIZE = 2.4;

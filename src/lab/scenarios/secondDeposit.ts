@@ -16,11 +16,11 @@ import { readAttachment, readPositions, readTarget } from '../readback';
 import type { JsonValue, LabContext, Scenario, ScenarioOutcome } from '../types';
 
 const DIGITS = 4;
-const CHANNEL_NAMES = ['mOverMu', 'count', 'massSquared', 'spare'] as const;
+const CHANNEL_NAMES = ['mOverMu', 'hydrogenMass', 'massSquared', 'heliumMass'] as const;
 
 interface PathReport {
     metrics: Record<string, JsonValue>;
-    /** The deposit holds: every channel within its tolerance and the spare channel exactly 0. */
+    /** The deposit holds: every channel within its tolerance. */
     ok: boolean;
     comparisons: ChannelComparison[];
 }
@@ -50,7 +50,7 @@ async function validateCurrentPath(context: LabContext, particles: number, frame
     let occupied = 0;
     let busiest = 0;
     for (let cell = 0; cell < reference.contributions.length; cell++) {
-        const n = reference.composition[cell * 4 + 1];
+        const n = reference.occupancy[cell];
         if (n > 0) occupied++;
         if (n > busiest) busiest = n;
     }
@@ -71,6 +71,12 @@ async function validateCurrentPath(context: LabContext, particles: number, frame
         extractChannel(gpu, 0), extractChannel(gpuMoments, 0), extractChannel(reference.composition, 0), reference.mass,
         inputs.gridResolution, radius, RATIO_MIN_MASS);
     metrics.meanInverseMuMaxRelativeError = { cell: significant(ratio(0), DIGITS), neighborhood3x3: significant(ratio(1), DIGITS) };
+    // The mass fractions of the fuels the rates read (A2): the same ratios with the hydrogen and the helium channels.
+    const fraction = (channel: number, radius: number): number => ratioError(
+        extractChannel(gpu, channel), extractChannel(gpuMoments, 0), extractChannel(reference.composition, channel), reference.mass,
+        inputs.gridResolution, radius, RATIO_MIN_MASS);
+    metrics.hydrogenFractionMaxRelativeError = { cell: significant(fraction(1, 0), DIGITS), neighborhood3x3: significant(fraction(1, 1), DIGITS) };
+    metrics.heliumFractionMaxRelativeError = { cell: significant(fraction(3, 0), DIGITS), neighborhood3x3: significant(fraction(3, 1), DIGITS) };
     comparisons.forEach((c, i) => {
         metrics[CHANNEL_NAMES[i]] = {
             maxExcessOverTolerance: significant(c.maxExcess, DIGITS),
@@ -80,7 +86,7 @@ async function validateCurrentPath(context: LabContext, particles: number, frame
             sumReference: significant(c.sumReference, 8),
         };
     });
-    const ok = comparisons.every(c => c.maxExcess <= 1) && comparisons[3].sumGpu === 0;
+    const ok = comparisons.every(c => c.maxExcess <= 1);
     return { metrics, ok, comparisons };
 }
 
@@ -101,7 +107,7 @@ const worstExcess = (comparisons: ChannelComparison[]): number => Math.max(...co
 /** Small cloud, several particles per cell, three types: the GPU deposit equals the CPU reference in both paths. */
 export const secondDeposit: Scenario = {
     id: 'protostar.second-deposit',
-    title: 'Protostar: second deposit (m/mu, count, m^2) against a CPU reference, float32 and half float',
+    title: 'Protostar: second deposit (m/mu, hydrogen and helium mass, m^2) against a CPU reference, float32 and half float',
     tags: ['protostar', 'fast'],
     async run(context): Promise<ScenarioOutcome> {
         const full = await validateCurrentPath(context, SECOND_DEPOSIT_PARTICLES, SECOND_DEPOSIT_FRAMES, DEPOSIT_ROUNDOFF_FLOAT32);
@@ -141,15 +147,15 @@ export const secondDepositLoad: Scenario = {
         const half = await inHalfFloat(context, () =>
             validateCurrentPath(context, SECOND_DEPOSIT_LOAD_PARTICLES, SECOND_DEPOSIT_LOAD_FRAMES, DEPOSIT_ROUNDOFF_HALF));
         const ok = full.ok && half.comparisons.every(c => Number.isFinite(c.sumGpu));
-        const countShare = half.comparisons[1].sumGpu / half.comparisons[1].sumReference;
+        const hydrogenShare = half.comparisons[1].sumGpu / half.comparisons[1].sumReference;
         return {
             status: ok ? 'pass' : 'fail',
             metrics: {
                 float32Path: full.metrics, halfFloatPath: half.metrics,
-                halfFloatCountSumOverReference: significant(countShare, DIGITS),
+                halfFloatHydrogenMassOverReference: significant(hydrogenShare, DIGITS),
             },
             details: `float32 worst error over tolerance ${worstExcess(full.comparisons).toPrecision(3)} (must be <= 1); `
-                + `half float keeps ${(countShare * 100).toFixed(2)} % of the particle count, busiest cell ${String(full.metrics.busiestCellWeight)} (float32 path)`,
+                + `half float keeps ${(hydrogenShare * 100).toFixed(2)} % of the hydrogen mass, busiest cell ${String(full.metrics.busiestCellWeight)} (float32 path)`,
         };
     },
 };

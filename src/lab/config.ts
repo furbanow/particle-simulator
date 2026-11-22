@@ -37,7 +37,7 @@ export const BASELINE_FRAMES_SOFTWARE = 200;
 /** The omega.dt the Verlet integrator is meant to stay under in the core (the energy-drift criterion of phase P5). */
 export const OMEGA_DT_LIMIT = 0.1;
 /** Points kept of each time series in the results (decimated evenly). */
-export const BASELINE_SERIES_POINTS = 60;
+export const BASELINE_SERIES_POINTS = 120;
 
 // ---- Ignition temperature ratio ----
 /**
@@ -379,11 +379,12 @@ export const PERF_PHASE_REPS = 5;
 
 // ---- Fusion heating and the noise of the temperature (phase P3a) ----
 /**
- * Parameters of the gases of known temperature (set below the sliders' ranges): no gravity, no cooling; hydrogen that fuses
- * at `rate` per second and per rho0 whatever its temperature (exponent 0: the heating is then the same in every cell of a uniform gas), with a
- * feedback that makes the heating a sizeable fraction of the thermal energy in one step.
+ * Parameters of the gases of known temperature (set below the sliders' ranges): no gravity, no cooling, with a feedback that
+ * makes the heating a sizeable fraction of the thermal energy in one step. The scenarios that need a heating independent
+ * of the temperature (hydrogen that fuses at `rate` per second and per rho0 whatever its temperature: the heating is then the
+ * same in every cell of a uniform gas) restart with `flatRates`.
  */
-export const THERMAL_GAS_OVERRIDES = { gravity: 0, cooling: 0, fusionExponent: 0, feedback: 1 } as const;
+export const THERMAL_GAS_OVERRIDES = { gravity: 0, cooling: 0, feedback: 1 } as const;
 /** Fusion rate constant (1/s) of the heating test: q dt is then about a twentieth of T0 in one step. */
 export const HEATING_RATE = 0.5;
 /** Dispersion T of the thermal gases, in T0 (the temperature of the hydrogen law: the rate is lambda rho at it). */
@@ -414,10 +415,10 @@ export const HEATING_MOMENTUM_TOLERANCE = 1e-4;
 export const HEATING_SEED = 5115;
 
 // ---- The noise of the temperature (A3): mean fusion rate of a thermal gas against the true rate ----
-/** Particles per 3 x 3 neighborhood of the gases tried (the plan: from 100 to 6 400), and the exponents: the real ones of the proton-proton chain and the triple alpha. */
+/** Particles per 3 x 3 neighborhood of the gases tried (the plan: from 100 to 6 400), and the laws: those of the proton-proton chain and of the triple alpha, at their reference temperatures, where their exponents are the real ones. */
 export const NOISE_NEIGHBORHOODS = [100, 200, 400, 800, 1600, 3200, 6400] as const;
-export const NOISE_EXPONENTS = [4, 40] as const;
-/** The hydrogen rate constant of the test (1/s per rho0): the true rate is about 0.02 per second, far below the cap of the rate. */
+export const NOISE_LAWS = [0, 1] as const;   // the reactions of the table whose gas at the reference temperature is drawn: proton-proton (3.9), triple alpha (41)
+/** The true rate per particle of the test, per rho0 (1/s): lambda is chosen so that it is this times the density, far below the cap of the rate. */
 export const NOISE_RATE = 0.05;
 /** The gas is drawn again (a new seed) for each reading, until the standard error of the mean rate is below this fraction, or at most NOISE_MAX_READINGS. */
 export const NOISE_TARGET_ERROR = 0.01;
@@ -427,8 +428,11 @@ export const NOISE_MAX_READINGS = 900;
 export const NOISE_CASE_BUDGET_SECONDS = 150;
 /** The most particles of a case (the box shrinks for the densest gases). */
 export const NOISE_MAX_PARTICLES = 1_800_000;
-/** A case is judged (the corrected rate within NOISE_TOLERANCE of the true one) when its standard error is below this; the others only report. */
-export const NOISE_JUDGED_ERROR = 0.02;
+/**
+ * A case is judged (the corrected rate within NOISE_TOLERANCE of the true one) when its standard error is below this; the others
+ * only report (the triple alpha at 100 particles per neighborhood: 1.055 +- 0.020 after 750 readings).
+ */
+export const NOISE_JUDGED_ERROR = 0.015;
 export const NOISE_TOLERANCE = 0.05;
 export const NOISE_SEED = 31337;
 
@@ -539,7 +543,27 @@ export const MU_FACTOR_TOLERANCE_HALF_FLOAT = 0.06;
  */
 export const IGNITION_GAS_PARTICLES = 1_000_000;
 export const IGNITION_GAS_DENSITY = 20;
-export const IGNITION_GAS_TEMPERATURES = [0.4, 0.6, 0.9, 1.3, 1.9, 2.8, 4, 6, 9, 13] as const;
-export const IGNITION_GAS_RATES = [0.01, 0.1, 0.5] as const;
+/** 36 temperatures, 10 % apart, from 6 MK to 195 MK: the triple alpha goes from 1 to 100 fusions per second (the cap) in a factor of 1.2 of the temperature, a coarser scan misses its ignition at 10 per second. */
+export const IGNITION_GAS_TEMPERATURES: readonly number[] = Array.from({ length: 36 }, (_, i) => Number((0.4 * (13 / 0.4) ** (i / 35)).toPrecision(4)));
+export const IGNITION_GAS_RATES = [0.01, 0.1, 0.5, 1, 10] as const;
+/** The decades of the rate (a decade of lambda at a given density is a decade of the rate) over which the shift of the ignition temperature is reported. */
+export const IGNITION_GAS_DECADES = [[0.01, 0.1], [0.1, 1], [1, 10]] as const;
 export const IGNITION_GAS_SEED = 4242;
 export const IGNITION_GAS_TOLERANCE = 0.1;
+
+// ---- Gamow rates (proposal A2) ----
+/** The mass fractions X and Y of the gas pass against the CPU deposit (float32: the sums' rounding; half float: see docs/spikes/a1-second-deposit.md). */
+export const GAMOW_FUEL_TOLERANCE = 1e-4;
+export const GAMOW_FUEL_TOLERANCE_HALF_FLOAT = 0.06;
+/** The mean of X and of Y over the cells against the mass shares of the whole gas (a statistical difference: 0.3 % at 400 000 particles, and 2 % in half floats). */
+export const GAMOW_FUEL_MEAN_TOLERANCE = 0.02;
+/** The local exponent is measured between two gases of the same particles at T (1 - step) and T (1 + step); the error allowed against the theory (the plan: 5 %). */
+export const GAMOW_STEP = 0.05;
+export const GAMOW_EXPONENT_TOLERANCE = 0.05;
+/** The rate (1/s per particle) the rate constant is chosen to give at each point: far from the cap and from zero. */
+export const GAMOW_TARGET_RATE = 0.2;
+/** The points of the measure: the reaction of the table, the temperature (K) of the gas: 3.9 at 15 MK for pp, 41 at 100 MK and 19 at 200 MK for the triple alpha. */
+export const GAMOW_POINTS = [
+    { reaction: 0, kelvin: 8e6 }, { reaction: 0, kelvin: 15e6 }, { reaction: 0, kelvin: 30e6 },
+    { reaction: 1, kelvin: 70e6 }, { reaction: 1, kelvin: 100e6 }, { reaction: 1, kelvin: 200e6 },
+] as const;

@@ -2,15 +2,18 @@
 // nearest cells with bilinear weights, and every channel is added with that weight. DEPOSIT_KIND:
 //  DEPOSIT_MOMENTS                  (m, m vx, m vy, m |v|^2)
 //  DEPOSIT_MOMENTS_AND_COMPOSITION  the same to the first attachment, and to the second one the
-//                                   composition (m / mu, 1, m^2, 0): m / mu = m * (1 + Z) / A, the
-//                                   particle count and the sum of the squared masses; the fourth
-//                                   channel is spare
+//                                   composition (m / mu, m X, m^2, m Y): m / mu = m * (1 + Z) / A, the
+//                                   mass of the fuel of the first reaction (hydrogen) and of the
+//                                   second one (helium) -- the type's own mass when it is that fuel,
+//                                   0 otherwise, so the products and the custom elements are in
+//                                   neither -- and the sum of the squared masses
 //  DEPOSIT_POWER                    (fusion power): (m * expected fusions per s * energy per unit mass, expected fusions per s)
 // Defines: MAX_SPECIES, GRID_RES, DEPOSIT_KIND and the values of the kinds. Masses in units of the mean particle mass.
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
 uniform float speciesSplatMass[MAX_SPECIES];
 uniform float speciesInverseMu[MAX_SPECIES];     // (1 + Z) / A of each type, per u
+uniform vec2 speciesFuel[MAX_SPECIES];           // (1, 0) for the fuel of the first reaction (hydrogen), (0, 1) for that of the second (helium), else (0, 0)
 uniform float depositMassScale;
 uniform float depositVelScale;
 attribute vec2 reference;
@@ -36,7 +39,7 @@ void main() {
     vec2 v = texture2D(textureVelocity, reference).xy * depositVelScale;
     vValue = vec4(m, m * v, m * dot(v, v));
 #if DEPOSIT_KIND == DEPOSIT_MOMENTS_AND_COMPOSITION
-    vValue2 = vec4(m * speciesInverseMu[k], 1.0, m * m, 0.0);
+    vValue2 = vec4(m * speciesInverseMu[k], m * speciesFuel[k].x, m * m, m * speciesFuel[k].y);
 #endif
 #endif
     vec2 p = posData.xy / gridCell;

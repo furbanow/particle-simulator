@@ -28,9 +28,10 @@ export const stickyDustModel = (context: LabContext): StickyDustModel => {
 export const protostarGrids = (context: LabContext): ProtostarGridTargets => protostarModel(context).debugGridTargets;
 
 /** Lab-only control: sets values on the GPU model directly, whatever the slider ranges (gravity >= 0.1, feedback >= 0.01, ...). */
-function applyDirect(context: LabContext, overrides: ParamValues): void {
+function applyDirect(context: LabContext, overrides: ParamValues, flatRates: boolean): void {
     const model = protostarModel(context);
     for (const [key, value] of Object.entries(overrides)) model.setParam(key, value);
+    model.debugFlatRates = flatRates;
 }
 
 export interface RunOptions {
@@ -42,6 +43,11 @@ export interface RunOptions {
      * the model the slider-validated values back, so they are set before (the initial cloud reads the gravity) and again after.
      */
     overrides?: ParamValues;
+    /**
+     * Makes every rate law independent of the temperature, lambda (rho X)^n (ProtostarModel.debugFlatRates), for gases whose
+     * heating must be known whatever their temperature. Set with the overrides, before and after the reset.
+     */
+    flatRates?: boolean;
     /**
      * Panel parameters set through the Simulation before the restart, so they pass the sliders' validation (the initial
      * conditions: `{ alphaVir: 0.96, betaRot: 0.48 }` for a cold cloud on circular orbits).
@@ -73,8 +79,9 @@ export async function restart(context: LabContext, options: RunOptions): Promise
     simulation.setParam(PARTICLE_COUNT_PARAM, options.count);
     for (const [key, value] of Object.entries(options.params ?? {})) simulation.setParam(key, value);
     const overrides = options.overrides ?? {};
-    const direct = id === 'protostar' && Object.keys(overrides).length > 0;
-    if (direct) applyDirect(context, overrides);
+    const flatRates = options.flatRates === true;
+    const direct = id === 'protostar' && (Object.keys(overrides).length > 0 || flatRates);
+    if (direct) applyDirect(context, overrides, flatRates);
     const weightKey = PROTOSTAR_PROPERTY.weight;
     const previousWeights = simulation.species.map(type => type.values[weightKey]);
     options.weights?.forEach((weight, k) => { if (k < simulation.species.length) simulation.species[k].values[weightKey] = weight; });
@@ -83,7 +90,7 @@ export async function restart(context: LabContext, options: RunOptions): Promise
     } finally {
         if (options.weights) simulation.species.forEach((type, k) => { type.values[weightKey] = previousWeights[k]; });
     }
-    if (direct) applyDirect(context, overrides);
+    if (direct) applyDirect(context, overrides, flatRates);
 }
 
 /**

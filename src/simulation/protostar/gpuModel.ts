@@ -25,7 +25,7 @@ const P = PROTOSTAR_PARAM;
 const ACCEL = 'textureAccel';
 const SEED_PERIOD = 1 << 24;                       // the substep seed stays an exact float
 const REACTION_PARAMS: ReadonlySet<string> = new Set([
-    P.feedback, ...PROTOSTAR_REACTIONS.flatMap(r => [r.rateParam, r.exponentParam]),
+    P.feedback, ...PROTOSTAR_REACTIONS.map(r => r.rateParam),
 ]);
 
 /** Physical scales of a run, from the area size at restart (L = min(width, height)). */
@@ -104,6 +104,20 @@ export class ProtostarModel implements GpuModel {
      * Dev-only (the lab): fills the initial positions and velocities instead of the cloud (see fillCloud); for gases of known temperature. Null in the application.
      */
     debugInitialState: ((state: InitialState) => void) | null = null;
+    private flatRates = false;
+
+    /**
+     * Dev-only (the lab): true makes every rate law independent of the temperature, lambda (rho X)^n, for gases whose heating must be
+     * known whatever their temperature. A restart gives it back its value, false.
+     */
+    get debugFlatRates(): boolean {
+        return this.flatRates;
+    }
+
+    set debugFlatRates(flat: boolean) {
+        this.flatRates = flat;
+        this.updateReactions();
+    }
 
     /** Dev-only, read-only: what the initial cloud of the latest restart was made of (its disc's table, the energies it set); null with a debug initial state. */
     get debugInitialCloud(): CloudSummary | null {
@@ -209,6 +223,8 @@ export class ProtostarModel implements GpuModel {
         const length = Math.max(1, Math.min(size.x, size.y));
         this.scales = { length, cloudRadius: PROTOSTAR_CLOUD_RADIUS * length, count: Math.max(1, this.context.activeCount()) };
         this.params = { ...this.params, ...params };
+        this.flatRates = false;
+        this.updateReactions();
         this.generation++;
         this.frame = 0;
         this.substep = 0;                              // a restart replays the same random stream (the lab relies on it)
@@ -237,18 +253,22 @@ export class ProtostarModel implements GpuModel {
     private updateReactions(): void {
         if (this.types.length === 0) return;
         const arrays = reactionArrays(PROTOSTAR_REACTIONS, this.types, this.params, PROTOSTAR_PROPERTY.mass,
-            PROTOSTAR_FUSION_C2, numberOr(this.params[P.feedback], 0), MAX_SPECIES);
+            PROTOSTAR_FUSION_C2, numberOr(this.params[P.feedback], 0), MAX_SPECIES, this.flatRates);
         const c = this.grids.common;
         // In place: the arrays are shared by reference with every material.
         for (let k = 0; k < MAX_SPECIES; k++) {
             c.reactionTo.value[k] = arrays.to[k];
             c.reactionKeep.value[k] = arrays.keep[k];
             c.reactionRate.value[k] = arrays.rate[k];
-            c.reactionExponent.value[k] = arrays.exponent[k];
+            c.reactionPower.value[k] = arrays.power[k];
+            c.reactionBarrier.value[k] = arrays.barrier[k];
+            c.reactionBarrierPower.value[k] = arrays.barrierPower[k];
+            c.reactionFuel.value[k] = arrays.fuel[k];
             c.reactionReference.value[k] = arrays.reference[k];
             c.reactionDensityExponent.value[k] = arrays.densityExponent[k];
             c.reactionEnergy.value[k] = arrays.energy[k];
         }
+        this.grids.setFuelChannels(arrays.fuel);
     }
 
     beforeSubstep(dt: number): void {

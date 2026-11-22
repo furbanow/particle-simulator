@@ -13,10 +13,11 @@ import {
     atomicNumber, inverseMeanMolecularWeight, inverseMolecularWeights,
 } from '../src/simulation/protostar/composition';
 import { centerOfMass, driftCorrection } from '../src/simulation/protostar/drift';
-import { noiseBias } from '../src/simulation/protostar/noiseBias';
+import { logNoiseBiasCurved, logUnbiasedResonant } from '../src/simulation/protostar/noiseBias';
+import { fusionLawOf } from '../src/simulation/protostar/ignition';
 import { fillCloud, type CloudOptions } from '../src/simulation/protostar/initialConditions';
 import {
-    defectFraction, expectedMassAfter, fusionProbability, fusionRate, massDefect, reactionArrays, reactionTransitions,
+    defectFraction, expectedMassAfter, fusionProbability, fusionRate, lawAt, massDefect, reactionArrays, reactionTransitions,
     survivalProbability, type FusionLaw,
 } from '../src/simulation/protostar/reactions';
 import { countTypes } from '../src/simulation/typeCounts';
@@ -42,7 +43,7 @@ describe('protostar declaration', () => {
 
     it('declares the required parameters with their defaults', () => {
         const params = defaultParams(PROTOSTAR);
-        for (const key of ['count', 'gravity', 'softening', 'alphaVir', 'betaRot', 'profile', 'turbulence', 'cooling', 'fusionRate', 'fusionExponent', 'heFusionRate', 'heFusionExponent', 'feedback']) {
+        for (const key of ['count', 'gravity', 'softening', 'alphaVir', 'betaRot', 'profile', 'turbulence', 'cooling', 'fusionRate', 'heFusionRate', 'feedback']) {
             expect(params).toHaveProperty(key);
         }
         const byKey = Object.fromEntries(PROTOSTAR.params.map(p => [p.key, p]));
@@ -52,10 +53,11 @@ describe('protostar declaration', () => {
         expect(tabsOf(PROTOSTAR.params).map(t => t.id)).toEqual(['initial', 'physics', 'fusion', 'features']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'initial').map(p => p.key)).toEqual(['count', 'alphaVir', 'betaRot', 'profile', 'turbulence']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'cooling', 'opacity']);
-        expect(PROTOSTAR.params.filter(p => p.tab === 'fusion').map(p => p.key)).toEqual(['fusionRate', 'fusionExponent', 'heFusionRate', 'heFusionExponent', 'feedback']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'fusion').map(p => p.key)).toEqual(['fusionRate', 'heFusionRate', 'feedback']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics']);
-        expect(params.fusionExponent).toBe(2.8);
-        expect(params.heFusionExponent).toBe(16);
+        // the temperature exponents are not parameters any more: they are Gamow's (3.9 at 15 MK for pp, 41 at 100 MK for the triple alpha)
+        expect(params).not.toHaveProperty('fusionExponent');
+        expect(params).not.toHaveProperty('heFusionExponent');
     });
 
     it('has hydrogen, helium and carbon 12, atomic masses in u, only hydrogen at first', () => {
@@ -104,7 +106,6 @@ describe('protostar declaration', () => {
         const keys = new Set(PROTOSTAR.params.map(p => p.key));
         for (const r of PROTOSTAR_REACTIONS) {
             expect(keys.has(r.rateParam)).toBe(true);
-            expect(keys.has(r.exponentParam)).toBe(true);
         }
     });
 
@@ -162,18 +163,22 @@ describe('fusion reactions', () => {
     });
 
     it('builds per-type uniform arrays from the table', () => {
-        const params = { ...defaultParams(PROTOSTAR), fusionRate: 0.001, fusionExponent: 3, heFusionRate: 1e-6, heFusionExponent: 40 };
+        const params = { ...defaultParams(PROTOSTAR), fusionRate: 0.001, heFusionRate: 1e-6 };
         const a = reactionArrays(PROTOSTAR_REACTIONS, PROTOSTAR_TYPES, params, 'mass', 1000, 2, MAX_SPECIES);
         expect(a.to).toEqual([HELIUM, CARBON, ...new Array(MAX_SPECIES - 2).fill(-1)]);
         expect(a.keep[HYDROGEN]).toBe(0.25);
         expect(a.rate[HYDROGEN]).toBe(0.001);
-        expect(a.exponent[HYDROGEN]).toBe(3);
+        expect(a.power[HYDROGEN]).toBeCloseTo(2 / 3, 12);
+        expect(a.barrierPower[HYDROGEN]).toBeCloseTo(1 / 3, 12);
+        expect(a.fuel[HYDROGEN]).toBe(0);
         expect(a.energy[HYDROGEN]).toBeCloseTo(2 * defectFraction(hToHe, m) * 1000, 10);
         expect(a.reference[HYDROGEN]).toBe(1);
         expect(a.densityExponent[HYDROGEN]).toBe(1);
         expect(a.keep[HELIUM]).toBeCloseTo(1 / 3, 12);
         expect(a.rate[HELIUM]).toBe(1e-6);
-        expect(a.exponent[HELIUM]).toBe(40);
+        expect(a.power[HELIUM]).toBe(3);
+        expect(a.barrier[HELIUM]).toBeCloseTo(44, 12);
+        expect(a.fuel[HELIUM]).toBe(1);
         expect(a.energy[HELIUM]).toBeCloseTo(2 * defectFraction(tripleAlpha, m) * 1000, 10);
         expect(a.reference[HELIUM]).toBeCloseTo(1e8 / PROTOSTAR_T0_KELVIN, 10);
         expect(a.densityExponent[HELIUM]).toBe(2);
@@ -186,14 +191,18 @@ describe('fusion reactions', () => {
         expect(a.to.slice(0, 3)).toEqual([HELIUM, -1, -1]);
     });
 
-    const hydrogenLaw: FusionLaw = { rate: 1e-4, densityExponent: 1, reference: 1, exponent: 3 };
-    const heliumLaw: FusionLaw = { rate: 1e-6, densityExponent: 2, reference: 1e8 / PROTOSTAR_T0_KELVIN, exponent: 40 };
+    // The laws of the table at lambda = 1e-4 (hydrogen) and 1e-6 (helium): Gamow's, normalised at 15 and 100 MK.
+    const hydrogenLaw: FusionLaw = fusionLawOf(hToHe, { fusionRate: 1e-4 });
+    const heliumLaw: FusionLaw = fusionLawOf(tripleAlpha, { heFusionRate: 1e-6 });
 
-    it('hydrogen law: lambda0 rho T^alpha dt for small values, never above 1', () => {
+    it('hydrogen law: lambda0 rho dt at the reference temperature for small values, steeper than a power law of 3 below it, never above 1', () => {
         expect(fusionProbability(hydrogenLaw, 100, 1, 1 / 60)).toBeCloseTo(1e-2 / 60, 6);
-        expect(fusionProbability(hydrogenLaw, 100, 2, 1 / 60) / fusionProbability(hydrogenLaw, 100, 1, 1 / 60)).toBeCloseTo(8, 2);
+        // 3.9 at 15 MK, 3.0 at 30 MK: doubling T multiplies the rate by 2^3.4 or so
+        const double = fusionProbability(hydrogenLaw, 100, 2, 1 / 60) / fusionProbability(hydrogenLaw, 100, 1, 1 / 60);
+        expect(double).toBeGreaterThan(2 ** 3);
+        expect(double).toBeLessThan(2 ** 3.9);
         expect(fusionProbability(hydrogenLaw, 100, 0, 1)).toBe(0);
-        expect(fusionProbability({ rate: 1e3, densityExponent: 1, reference: 1, exponent: 4 }, 1e3, 10, 1)).toBeLessThanOrEqual(1);
+        expect(fusionProbability({ ...hydrogenLaw, rate: 1e3 }, 1e3, 10, 1)).toBeLessThanOrEqual(1);
     });
 
     it('general law: the rate is lambda at the reference temperature and rho = 1', () => {
@@ -204,31 +213,40 @@ describe('fusion reactions', () => {
         expect(fusionRate(heliumLaw, 200, heliumLaw.reference) / fusionRate(heliumLaw, 100, heliumLaw.reference)).toBeCloseTo(4, 6);
     });
 
-    it('helium burning is very sensitive: 10 % hotter is about 45 times faster', () => {
+    it('helium burning is very sensitive: a 10 % hotter gas fuses about 40 times faster (exponent 41 at 100 MK, falling as it heats)', () => {
         const t = heliumLaw.reference;
-        expect(fusionRate(heliumLaw, 100, 1.1 * t) / fusionRate(heliumLaw, 100, t)).toBeCloseTo(1.1 ** 40, 3);
+        const ratio = fusionRate(heliumLaw, 100, 1.1 * t) / fusionRate(heliumLaw, 100, t);
+        expect(ratio).toBeGreaterThan(1.1 ** 36);
+        expect(ratio).toBeLessThan(1.1 ** 41);
         expect(fusionRate(heliumLaw, 100, 0.5 * t)).toBeLessThan(1e-9);
     });
 
-    it('divides the rate by the bias that the noise of the temperature causes, when the number of particles is given', () => {
+    it('corrects the rate for the noise of the temperature when the number of particles is given: divided by the bias for the proton-proton chain, replaced by its exact unbiased estimate for the triple alpha', () => {
         const t = heliumLaw.reference;
         const plain = fusionRate(heliumLaw, 100, t);
+        const point = lawAt(hydrogenLaw, hydrogenLaw.reference);
+        const plainHydrogen = fusionRate(hydrogenLaw, 100, hydrogenLaw.reference);
         expect(fusionRate(heliumLaw, 100, t, Infinity)).toBe(plain);
-        expect(fusionRate(heliumLaw, 100, t, 400)).toBeCloseTo(plain / noiseBias(400, heliumLaw.exponent), 12);
-        expect(fusionRate(heliumLaw, 100, t, 400)).toBeLessThan(plain / 3);
+        expect(fusionRate(hydrogenLaw, 100, hydrogenLaw.reference, 400)).toBeCloseTo(
+            plainHydrogen / Math.exp(logNoiseBiasCurved(400, point.exponent, point.barrier, hydrogenLaw.barrierPower)), 12);
+        const exact = logUnbiasedResonant(400, 1, heliumLaw.power, heliumLaw.barrier)!;
+        expect(fusionRate(heliumLaw, 100, t, 400)).toBeCloseTo(Math.exp(Math.log(heliumLaw.rate * 100 ** 2) + exact), 12);
+        expect(fusionRate(heliumLaw, 100, t, 400)).toBeLessThan(plain / 1.5);
         expect(fusionRate(heliumLaw, 100, t, 6400)).toBeGreaterThan(plain / 1.2);
         // a neighborhood with next to no particles tells nothing of T: its rate is nearly zero, not infinite or NaN
-        expect(fusionRate(heliumLaw, 100, t, 1)).toBeLessThan(1e-20);
+        expect(fusionRate(heliumLaw, 100, t, 1)).toBeLessThan(1e-9);
         expect(fusionRate(heliumLaw, 100, t, 1)).toBeGreaterThan(0);
         // the cap holds
-        expect(fusionRate(heliumLaw, 1e4, 1e30, 400)).toBe(PROTOSTAR_FUSION_RATE_MAX);
+        expect(fusionRate(heliumLaw, 1e4, 15, 400)).toBe(PROTOSTAR_FUSION_RATE_MAX);
     });
 
-    it('the rate is capped and finite far above the reference temperature', () => {
-        for (const t of [1e3, 1e30, Infinity]) {
+    it('the rate is capped and finite far above the reference temperature, and nil without gas', () => {
+        for (const t of [15, 30, 100]) {
             const rate = fusionRate(heliumLaw, 1e4, t);
             expect(rate).toBe(PROTOSTAR_FUSION_RATE_MAX);
         }
+        // far above the maximum of the law (1.5 GK for the triple alpha) the barrier is gone and the prefactor T^-3 takes it down, to nothing, not to NaN
+        expect(fusionRate(heliumLaw, 1e4, 1e30)).toBeLessThan(1e-30);
         expect(fusionRate(heliumLaw, 0, 1e30)).toBe(0);
         expect(fusionRate(heliumLaw, 1e4, 0)).toBe(0);
         expect(fusionRate({ ...heliumLaw, rate: 0 }, 1e4, 1e30)).toBe(0);

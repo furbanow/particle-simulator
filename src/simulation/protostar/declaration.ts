@@ -5,11 +5,11 @@
 
 import {
     CARBON_12_MASS, HYDROGEN_1_MASS, MASS_RANGE, MASS_SLIDER_STEPS, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP,
-    PROTOSTAR_ALPHA_SLIDER, PROTOSTAR_C_SIZE, PROTOSTAR_COOLING_SLIDER,
+    PROTOSTAR_C_SIZE, PROTOSTAR_COOLING_SLIDER,
     PROTOSTAR_COUNT_SLIDER, PROTOSTAR_FEEDBACK_SLIDER, PROTOSTAR_GRAVITY_SLIDER, PROTOSTAR_H_SIZE,
-    PROTOSTAR_HE_ALPHA_SLIDER, PROTOSTAR_HE_IGNITION_KELVIN, PROTOSTAR_HE_LAMBDA_SLIDER, PROTOSTAR_HE_SIZE,
-    PROTOSTAR_LAMBDA_SLIDER, PROTOSTAR_OPACITY_SLIDER, PROTOSTAR_ROTATION_ENERGY_SLIDER, PROTOSTAR_SOFTENING_SLIDER,
-    PROTOSTAR_T0_KELVIN, PROTOSTAR_VIRIAL_SLIDER, SIZE_RANGE, SIZE_STEP, type SliderSpec,
+    PROTOSTAR_HE_IGNITION_KELVIN, PROTOSTAR_HE_LAMBDA_SLIDER, PROTOSTAR_HE_SIZE,
+    PROTOSTAR_LAMBDA_SLIDER, PROTOSTAR_OPACITY_SLIDER, PROTOSTAR_PP_LAW, PROTOSTAR_ROTATION_ENERGY_SLIDER, PROTOSTAR_SOFTENING_SLIDER,
+    PROTOSTAR_T0_KELVIN, PROTOSTAR_TRIPLE_ALPHA_LAW, PROTOSTAR_VIRIAL_SLIDER, SIZE_RANGE, SIZE_STEP, type SliderSpec,
 } from '../../config';
 import { formatNumber, localizeDecimal, t } from '../../i18n';
 import { randomPopulationWeights } from '../../population';
@@ -35,9 +35,7 @@ export const PROTOSTAR_PARAM = {
     cooling: 'cooling',
     opacity: 'opacity',
     fusionRate: 'fusionRate',
-    fusionExponent: 'fusionExponent',
     heFusionRate: 'heFusionRate',
-    heFusionExponent: 'heFusionExponent',
     feedback: 'feedback',
     diagnostics: 'diagnostics',
 } as const;
@@ -65,9 +63,9 @@ const KELVIN_PER_MK = 1e6;
  */
 export const PROTOSTAR_REACTIONS: readonly FusionReaction[] = [
     { from: HYDROGEN, to: HELIUM, consumed: 4, label: t('algo.protostar.reaction.protonProton'), rateParam: PROTOSTAR_PARAM.fusionRate,
-        exponentParam: PROTOSTAR_PARAM.fusionExponent, referenceTemperature: PROTOSTAR_T0_KELVIN, densityExponent: 1 },
+        law: PROTOSTAR_PP_LAW, referenceTemperature: PROTOSTAR_T0_KELVIN, densityExponent: 1 },
     { from: HELIUM, to: CARBON, consumed: 3, label: t('algo.protostar.reaction.tripleAlpha'), rateParam: PROTOSTAR_PARAM.heFusionRate,
-        exponentParam: PROTOSTAR_PARAM.heFusionExponent, referenceTemperature: PROTOSTAR_HE_IGNITION_KELVIN, densityExponent: 2 },
+        law: PROTOSTAR_TRIPLE_ALPHA_LAW, referenceTemperature: PROTOSTAR_HE_IGNITION_KELVIN, densityExponent: 2 },
 ];
 
 const logSliderFields = (spec: SliderSpec) => ({ ...sliderFields(spec), scale: 'log' }) as const;
@@ -118,15 +116,9 @@ const params: readonly ParamDef[] = [
     { ...logSliderFields(PROTOSTAR_LAMBDA_SLIDER), key: PROTOSTAR_PARAM.fusionRate, tab: 'fusion', label: t('algo.protostar.param.fusionRate.label'),
         doc: t('algo.protostar.param.fusionRate.doc'),
         format: v => `λ₀ = ${formatSmall(v)}` },
-    { ...sliderFields(PROTOSTAR_ALPHA_SLIDER), key: PROTOSTAR_PARAM.fusionExponent, tab: 'fusion', label: t('algo.protostar.param.fusionExponent.label'),
-        doc: t('algo.protostar.param.fusionExponent.doc'),
-        format: v => `α = ${fixed(1)(v)}` },
     { ...logSliderFields(PROTOSTAR_HE_LAMBDA_SLIDER), key: PROTOSTAR_PARAM.heFusionRate, tab: 'fusion', label: t('algo.protostar.param.heFusionRate.label'),
         doc: t('algo.protostar.param.heFusionRate.doc'),
         format: v => `λ = ${formatSmall(v)}` },
-    { ...sliderFields(PROTOSTAR_HE_ALPHA_SLIDER), key: PROTOSTAR_PARAM.heFusionExponent, tab: 'fusion', label: t('algo.protostar.param.heFusionExponent.label'),
-        doc: t('algo.protostar.param.heFusionExponent.doc'),
-        format: v => `α = ${fixed(1)(v)}` },
     { ...logSliderFields(PROTOSTAR_FEEDBACK_SLIDER), key: PROTOSTAR_PARAM.feedback, tab: 'fusion', label: t('algo.protostar.param.feedback.label'),
         doc: t('algo.protostar.param.feedback.doc'),
         format: v => `× ${formatSmall(v)}` },

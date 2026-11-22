@@ -198,25 +198,35 @@ describe('lab: CPU reference of the composition deposit', () => {
     const inputs: DepositInputs = {
         gridResolution: RES, gridCell: 10, depositMassScale: 2,
         splatMass: [1, 3, 0.5, 0, 0, 0, 0, 0, 0, 0], inverseMolecularWeight: [2, 0.75, 0.5, 0, 0, 0, 0, 0, 0, 0],
+        fuel: [[1, 0], [0, 1], [0, 0], ...new Array<[number, number]>(7).fill([0, 0])],
     };
     const cell = (x: number, y: number) => y * RES + x;
     const at = (ref: ReturnType<typeof referenceDeposit>, x: number, y: number, channel: number) =>
         ref.composition[cell(x, y) * 4 + channel];
 
-    it('puts a particle at a cell center in that cell alone: (m / mu, 1, m^2, 0)', () => {
+    it('puts a particle at a cell center in that cell alone: (m / mu, m of hydrogen, m^2, m of helium)', () => {
         const ref = referenceDeposit([35, 55, 1, 1], 1, inputs, 1e-5);   // cell (3, 5), He: m = 3 * 2 = 6
-        expect([0, 1, 2, 3].map(c => at(ref, 3, 5, c))).toEqual([6 * 0.75, 1, 36, 0]);
-        expect(ref.composition.reduce((s, v) => s + v, 0)).toBe(6 * 0.75 + 1 + 36);
+        expect([0, 1, 2, 3].map(c => at(ref, 3, 5, c))).toEqual([6 * 0.75, 0, 36, 6]);
+        expect(ref.composition.reduce((s, v) => s + v, 0)).toBe(6 * 0.75 + 36 + 6);
         expect(ref.deposited).toBe(1);
         expect(ref.mass[cell(3, 5)]).toBe(6);
+        expect(ref.occupancy[cell(3, 5)]).toBe(1);
+        const hydrogen = referenceDeposit([35, 55, 0, 1], 1, inputs, 1e-5);   // H: m = 1 * 2 = 2
+        expect([0, 1, 2, 3].map(c => at(hydrogen, 3, 5, c))).toEqual([2 * 2, 2, 4, 0]);
+    });
+
+    it('puts the types that are the fuel of no reaction (carbon, custom elements) in neither the hydrogen nor the helium channel', () => {
+        const ref = referenceDeposit([35, 55, 2, 1], 1, inputs, 1e-5);   // C: m = 0.5 * 2 = 1
+        expect([0, 1, 2, 3].map(c => at(ref, 3, 5, c))).toEqual([0.5, 0, 1, 0]);
     });
 
     it('splits a particle at a cell corner in four quarters', () => {
         const ref = referenceDeposit([40, 60, 0, 1], 1, inputs, 1e-5);   // corner of cells (3..4, 5..6), H: m = 2
         for (const [x, y] of [[3, 5], [4, 5], [3, 6], [4, 6]]) {
             expect(at(ref, x, y, 0)).toBeCloseTo(0.25 * 2 * 2, 12);
-            expect(at(ref, x, y, 1)).toBeCloseTo(0.25, 12);
+            expect(at(ref, x, y, 1)).toBeCloseTo(0.25 * 2, 12);
             expect(at(ref, x, y, 2)).toBeCloseTo(0.25 * 4, 12);
+            expect(ref.occupancy[cell(x, y)]).toBeCloseTo(0.25, 12);
         }
     });
 
@@ -224,24 +234,26 @@ describe('lab: CPU reference of the composition deposit', () => {
         const texels = [35, 55, 0, 1, 35, 55, 1, 1, 35, 55, 2, 1];   // H, He, C on the same spot
         const ref = referenceDeposit(texels, 3, inputs, 1e-5);
         expect(at(ref, 3, 5, 0)).toBeCloseTo(2 * 2 + 6 * 0.75 + 1 * 0.5, 12);
-        expect(at(ref, 3, 5, 1)).toBe(3);
+        expect(at(ref, 3, 5, 1)).toBe(2);
+        expect(at(ref, 3, 5, 3)).toBe(6);
         expect(at(ref, 3, 5, 2)).toBeCloseTo(4 + 36 + 1, 12);
+        expect(ref.occupancy[cell(3, 5)]).toBe(3);
         expect(ref.contributions[cell(3, 5)]).toBe(3);
-        expect(ref.payloadMax).toEqual([4.5, 1, 36, 0]);
+        expect(ref.payloadMax).toEqual([4.5, 2, 36, 6]);
     });
 
     it('skips the removed particles, those beyond count and those whose point is clipped', () => {
         const texels = [35, 55, 0, -1, 35, 55, 0, 1, -30, 55, 0, 1, 35, 55, 0, 1];
         const ref = referenceDeposit(texels, 3, inputs, 1e-5);
         expect(ref.deposited).toBe(1);
-        expect(at(ref, 3, 5, 1)).toBe(1);
+        expect(ref.occupancy[cell(3, 5)]).toBe(1);
     });
 
     it('keeps cloud-in-cell weights summing to one inside the grid, a cell on the edge included', () => {
         const random = mulberry32(5);
         const texels = Array.from({ length: 200 }, (_, i) => [random() * 80, random() * 80, i % 3, 1]).flat();
         const ref = referenceDeposit(texels, 200, inputs, 1e-5);
-        const counted = Array.from({ length: RES * RES }, (_, c) => ref.composition[c * 4 + 1]).reduce((s, v) => s + v, 0);
+        const counted = ref.occupancy.reduce((s, v) => s + v, 0);
         // A particle in the outer half cell loses the part of its cloud that falls outside the grid.
         expect(counted).toBeLessThanOrEqual(200 + 1e-9);
         expect(counted).toBeGreaterThan(150);

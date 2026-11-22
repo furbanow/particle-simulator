@@ -5,7 +5,7 @@
 import { MAX_SPECIES } from '../config';
 import type { DepositInputs } from '../simulation/protostar/grids';
 
-/** The composition deposit's channels: (m (1 + Z) / A, count, m^2, spare). */
+/** The composition deposit's channels: (m (1 + Z) / A, m of the hydrogen fuel, m^2, m of the helium fuel). */
 export const COMPOSITION_CHANNELS = 4;
 
 export interface DepositReference {
@@ -13,6 +13,8 @@ export interface DepositReference {
     composition: Float64Array;
     /** The mass channel of the moments deposit (sum of the weighted masses), one value per cell. */
     mass: Float64Array;
+    /** The weighted number of particles of each cell (the sum of their cloud-in-cell weights: no channel of the deposit holds it any more). */
+    occupancy: Float64Array;
     /**
      * Per cell, how many particles' clouds reach it, within `weightMargin` of the edge of their
      * footprint (so that a cell the GPU rounds into a cloud is counted too).
@@ -35,6 +37,7 @@ export function referenceDeposit(texels: ArrayLike<number>, count: number, input
     const res = inputs.gridResolution;
     const composition = new Float64Array(res * res * COMPOSITION_CHANNELS);
     const mass = new Float64Array(res * res);
+    const occupancy = new Float64Array(res * res);
     const contributions = new Uint32Array(res * res);
     const payloadMax = new Array<number>(COMPOSITION_CHANNELS).fill(0);
     let deposited = 0;
@@ -43,7 +46,8 @@ export function referenceDeposit(texels: ArrayLike<number>, count: number, input
         if (!(w >= 0)) continue;
         const k = Math.min(Math.max(Math.trunc(z + 0.5), 0), MAX_SPECIES - 1);
         const m = inputs.splatMass[k] * inputs.depositMassScale;
-        const payload = [m * inputs.inverseMolecularWeight[k], 1, m * m, 0];
+        const [fuelX, fuelY] = inputs.fuel[k];
+        const payload = [m * inputs.inverseMolecularWeight[k], m * fuelX, m * m, m * fuelY];
         const px = x / inputs.gridCell;
         const py = y / inputs.gridCell;
         const cx = Math.floor(px - 0.5) + 1;
@@ -64,10 +68,11 @@ export function referenceDeposit(texels: ArrayLike<number>, count: number, input
                 if (weight === 0) continue;
                 for (let c = 0; c < COMPOSITION_CHANNELS; c++) composition[cell * COMPOSITION_CHANNELS + c] += payload[c] * weight;
                 mass[cell] += m * weight;
+                occupancy[cell] += weight;
             }
         }
     }
-    return { composition, mass, contributions, payloadMax, deposited };
+    return { composition, mass, occupancy, contributions, payloadMax, deposited };
 }
 
 /**

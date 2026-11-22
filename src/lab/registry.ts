@@ -12,6 +12,7 @@ import { dustHitchScenarios } from './scenarios/dustHitches';
 import { dustSupernovaScenarios } from './scenarios/dustSupernova';
 import { dustSupernovaHistoryScenarios } from './scenarios/dustSupernovaHistory';
 import { energyDrift, energyDriftAttribution, energyReference, reductionChannels } from './scenarios/energy';
+import { fuelFractions, localExponentGas } from './scenarios/gamowRates';
 import { initialConditions, initialCost, initialGridForce, maclaurinCollapse, restartCost } from './scenarios/initialConditions';
 import { integration } from './scenarios/integration';
 import { halfFloatDeposit } from './scenarios/halfFloat';
@@ -34,6 +35,8 @@ export const SCENARIOS: readonly Scenario[] = [
     heating,
     molecularWeight,
     ignitionGas,
+    fuelFractions,
+    localExponentGas,
     temperatureNoise,
     temperatureSmoothing,
     ignitionRatioBaseline,

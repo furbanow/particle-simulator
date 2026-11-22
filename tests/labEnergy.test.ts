@@ -80,7 +80,7 @@ describe('lab: the grid gravity twin', () => {
             texels.push(32 + r * Math.cos(a), 32 + r * Math.sin(a), 0, 1);
         }
         const inputs: DepositInputs = {
-            gridResolution: res, gridCell: 1, depositMassScale: 1, splatMass: [1], inverseMolecularWeight: [1],
+            gridResolution: res, gridCell: 1, depositMassScale: 1, splatMass: [1], inverseMolecularWeight: [1], fuel: [[1, 0]],
         };
         const deposit = referenceDeposit(texels, 150, inputs, 0);
         const field = gridGravity(deposit.mass, grid);
