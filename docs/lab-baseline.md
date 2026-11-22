@@ -618,14 +618,75 @@ the gas pass reads a correlated flow as bulk motion, not as heat, and the cloud 
 The restart (`perf.protostar.restart`, median of five): 305, 629 and 1 047 ms at 400 000, 1 000 000 and 2 000 000 particles against 487, 1 154 and 2 388 ms before (the sort by radius is gone); the table is 4.4 ms.
 Not P5b's: `protostar.reduction-channels` still fails by the temperature of the peak (see P5a above) and `baseline.protostar.energy-drift` skips when the shared GPU does not leave its budget (95 of 100 orbits: drift -0.17 %, largest 0.80 %).
 
+## After phase P3b-2: the Gamow rates, and the recalibration of the defaults
+
+P3b-2 (proposal A2, [the spike](spikes/a2-gamow-rates.md)) **changes the physics** and one default of the protostar. The fusion rate is
+Gamow's per nucleus, `lambda (rho X)^n f(T) / f(T_ref)`, with `f` the real temperature law (proton-proton `T^(-2/3) exp(-33.8 T6^(-1/3))`, local exponent 3.9
+at 15 MK; triple alpha `T8^-3 exp(-44 / T8)`, 41 at 100 MK), the mass fractions X and Y of the fuels in the neighborhood in it, no exponent sliders,
+and the noise of T corrected at the real exponents (an exact unbiased estimate for the triple alpha). Defaults: lambda_He 3.75e-5 -> **2.5e-4** (a pure helium gas of 20 rho0
+fuses 0.1 times per second at exactly 100 MK; hydrogen at 15.9 MK there, He/H 6.3), glow range 1 to 7 -> 1 to 15 T0; lambda_0, G, cooling, opacity and feedback unchanged
+(scanned twice, see the spike). Same GPU and protocol as above (400 000 particles, 1024 x 768 px area, 1200 frames = 34 s, seeds 20240611 onward), on top of phase P5a and of the
+initial conditions of P5b (`9215ab1`, whose default cloud is the "before" below: it reproduces the P5b table's numbers to the digit).
+
+Three seeds, 34 s; "A1 defaults" are the same defaults on the Gamow laws:
+
+| 34 s, three seeds | before (power laws, A1 defaults) | A1 defaults on the Gamow laws | **new defaults** |
+|---|---|---|---|
+| hydrogen burnt before 4.5 s (the first collapse) | 37 %, 36 %, 37 % | 35 %, 35 %, 35 % | 35 %, 35 %, 35 % |
+| peak fusions per second of that burst | 32 000, 30 400, 33 500 | 738 000, 773 000, 757 000 | 783 000, 807 000, 771 000 |
+| core T on the plateau, median (MK) | 10.2, 16.3, 20.6 | 19.9, 16.2, 15.7 | 38.7, 17.7, 19.2 |
+| core T weighted by the hydrogen burnt after (MK) | 9.6, 18.8, 24.3 | 19.9, 14.8, 24.6 | 16.7, 17.5, 23.7 |
+| highest core T (MK) | 219, 259, 147 | 205, 223, 268 | 205, 213, 168 |
+| core T in the last quarter (MK) | 133, 164, 58 | 51, 57, 87 | 72, 77, 55 |
+| hydrogen left of 400 000 | 62, 210, 1 096 | 47 601, 33 655, 22 408 | 47 291, 24 551, 24 246 |
+| helium / carbon at the end | 196 / 33 443, 3 638 / 32 056, 75 082 / 8 236 | 72 021 / 5 544, 39 809 / 17 171, 24 151 / 23 365 | 79 371 / 3 030, 17 238 / 25 456, 64 162 / 10 057 |
+| first helium flash (carbon + 3 000 over its 6 s value), s | 27.8, 24.9, 17.6 | none, 28.3, 23.2 | none, 24.6, 17.6 |
+
+Six seeds, medians (34 s): plateau **18.2 MK** (14.8 to 38.7, five seeds in six within 10 to 20 MK; A1's defaults on the Gamow laws: 19.9, four in six), helium flash in
+five seeds of six at **22.9 s** (A1's defaults: five of six, 28.3 s), 25 800 hydrogens left, core T in the last 15 %: 79 MK. Twelve seeds (20240611 to 20240622): plateau 18.2 and 18.3 MK in each half, nine seeds in twelve in the target, helium flash in ten of twelve.
+Three seeds at 56 s (2 000 frames): plateau 51.2, 17.7, 20.2 MK; helium flash at 48.7, 24.9, 17.9 s; hydrogen left 13 314, 4 615, 8 349; core T in the last 15 %: 86, 157, 91 MK
+(before: 219, 229, 52).
+
+The seed of the baseline (20240611), new defaults, at the rows of the first table (readings of 10 frames, the nearest to each row); it is the weak seed of the three (a plateau at 39 MK):
+
+| t (s) | frame | core T (MK) | peak density (rho0) | fusions / s | H, He, C |
+|---|---|---|---|---|---|
+| 0.28 | 10 | 2.0 | 1.1 | 0.0187 | 400 000, 0, 0 |
+| 1.42 | 50 | 1.6 | 2.3 | 0.000528 | 400 000, 0, 0 |
+| 1.98 | 70 | 3.7 | 6.5 | 0.247 | 400 000, 0, 0 |
+| 4.25 | 150 | 3.6 | 6.9 | 0.54 | 259 209, 26 612, 3 030 |
+| 8.22 | 290 | 23.5 | 37.4 | 7 628 | 254 996, 27 619, 3 030 |
+| 11.6 | 410 | 13.7 | 36.2 | 5 352 | 229 178, 34 089, 3 030 |
+| 14.4 | 510 | 8.0 | 40.3 | 20 661 | 193 787, 42 944, 3 030 |
+| 20.4 | 720 | 38.7 | 38.4 | 6 865 | 110 495, 63 654, 3 030 |
+| 25.5 | 900 | 58.2 | 49.4 | 4 756 | 83 061, 70 464, 3 030 |
+| 34.0 | 1200 | 81.0 | 90.3 | 1 892 | 47 291, 79 371, 3 030 |
+
+What changed against the build before, honestly:
+
+- **The cloud starts colder in fusion and burns the hydrogen at 15 to 20 MK, in a flash at the first collapse.** The rate at 2 MK is 0.02 fusions per second (6 before): the
+  Gamow law gives a particle at 2 MK 7e-6 of its rate at 15 MK, where the power law gave 3e-3. The first collapse burns 35 % of the hydrogen in a burst of 770 000 to 810 000 fusions per second (37 %,
+  32 000 before): about the same share of the hydrogen, burnt in 0.3 s instead of 3, because the law is steep below 10 MK. This is the main thing the recalibration did not remove.
+- **The plateau is at 18 MK and the helium flash is five seconds earlier than with A1's values**; one seed in three (and one in six) runs a hot plateau, 39 to 51 MK, and ignites its helium late (49 s).
+- **The hydrogen lasts longer**: 25 000 left at 34 s against 200, and 4 600 to 13 000 at 56 s against 0 to 600.
+- **The carbon ash reads 33 to 95 MK at 34 s and 86 to 157 MK at 56 s**: carbon is 3.4 times its dispersion and does not burn (600 MK); the highest reading of the runs of the phase is about 410 MK, for one reading in a helium flash.
+- **Cost**, `perf.protostar.400k` at 400 000 particles, the build before (`9215ab1`) and this one alternated, six pairs, each build with its own defaults: whole frame 24.34 against 24.81 ms (paired difference +0.12 ms, -0.47 to +1.10); on the same dynamics (the cloud only expanding, nothing fusing) 25.42 against 25.94 ms, **+0.80 ms or +3.2 %**, the new build slower in six pairs of six; the GPU in its P5 state (734 MHz, three times the idle frame time), and the simulation-only figure unreadable for the steps of the clock between runs. The first-visit benchmark finds the same cap (700 000 particles at 5 to 9 ms per 400 000, replayed with a fake 60 Hz clock; 490 000 at 12 ms).
+
+Acceptance checks of the phase (numbers and method in the spike): the local exponents measured on the GPU are the theory's within 0.023 % (4.969 against
+4.970 at 8 MK of hydrogen, 3.904 at 15 MK, 2.961 at 30 MK; 59.96, 41.07, 19.04 for helium at 70, 100 and 200 MK); the ignition temperature of a pure gas of 20 rho0 moves by
+0.581, 0.502 and 0.379 per decade of lambda for hydrogen (1.7 to 2.6), 0.947 to 0.939 for helium, which is `10^(-1/alpha)`; He/H of the pure gases at 0.1 per second is
+6.297 on the GPU (law 6.293, real 6.67); the corrected mean rate at the real exponents is within 5 % of the true one for hydrogen at every N (0.998 to 1.005) and for helium from 200 particles per
+neighborhood (1.015 +- 0.010 at 200, 1.003 at 400, 0.987 at 800; 1.053 +- 0.019 at 100, not judged), where dividing by the bias left 3.54 at 100 and 1.16 at 400;
+`protostar.reduction-channels` passes again (its twin read the dispersion instead of the temperature, and the gas grid of the wrong substep).
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a; it was a documented
   known failure (K + U +39.5 % over 100 orbits, against a target of 1 %) and passes since phase P5a, which
   removed the first-order error of the walls. The omega.dt column above is the precursor of the criterion that
   the adaptive time step (B5) will use. Re-record its table, with the commit, whenever the integration or the gravity change.
-- The ignition ratio is 5.57 at the reference point (0.5 per second, 60 rho0) since P3b-1 (1.72 before); the target of 6.7 and
-  the steepnesses are for the Gamow rates (P3b-2). The reference point is a lab convention, to be revisited with the new rate
-  laws, and the table at the top of this section is the evidence that it matters.
+- The ignition ratio is 5.41 at the reference point (0.5 per second, 60 rho0) since P3b-2 (5.57 with the P3b-1 power laws, 1.72 before), and 6.3
+  at 20 rho0 and 0.1 per second, where lambda_He is normalised; it is a property of the point (4.1 to 10.9 over 20 to 100 rho0 and 0.03 to 0.5 per
+  second), not of the model. The reference point is a lab convention.
 - Re-record this baseline, with the commit it comes from, whenever a phase recalibrates G,
   lambda, alpha or the feedback (the plan's recalibration steps).
