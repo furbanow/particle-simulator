@@ -39,9 +39,19 @@ flash 6/6 at 20.8 s, carbon 88 %. With lambda_0 = 4e-3 (A2's value, c = 10): bur
 (real 6.67) and breaks the A2 test "hydrogen within 6 % of 15 MK". Keeping lambda_0 = 4e-3 keeps the ratio but makes the first-collapse burst worse
 (46 % vs 35 %). In both, hydrogen burns ~8 MK hotter than before and the post-collapse lull appears.
 
-Thermostat test (lambda over a decade, old vs new): run launched at the stop, results in the scratch run below if it finished; to redo with
-`cloudVariants` lambda x {1/3.16, 1, 3.16} on both builds (old build: `git archive 6f615b5`, its lab needs `src/lab/core.ts` and
-`src/lab/scenarios/baseline.ts` of this branch for the burn temperature).
+Thermostat test (the professor's criterion: the central temperature moves by a few percent for a decade of lambda), 3 seeds each, the
+temperature of the burning gas (median over the plateau):
+
+| lambda_0 | / 3.16 | x 1 | x 3.16 |
+|---|---|---|---|
+| old law (lambda_0 = 4e-3 x factor) | 31.4 MK (burst 14 %) | 19.7 MK (35 %) | 22.9 MK (67 %) |
+| candidate B (lambda_0 = 2e-3 x factor) | 54.2 MK (13 %, flash 2 of 3) | 27.8 MK (33 %, 6 seeds) | 29.2 MK (58 %, flash at 10 s) |
+
+Neither meets "a few percent": the old law moves by -37 % / +16 % around the center, B by +95 % / +5 %. Above the default lambda B is the
+flatter one (the T^4 thermostat holds once the plateau is reached), below it the core burns much hotter (too little fuel per degree:
+the plateau is then helium-rich). The criterion assumes an equilibrium that this cloud, with its first-collapse burst and its softened core,
+never quite reaches; report it as measured. To redo: `cloudVariants` lambda x {1/3.16, 1, 3.16} on both builds (old build: `git archive 6f615b5`,
+its lab needs `src/lab/core.ts` and `src/lab/scenarios/baseline.ts` of this branch for the burn temperature).
 
 ## Left to do
 
