@@ -5,10 +5,10 @@
 
 import {
     CARBON_12_MASS, HYDROGEN_1_MASS, MASS_RANGE, MASS_SLIDER_STEPS, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP,
-    PROTOSTAR_C_SIZE, PROTOSTAR_COOLING_SLIDER,
+    PROTOSTAR_C_SIZE,
     PROTOSTAR_COUNT_SLIDER, PROTOSTAR_FEEDBACK_SLIDER, PROTOSTAR_GRAVITY_SLIDER, PROTOSTAR_H_SIZE,
     PROTOSTAR_HE_IGNITION_KELVIN, PROTOSTAR_HE_LAMBDA_SLIDER, PROTOSTAR_HE_SIZE,
-    PROTOSTAR_LAMBDA_SLIDER, PROTOSTAR_OPACITY_SLIDER, PROTOSTAR_PP_LAW, PROTOSTAR_ROTATION_ENERGY_SLIDER, PROTOSTAR_SOFTENING_SLIDER,
+    PROTOSTAR_KAPPA_SLIDER, PROTOSTAR_LAMBDA_SLIDER, PROTOSTAR_MIN_TEMPERATURE_SLIDER, PROTOSTAR_PP_LAW, PROTOSTAR_RADIATION_SLIDER, PROTOSTAR_ROTATION_ENERGY_SLIDER, PROTOSTAR_SOFTENING_SLIDER,
     PROTOSTAR_T0_KELVIN, PROTOSTAR_TRIPLE_ALPHA_LAW, PROTOSTAR_VIRIAL_SLIDER, SIZE_RANGE, SIZE_STEP, type SliderSpec,
 } from '../../config';
 import { formatNumber, localizeDecimal, t } from '../../i18n';
@@ -32,13 +32,15 @@ export const PROTOSTAR_PARAM = {
     turbulence: 'turbulence',
     gravity: 'gravity',
     softening: 'softening',
-    cooling: 'cooling',
-    opacity: 'opacity',
+    radiation: 'radiation',
+    kappa: 'kappa',
+    minTemperature: 'minTemperature',
     fusionRate: 'fusionRate',
     heFusionRate: 'heFusionRate',
     feedback: 'feedback',
     diagnostics: 'diagnostics',
     adaptiveTimeStep: 'adaptiveTimeStep',
+    jeansFloor: 'jeansFloor',
 } as const;
 
 export const PROTOSTAR_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -108,12 +110,15 @@ const params: readonly ParamDef[] = [
     { ...sliderFields(PROTOSTAR_SOFTENING_SLIDER), key: PROTOSTAR_PARAM.softening, tab: 'physics', label: t('algo.protostar.param.softening.label'),
         doc: t('algo.protostar.param.softening.doc'),
         format: v => `ε = ${fixed(1)(v)} %` },
-    { ...sliderFields(PROTOSTAR_COOLING_SLIDER), key: PROTOSTAR_PARAM.cooling, tab: 'physics', label: t('algo.protostar.param.cooling.label'),
-        doc: t('algo.protostar.param.cooling.doc'),
-        format: v => `${fixed(2)(v)} /s` },
-    { ...logSliderFields(PROTOSTAR_OPACITY_SLIDER), key: PROTOSTAR_PARAM.opacity, tab: 'physics', label: t('algo.protostar.param.opacity.label'),
-        doc: t('algo.protostar.param.opacity.doc'),
-        format: v => `ρ_opq = ${formatSmall(v)} ρ₀` },
+    { ...logSliderFields(PROTOSTAR_RADIATION_SLIDER), key: PROTOSTAR_PARAM.radiation, tab: 'physics', label: t('algo.protostar.param.radiation.label'),
+        doc: t('algo.protostar.param.radiation.doc'),
+        format: v => `c = ${formatSmall(v)} /s` },
+    { ...logSliderFields(PROTOSTAR_KAPPA_SLIDER), key: PROTOSTAR_PARAM.kappa, tab: 'physics', label: t('algo.protostar.param.kappa.label'),
+        doc: t('algo.protostar.param.kappa.doc'),
+        format: v => `κ = ${formatSmall(v)} / ρ₀` },
+    { ...sliderFields(PROTOSTAR_MIN_TEMPERATURE_SLIDER), key: PROTOSTAR_PARAM.minTemperature, tab: 'physics',
+        label: t('algo.protostar.param.minTemperature.label'), doc: t('algo.protostar.param.minTemperature.doc'),
+        format: formatTemperature },
     { ...logSliderFields(PROTOSTAR_LAMBDA_SLIDER), key: PROTOSTAR_PARAM.fusionRate, tab: 'fusion', label: t('algo.protostar.param.fusionRate.label'),
         doc: t('algo.protostar.param.fusionRate.doc'),
         format: v => `λ₀ = ${formatSmall(v)}` },
@@ -127,6 +132,8 @@ const params: readonly ParamDef[] = [
         doc: t('algo.protostar.param.diagnostics.doc'), default: true },
     { kind: 'boolean', key: PROTOSTAR_PARAM.adaptiveTimeStep, tab: 'features', label: t('algo.protostar.param.adaptiveTimeStep.label'),
         doc: t('algo.protostar.param.adaptiveTimeStep.doc'), default: false },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.jeansFloor, tab: 'features', label: t('algo.protostar.param.jeansFloor.label'),
+        doc: t('algo.protostar.param.jeansFloor.doc'), default: false },
 ];
 
 const element = (symbol: string) => {

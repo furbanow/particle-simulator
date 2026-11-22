@@ -13,7 +13,7 @@
 //    of the look of the particles, the glow and the nebula; it runs on the build before too, to compare).
 
 import * as THREE from 'three';
-import { BASE_DT, MAX_SPECIES, PROTOSTAR_FUSION_C2, TOTAL_MASS } from '../../config';
+import { BASE_DT, MAX_SPECIES, PROTOSTAR_FUSION_C2, PROTOSTAR_RADIATION_SLIDER, TOTAL_MASS } from '../../config';
 import { NebulaLayer } from '../../render/nebulaLayer';
 import { PROTOSTAR_REACTIONS, PROTOSTAR_TYPES } from '../../simulation/protostar/declaration';
 import { reactionArrays } from '../../simulation/protostar/reactions';
@@ -74,7 +74,7 @@ async function runMomentum(context: LabContext, name: string, overrides: Record<
     try {
         await restart(context, {
             count, timeScale: spec.timeScale, seed: spec.seed, flatRates: true, weights: [100 - spec.heliumPercent, spec.heliumPercent, 0],
-            overrides: { gravity: 0, cooling: 0, feedback: 0, fusionRate: spec.hydrogenRate, heFusionRate: spec.heliumRate, ...overrides },
+            overrides: { gravity: 0, radiation: 0, feedback: 0, fusionRate: spec.hydrogenRate, heFusionRate: spec.heliumRate, ...overrides },
         });
     } finally {
         model.debugInitialState = null;
@@ -133,7 +133,7 @@ export const momentumConservation: Scenario = {
     async run(context): Promise<ScenarioOutcome> {
         const fusionOnly = await runMomentum(context, 'fusion only (cooling and feedback off)', {}, true);
         const thermodynamics = await runMomentum(context, 'with the cooling and a feedback of the sliders\' minimum', {
-            cooling: 0.51, feedback: CONSTANT_MASS_FEEDBACK,
+            radiation: PROTOSTAR_RADIATION_SLIDER.default, feedback: CONSTANT_MASS_FEEDBACK,
         }, false);
         return {
             status: fusionOnly.ok ? 'pass' : 'fail',
@@ -169,7 +169,7 @@ async function runEnergy(context: LabContext, gas: EnergyGas): Promise<{ ok: boo
     try {
         await restart(context, {
             count, timeScale: 1, seed: spec.seed, flatRates: true, weights: gas.weights,
-            overrides: { gravity: 0, cooling: 0, feedback: 1, [gas.rateParam]: rate },
+            overrides: { gravity: 0, radiation: 0, feedback: 1, [gas.rateParam]: rate },
         });
     } finally {
         model.debugInitialState = null;

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
     MAX_SPECIES, PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_ENERGY_FIRST_FRAME, PROTOSTAR_FUSION_C2,
     PROTOSTAR_FUSION_T_REF, PROTOSTAR_GLOW_FUSION, PROTOSTAR_GLOW_HEATING_REF, PROTOSTAR_GLOW_MAX, PROTOSTAR_GLOW_T_RANGE,
-    PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_HEATING_T_FLOOR, PROTOSTAR_MAX_SPEED,
+    PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_HEATING_T_FLOOR, PROTOSTAR_JEANS_CELLS, PROTOSTAR_MAX_SPEED,
     PROTOSTAR_MAX_SUBSTEP_RATIO, PROTOSTAR_MAX_SUBSTEPS, PROTOSTAR_MIN_SUBSTEP_RATIO, PROTOSTAR_RATE_SMOOTHING, PROTOSTAR_RESTITUTION, PROTOSTAR_STATS_INTERVAL, PROTOSTAR_STEP_COURANT,
     PROTOSTAR_STEP_MAX_READINGS, PROTOSTAR_STEP_OMEGA, PROTOSTAR_STEP_READ_INTERVAL, PROTOSTAR_STEP_RELEASE, TOTAL_MASS,
 } from '../../config';
@@ -10,6 +10,7 @@ import { glslFloat } from '../../gl/withDefines';
 import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
 import type { GpuModel, GpuModelContext, GpuVariable, InitialState } from '../gpuModel';
 import type { Vec2 } from '../../util/math';
+import { jeansPerDensity } from './cooling';
 import { EnergyBalance, type EnergyStats } from './energy';
 import { PROTOSTAR_PARAM, PROTOSTAR_PROPERTY, PROTOSTAR_REACTIONS, PROTOSTAR_STAT } from './declaration';
 import { inverseMolecularWeights } from './composition';
@@ -80,8 +81,10 @@ export class ProtostarModel implements GpuModel {
     readonly velocityUniforms: Record<string, THREE.IUniform>;
     readonly positionUniforms: Record<string, THREE.IUniform>;
     private readonly own = {
-        coolingRate: { value: 0 },
-        opacityDensity: { value: 1 },
+        radiation: { value: 0 },
+        opacityKappa: { value: 1 },
+        minTemperature: { value: 0 },
+        jeansPerDensity: { value: 0 },
         maxSpeed: { value: 1 },
         heatingTFloor: { value: 0 },
         restitution: { value: PROTOSTAR_RESTITUTION },
@@ -104,6 +107,7 @@ export class ProtostarModel implements GpuModel {
     private readingsInFlight = 0;
     private diagnostics = true;
     private adaptiveStep = false;
+    private jeansFloor = false;
     private readonly stepController = new SubstepController(PROTOSTAR_STEP_RELEASE);
     private lastDt = 0;                                // the length of the previous substep of this run, 0 before the first
     private stepInfo: StepInfo | null = null;
@@ -199,8 +203,10 @@ export class ProtostarModel implements GpuModel {
 
     setParam(key: string, value: ParamValue): void {
         this.params[key] = value;
-        if (key === P.cooling && typeof value === 'number') this.own.coolingRate.value = value;
-        if (key === P.opacity && typeof value === 'number') this.own.opacityDensity.value = value;
+        if (key === P.radiation && typeof value === 'number') this.own.radiation.value = value;
+        if (key === P.kappa && typeof value === 'number') this.own.opacityKappa.value = value;
+        if (key === P.minTemperature && typeof value === 'number') this.own.minTemperature.value = value;
+        if (key === P.jeansFloor) this.jeansFloor = value === true;
         if (key === P.diagnostics) this.setDiagnostics(value === true);
         if (key === P.adaptiveTimeStep) this.setAdaptiveStep(value === true);
         if (REACTION_PARAMS.has(key)) this.updateReactions();
@@ -357,6 +363,9 @@ export class ProtostarModel implements GpuModel {
         const neighborhood = 9 * cell * cell;
         const depositMassScale = 1 / meanMass;
         grids.common.gridCell.value = cell;
+        // The Jeans floor of the dispersion per rho0 (cooling.ts): set every substep, as the cell and G are.
+        this.own.jeansPerDensity.value = this.jeansFloor
+            ? jeansPerDensity(PROTOSTAR_JEANS_CELLS, cell, this.gravity(length), rho0) : 0;
         grids.common.seed.value = this.substep = (this.substep + 1) % SEED_PERIOD;
         const scales = {
             depositMassScale,

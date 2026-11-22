@@ -37,7 +37,7 @@ const COUNT_FOR_WARMUP = 1000;
 const LAB_CLOUD_PARTICLES_SOFTWARE = 40_000;
 const RES = PROTOSTAR_GRID_RES;
 /** Gravity, cooling and feedback off; the fusion laws as they are in the application (their exponents and rates are the defaults). */
-const GAS_OVERRIDES = { gravity: 0, cooling: 0, feedback: 0 } as const;
+const GAS_OVERRIDES = { gravity: 0, radiation: 0, feedback: 0 } as const;
 const MEGA = 1e6;
 
 /** A gas of one or two types: the population weights of the restart (the first types) and the type of each particle. */

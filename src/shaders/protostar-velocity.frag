@@ -1,8 +1,9 @@
 // GPGPU velocity step of the protostar algorithm (velocity Verlet: the half kick of the previous step
-// and the first of this one), then the local cooling, the fusion heating and the walls. Velocity:
+// and the first of this one), then the radiative cooling, the Jeans floor, the fusion heating and the walls. Velocity:
 // (vx, vy, 0, glow). The pass declares its own state samplers (bound by GpuPipeline); textureAccel
 // holds each particle's acceleration of the previous step (z = 1 on the first step of a run: see
-// below). The twin of the integration is leapfrog.ts. Defines: MAX_SPECIES, GRID_RES, GLOW_*.
+// below). The twin of the integration is leapfrog.ts, of the cooling and the Jeans floor cooling.ts, of the heating heating.ts.
+// Defines: MAX_SPECIES, GRID_RES, GLOW_*.
 // Provided: resolution.
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
@@ -11,8 +12,10 @@ uniform vec2 screenSize;
 uniform float dt;
 uniform float dtPrev;                   // s, the previous substep's length: the two half kicks of v(t) belong to that step (the time step may change)
 uniform float activeCount;
-uniform float coolingRate;              // 1/s
-uniform float opacityDensity;           // rho / rho0 above which the gas traps its heat
+uniform float radiation;                // c, 1/s: dT/dt = -c mu T^4 / (Sigma tau_eff), T in T0 and Sigma in rho0; 0: no cooling
+uniform float opacityKappa;             // kappa, per rho0: the optical depth from the mid-plane to a face is kappa Sigma / 2
+uniform float minTemperature;           // T0: the cooling stops at this temperature
+uniform float jeansPerDensity;          // px^2/s^2: the Jeans floor of the dispersion is this times rho / rho0 (2 N_J dx G rho0); 0: no floor
 uniform float maxSpeed;                 // px/s
 uniform float heatingTFloor;            // px^2/s^2: below this dispersion a cell is heated by a random kick, not by scaling
 uniform float restitution;
@@ -54,20 +57,42 @@ void main() {
     vec2 next = pos.xy + kicked * dt + 0.5 * a * dt * dt;
     vec2 v = kicked;
 
-    // Radiative cooling: only the disordered part of the motion (around the local mean
-    // velocity) is damped; rotation and infall are kept. Dense gas is opaque: it radiates
-    // less and keeps the heat of its compression. The cooling and the heating below work on
-    // the kinetic dispersion gas.t, the energy of the disordered motion, not on the temperature
-    // (which has the molecular weight in it): the energy bookkeeping does not depend on what the gas is made of.
+    // Radiative cooling of a thin disc (A6, twin and derivation: cooling.ts): a column of surface density Sigma radiates through the
+    // effective optical depth tau_eff = 3 tau / 8 + sqrt(3) / 4 + 1 / (4 tau), tau = kappa Sigma / 2, so that dT/dt = -c mu T^4 / (Sigma tau_eff),
+    // integrated exactly over the step (unconditionally stable) down to the floor T_min. Only the disordered part of the motion (around
+    // the local mean velocity) loses energy: its deviations are scaled by sqrt(T' / T); rotation and infall are kept. The radiation goes
+    // as the temperature mu t (T0 units), the energy per unit mass as the dispersion t: that is what the heating below and the floor work on.
     Gas gas = gasAt(pos.xy);
-    float cooling = coolingRate / (1.0 + gas.rho / opacityDensity);
-    float damping = exp(-cooling * dt);
-    if (gas.rho > 0.0) v = gas.v + (v - gas.v) * damping;
+    float dispersion = gas.t;
+    if (gas.rho > 0.0 && radiation > 0.0 && opacityKappa > 0.0 && dispersion > 0.0) {
+        float temperature = gas.mu * dispersion / fusionTRef;
+        if (temperature > minTemperature) {
+            // Sigma tau_eff, finite when Sigma goes to 0 (the optically thin limit).
+            float column = 0.1875 * opacityKappa * gas.rho * gas.rho + 0.4330127 * gas.rho + 0.5 / opacityKappa;
+            float x = 3.0 * radiation * gas.mu * temperature * temperature * temperature * dt / column;
+            float ratio = max(pow(1.0 + x, -1.0 / 3.0), minTemperature / temperature);
+            v = gas.v + (v - gas.v) * sqrt(ratio);
+            dispersion *= ratio;
+        }
+    }
+
+    // Jeans floor (A13, the `jeansFloor` flag): the Jeans length of the sheet, dispersion / (2 G Sigma), is kept at N_J cells or more by
+    // raising the dispersion to t_J = 2 N_J dx G Sigma, by scaling as the heating does (a cold cell, with nothing to scale, by a kick).
+    float jeans = jeansPerDensity * gas.rho;
+    if (jeans > dispersion) {
+        if (dispersion > heatingTFloor) {
+            v = gas.v + (v - gas.v) * sqrt(jeans / dispersion);
+        } else {
+            float angle = 6.2831853 * random01(index, 3u);
+            v += sqrt(jeans - dispersion) * vec2(cos(angle), sin(angle));
+        }
+        dispersion = jeans;
+    }
 
     // Fusion feedback: the heating adds q dt of kinetic energy per unit mass, that is 2 q dt to
     // |v|^2 (twin and derivation: heating.ts). The deviations from the local mean velocity u are
     // scaled by sqrt(1 + 2 q dt / T), T being the dispersion |v - u|^2 of the neighborhood (left
-    // after the cooling, which scaled it by damping^2): the dispersion grows by exactly that
+    // after the cooling and the Jeans floor): the dispersion grows by exactly that
     // energy, the mean velocity (the momentum) does not move and no noise is added. A cell too
     // cold for that (T near 0: nothing to scale) gets the same energy as a kick in a random
     // direction. The speed limit also bounds the energy: q can be infinite on half-float grids,
@@ -75,7 +100,6 @@ void main() {
     float q = gas.heat * fusionTRef;
     if (q > 0.0) {
         float energy = min(2.0 * q * dt, maxSpeed * maxSpeed);
-        float dispersion = gas.t * damping * damping;
         if (dispersion > heatingTFloor) {
             v = gas.v + (v - gas.v) * sqrt(1.0 + energy / dispersion);
         } else {

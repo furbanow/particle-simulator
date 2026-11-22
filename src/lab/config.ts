@@ -243,7 +243,7 @@ export const ENERGY_ATTRIBUTION_BUDGET_MS = 150_000;
 /** Restitution of the walls with which the variants make them elastic (the application's is PROTOSTAR_RESTITUTION). */
 export const ELASTIC_WALLS = 1;
 /** Parameters of a conservative run: no cooling, no heat from fusion, no fusion at all (set below the sliders' minima). */
-export const CONSERVATIVE_OVERRIDES = { cooling: 0, feedback: 0, fusionRate: 0, heFusionRate: 0 } as const;
+export const CONSERVATIVE_OVERRIDES = { radiation: 0, feedback: 0, fusionRate: 0, heFusionRate: 0 } as const;
 
 // ---- Initial conditions of the protostar (phase P5b, docs/spikes/a8-initial-conditions.md) ----
 /** Particles of the checks of the initial cloud: the default's. */
@@ -389,7 +389,7 @@ export const PERF_PHASE_REPS = 5;
  * of the temperature (hydrogen that fuses at `rate` per second and per rho0 whatever its temperature: the heating is then the
  * same in every cell of a uniform gas) restart with `flatRates`.
  */
-export const THERMAL_GAS_OVERRIDES = { gravity: 0, cooling: 0, feedback: 1 } as const;
+export const THERMAL_GAS_OVERRIDES = { gravity: 0, radiation: 0, feedback: 1 } as const;
 /** Fusion rate constant (1/s) of the heating test: q dt is then about a twentieth of T0 in one step. */
 export const HEATING_RATE = 0.5;
 /** Dispersion T of the thermal gases, in T0 (the temperature of the hydrogen law: the rate is lambda rho at it). */

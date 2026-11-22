@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     MAX_SPECIES, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_HE_IGNITION_KELVIN, PROTOSTAR_T0_KELVIN,
 } from '../src/config';
-import { tabsOf, type ParticleType } from '../src/simulation/algorithm';
+import { appliesOnRestart, tabsOf, type ParticleType } from '../src/simulation/algorithm';
 import type { InitialState } from '../src/simulation/gpuModel';
 import { ALGORITHMS } from '../src/simulation/algorithms';
 import { defaultParams } from '../src/simulation/params';
@@ -41,7 +41,7 @@ describe('protostar declaration', () => {
 
     it('declares the required parameters with their defaults', () => {
         const params = defaultParams(PROTOSTAR);
-        for (const key of ['count', 'gravity', 'softening', 'alphaVir', 'betaRot', 'profile', 'turbulence', 'cooling', 'fusionRate', 'heFusionRate', 'feedback']) {
+        for (const key of ['count', 'gravity', 'softening', 'alphaVir', 'betaRot', 'profile', 'turbulence', 'radiation', 'kappa', 'minTemperature', 'fusionRate', 'heFusionRate', 'feedback']) {
             expect(params).toHaveProperty(key);
         }
         const byKey = Object.fromEntries(PROTOSTAR.params.map(p => [p.key, p]));
@@ -50,9 +50,9 @@ describe('protostar declaration', () => {
         expect(byKey.heFusionRate.kind === 'number' && byKey.heFusionRate.scale).toBe('log');
         expect(tabsOf(PROTOSTAR.params).map(t => t.id)).toEqual(['initial', 'physics', 'fusion', 'features']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'initial').map(p => p.key)).toEqual(['count', 'alphaVir', 'betaRot', 'profile', 'turbulence']);
-        expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'cooling', 'opacity']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'radiation', 'kappa', 'minTemperature']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'fusion').map(p => p.key)).toEqual(['fusionRate', 'heFusionRate', 'feedback']);
-        expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics', 'adaptiveTimeStep']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics', 'adaptiveTimeStep', 'jeansFloor']);
         // the temperature exponents are not parameters any more: they are Gamow's (3.9 at 15 MK for pp, 41 at 100 MK for the triple alpha)
         expect(params).not.toHaveProperty('fusionExponent');
         expect(params).not.toHaveProperty('heFusionExponent');
@@ -100,6 +100,23 @@ describe('protostar declaration', () => {
         // off by default: the measured cost (a fifth more substeps over the default cloud's run) is above the plan's tenth of a frame
         expect(flag?.kind === 'boolean' && flag.default).toBe(false);
         expect(defaultParams(PROTOSTAR).adaptiveTimeStep).toBe(false);
+    });
+
+    it('has the Jeans floor switch in the features tab, applied live and off by default', () => {
+        const flag = PROTOSTAR.params.find(p => p.key === PROTOSTAR_PARAM.jeansFloor);
+        expect(flag?.kind).toBe('boolean');
+        expect(flag?.tab).toBe('features');
+        expect(flag && appliesOnRestart(flag)).toBe(false);
+        expect(flag?.doc.length).toBeGreaterThan(flag?.label.length ?? 0);
+        // an artificial pressure that heats the dense core (docs/spikes/a6-a13-cooling-and-jeans.md): optional, as the proposal asks
+        expect(defaultParams(PROTOSTAR).jeansFloor).toBe(false);
+    });
+
+    it('replaces the linear cooling by the thin-disc law: c, kappa and T_min, with no trace of the old keys', () => {
+        const keys = PROTOSTAR.params.map(p => p.key);
+        for (const key of [PROTOSTAR_PARAM.radiation, PROTOSTAR_PARAM.kappa, PROTOSTAR_PARAM.minTemperature]) expect(keys).toContain(key);
+        expect(keys).not.toContain('cooling');
+        expect(keys).not.toContain('opacity');
     });
 
     it('explains the two energy tiles', () => {

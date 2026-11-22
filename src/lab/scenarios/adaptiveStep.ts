@@ -65,7 +65,7 @@ const queryFlag = (name: string, fallback: boolean): boolean => {
     return raw === null ? fallback : raw !== '0';
 };
 
-/** Protostar parameters set below the sliders' minima for every run (`?stepOverrides={"cooling":0}`): what part of the physics a convergence comes from. */
+/** Protostar parameters set below the sliders' minima for every run (`?stepOverrides={"radiation":0}`): what part of the physics a convergence comes from. */
 function queryOverrides(): Record<string, number> | undefined {
     const raw = new URLSearchParams(globalThis.location?.search ?? '').get('stepOverrides');
     return raw ? JSON.parse(raw) as Record<string, number> : undefined;

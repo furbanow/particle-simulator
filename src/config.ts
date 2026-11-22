@@ -196,6 +196,10 @@ export const PROTOSTAR_NOISE_SHIFT_MAX = 1;
 // law's power p by more than this (it has Gamma(n - p) in it); below it, or for a law with q != 1, the bias is divided out (logNoiseBiasCurved).
 export const PROTOSTAR_NOISE_EXACT_MARGIN = 2;
 export const PROTOSTAR_TEMPERATURE_TAU = 0.1;
+// Radiative cooling of a thin disc (A6, protostar/cooling.ts): dT/dt = -c mu T^4 / (Sigma tau_eff), tau_eff = 3 tau / 8 + sqrt(3) / 4 + 1 / (4 tau),
+// tau = kappa Sigma / 2, T in T0 and Sigma in rho0, down to T_min (the sliders below). Jeans floor (A13, the `jeansFloor` flag): the dispersion of a
+// neighborhood is kept at 2 JEANS_CELLS dx G Sigma or more, so that the Jeans length of the sheet spans JEANS_CELLS cells of the grid (Truelove et al. 1997).
+export const PROTOSTAR_JEANS_CELLS = 4;
 export const PROTOSTAR_RESTITUTION = 0.5;          // walls
 export const PROTOSTAR_MAX_SPEED = 2;              // L/s
 // Adaptive time step (protostar/timeStep.ts, the `adaptiveTimeStep` flag): the number of substeps of a frame follows the criterion
@@ -246,8 +250,9 @@ export const PROTOSTAR_VIRIAL_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01,
 export const PROTOSTAR_ROTATION_ENERGY_SLIDER: SliderSpec = { min: 0, max: 0.5, step: 0.01, default: 0.08 };  // beta_rot = E_rot / |U|
 export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 20, step: 0.05, default: 9 };
 export const PROTOSTAR_SOFTENING_SLIDER: SliderSpec = { min: 0.2, max: 5, step: 0.1, default: 1.6 };       // % of L
-export const PROTOSTAR_COOLING_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.51 };        // 1/s
-export const PROTOSTAR_OPACITY_SLIDER: SliderSpec = { min: 1, max: 1000, step: 0, default: 5.32 };         // rho0, log
+export const PROTOSTAR_RADIATION_SLIDER: SliderSpec = { min: 0.1, max: 10000, step: 0, default: 50 };     // c, 1/s, log
+export const PROTOSTAR_KAPPA_SLIDER: SliderSpec = { min: 0.01, max: 1000, step: 0, default: 2 };           // kappa, per rho0, log
+export const PROTOSTAR_MIN_TEMPERATURE_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.005, default: 0.05 };   // T_min, T0
 export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 4e-3 };       // 1/s, log
 export const PROTOSTAR_HE_LAMBDA_SLIDER: SliderSpec = { min: 1e-10, max: 1e-2, step: 0, default: 2.5e-4 };  // 1/s at 100 MK and rho0, log
 export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 0.146 };       // log

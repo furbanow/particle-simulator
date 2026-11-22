@@ -310,7 +310,7 @@ describe('Gamow rates: the calibration of the defaults (docs/spikes/a2-gamow-rat
     const ratioAt = (density: number, rate: number): number => ignitionRatio(PROTOSTAR_REACTIONS, defaults, density, rate, 0, 1);
 
     it('are the values the default cloud was calibrated with', () => {
-        expect(defaults).toMatchObject({ gravity: 9, cooling: 0.51, opacity: 5.32, fusionRate: 4e-3, heFusionRate: 2.5e-4, feedback: 0.146 });
+        expect(defaults).toMatchObject({ gravity: 9, radiation: 50, kappa: 2, minTemperature: 0.05, fusionRate: 4e-3, heFusionRate: 2.5e-4, feedback: 0.146 });
     });
 
     it('ignite a pure helium gas of 20 rho0 at 0.1 fusions per second per particle at 100 MK, its real ignition, and hydrogen within 6 % of 15 MK', () => {

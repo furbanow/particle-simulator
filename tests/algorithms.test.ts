@@ -189,9 +189,9 @@ describe('panel tabs', () => {
     it('only the initial conditions wait for a restart', () => {
         const flags = PROTOSTAR.params.map(p => [p.key, appliesOnRestart(p)]);
         expect(Object.fromEntries(flags)).toEqual({
-            count: true, alphaVir: true, betaRot: true, profile: true, turbulence: true, gravity: false, softening: false, cooling: false,
-            opacity: false, fusionRate: false, heFusionRate: false, feedback: false,
-            diagnostics: false, adaptiveTimeStep: false,
+            count: true, alphaVir: true, betaRot: true, profile: true, turbulence: true, gravity: false, softening: false, radiation: false,
+            kappa: false, minTemperature: false, fusionRate: false, heFusionRate: false, feedback: false,
+            diagnostics: false, adaptiveTimeStep: false, jeansFloor: false,
         });
     });
 });
