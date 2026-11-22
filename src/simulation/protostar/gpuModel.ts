@@ -1,22 +1,22 @@
 import * as THREE from 'three';
 import {
-    MAX_SPECIES, PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_DRIFT_GAIN, PROTOSTAR_ENERGY_FIRST_FRAME, PROTOSTAR_FUSION_C2,
+    MAX_SPECIES, PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_ENERGY_FIRST_FRAME, PROTOSTAR_FUSION_C2,
     PROTOSTAR_FUSION_T_REF, PROTOSTAR_GLOW_FUSION, PROTOSTAR_GLOW_HEATING_REF, PROTOSTAR_GLOW_MAX, PROTOSTAR_GLOW_T_RANGE,
     PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_HEATING_T_FLOOR, PROTOSTAR_MAX_SPEED,
     PROTOSTAR_MAX_SUBSTEP_RATIO, PROTOSTAR_MAX_SUBSTEPS, PROTOSTAR_MIN_SUBSTEP_RATIO, PROTOSTAR_RATE_SMOOTHING, PROTOSTAR_RESTITUTION, PROTOSTAR_STATS_INTERVAL, PROTOSTAR_STEP_COURANT,
-    PROTOSTAR_STEP_MAX_READINGS, PROTOSTAR_STEP_OMEGA, PROTOSTAR_STEP_READ_INTERVAL, PROTOSTAR_STEP_RELEASE, REMOVED_PARTICLE_W, TOTAL_MASS,
+    PROTOSTAR_STEP_MAX_READINGS, PROTOSTAR_STEP_OMEGA, PROTOSTAR_STEP_READ_INTERVAL, PROTOSTAR_STEP_RELEASE, TOTAL_MASS,
 } from '../../config';
 import { glslFloat } from '../../gl/withDefines';
 import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
 import type { GpuModel, GpuModelContext, GpuVariable, InitialState } from '../gpuModel';
-import { countTypes } from '../typeCounts';
-import { centerOfMass, driftCorrection, type Vec2 } from './drift';
+import type { Vec2 } from '../../util/math';
 import { EnergyBalance, type EnergyStats } from './energy';
 import { PROTOSTAR_PARAM, PROTOSTAR_PROPERTY, PROTOSTAR_REACTIONS, PROTOSTAR_STAT } from './declaration';
 import { inverseMolecularWeights } from './composition';
 import { ProtostarGrids, withProtostarCommon, type ProtostarGridTargets } from './grids';
 import { fillCloud, type CloudSummary } from './initialConditions';
 import { reactionArrays } from './reactions';
+import { TypeCountReduction } from './typeReduction';
 import { REDUCTION_FLOATS, REDUCTION_TEXELS, unpackReduction, type Reduction, type ReductionScales } from './reduction';
 import { criticalStep, substepBounds, SubstepController } from './timeStep';
 import velocityFrag from '../../shaders/protostar-velocity.frag?raw';
@@ -64,11 +64,11 @@ export interface ProtostarEnergy extends EnergyStats {
  * GPU side of the protostar algorithm. Before every substep the grid passes (grids.ts) deposit
  * the particles and compute density, temperature, mean velocity, fusion heating and softened
  * gravity; the GPGPU pass then integrates with velocity Verlet (the previous acceleration is the
- * extra state variable `textureAccel`), cools, heats and fuses (types change in the position pass).
- * Every few frames the grids are reduced on the GPU (reduction.ts) to the numbers of the stats and
- * of the diagnostics (energy, extreme speeds and accelerations, center of mass...), read back in
- * one asynchronous read, and the positions are read back to count the particles per type and
- * measure the drift of the star.
+ * extra state variable `textureAccel`), cools, heats and fuses. A particle is a parcel of constant mass (A4): a
+ * fusing parcel changes its type in the position pass and nothing else (its mass and velocity stay: the momentum is conserved
+ * exactly, and no particle is removed). Every few frames the grids are reduced on the GPU (reduction.ts) to the numbers of the stats
+ * and of the diagnostics (energy, extreme speeds and accelerations, center of mass...), and the particles of each type are counted
+ * on the GPU (typeReduction.ts); both are read back asynchronously, a few texels each.
  */
 export class ProtostarModel implements GpuModel {
     readonly usesDensityField = false;
@@ -85,7 +85,6 @@ export class ProtostarModel implements GpuModel {
         maxSpeed: { value: 1 },
         heatingTFloor: { value: 0 },
         restitution: { value: PROTOSTAR_RESTITUTION },
-        driftKick: { value: new THREE.Vector2() },
     };
     /** The previous substep's length (s), read by the velocity and the position passes for the two half kicks of the step that ended. */
     private readonly dtPrev = { value: 0 };
@@ -117,9 +116,8 @@ export class ProtostarModel implements GpuModel {
     private coreDensity: number | null = null;
     private fusionRate: number | null = null;
     private typeCounts: number[] | null = null;
-    private lastCenter: Vec2 | null = null;
-    private sinceLastCenter = 0;                       // s
-    private pendingKick: Vec2 | null = null;
+    private readonly typeReduction: TypeCountReduction;
+    private readingTypes = false;
     private initialCloud: CloudSummary | null = null;
     /**
      * Dev-only (the lab): fills the initial positions and velocities instead of the cloud (see fillCloud); for gases of known temperature. Null in the application.
@@ -152,8 +150,8 @@ export class ProtostarModel implements GpuModel {
     }
 
     constructor(private readonly context: GpuModelContext) {
-        this.grids = new ProtostarGrids(context.renderer, context.geometry, context.speciesUniforms.splatMass,
-            context.drawing.uniforms);
+        this.grids = new ProtostarGrids(context.renderer, context.geometry, context.drawing.uniforms);
+        this.typeReduction = new TypeCountReduction(context.renderer);
         const common = this.grids.common;
         const [tMin, tMax] = PROTOSTAR_GLOW_T_RANGE;
         this.velocityShader = withProtostarCommon(velocityFrag, {
@@ -161,7 +159,7 @@ export class ProtostarModel implements GpuModel {
             GLOW_TEMPERATURE: glslFloat(PROTOSTAR_GLOW_TEMPERATURE), GLOW_FUSION: glslFloat(PROTOSTAR_GLOW_FUSION),
             GLOW_HEATING_REF: glslFloat(PROTOSTAR_GLOW_HEATING_REF), GLOW_MAX: glslFloat(PROTOSTAR_GLOW_MAX),
         });
-        this.positionShader = withProtostarCommon(positionFrag, { REMOVED_W: glslFloat(REMOVED_PARTICLE_W), GAS_THERMO: 1 });
+        this.positionShader = withProtostarCommon(positionFrag, { GAS_THERMO: 1 });
         this.velocityUniforms = { ...common, ...this.own, dtPrev: this.dtPrev };
         this.positionUniforms = { ...common, dtPrev: this.dtPrev };
         this.variables = [{
@@ -276,16 +274,21 @@ export class ProtostarModel implements GpuModel {
         this.stepInfo = null;
         this.clearEnergy();
         this.typeCounts = null;
-        this.lastCenter = null;
-        this.pendingKick = null;
         this.own.maxSpeed.value = PROTOSTAR_MAX_SPEED * length;
         this.grids.common.fusionTRef.value = PROTOSTAR_FUSION_T_REF * length * length;
         this.own.heatingTFloor.value = PROTOSTAR_HEATING_T_FLOOR * PROTOSTAR_FUSION_T_REF * length * length;
         this.grids.startRun();
     }
 
-    updateSpecies(types: readonly ParticleType[]): void {
+    updateSpecies(types: readonly ParticleType[], typeCounts: readonly number[]): void {
         this.types = types;
+        // The particles are parcels of constant mass: every type has the same, whatever its atomic mass (which only feeds 1 / mu and the
+        // energy of a fusion). The layers that weigh the particles by mass (the nebula) see the same mass, so the cloud does not brighten
+        // as its parcels turn into heavier atoms. Mass per particle: the cloud's total over the particles of the run.
+        const parcel = TOTAL_MASS / Math.max(1, typeCounts.reduce((sum, n) => sum + n, 0));
+        const masses = new Array<number>(MAX_SPECIES).fill(parcel);
+        this.grids.setDepositMasses(masses);
+        masses.forEach((m, k) => { this.context.speciesUniforms.splatMass.value[k] = m; });
         this.grids.setInverseMolecularWeights(inverseMolecularWeights(types, PROTOSTAR_PROPERTY.mass, MAX_SPECIES));
         this.updateReactions();
     }
@@ -298,7 +301,6 @@ export class ProtostarModel implements GpuModel {
         // In place: the arrays are shared by reference with every material.
         for (let k = 0; k < MAX_SPECIES; k++) {
             c.reactionTo.value[k] = arrays.to[k];
-            c.reactionKeep.value[k] = arrays.keep[k];
             c.reactionRate.value[k] = arrays.rate[k];
             c.reactionPower.value[k] = arrays.power[k];
             c.reactionBarrier.value[k] = arrays.barrier[k];
@@ -347,10 +349,6 @@ export class ProtostarModel implements GpuModel {
             this.dtPrev.value = this.lastDt > 0 ? this.lastDt : dt;
             this.lastDt = dt;
         }
-        // The kick lasts one substep.
-        this.own.driftKick.value.set(this.pendingKick?.x ?? 0, this.pendingKick?.y ?? 0);
-        this.pendingKick = null;
-        this.sinceLastCenter += dt;
         const { length, cloudRadius, count } = this.scales;
         const size = context.screenSize.value;
         const cell = Math.max(size.x, size.y, 1) / PROTOSTAR_GRID_RES;
@@ -397,6 +395,7 @@ export class ProtostarModel implements GpuModel {
         if (statsDue ? this.readingStats : !((this.diagnostics && this.readingDue(this.frame)) || stepDue)) return;
         const { renderer } = this.context;
         if (!renderer.readRenderTargetPixelsAsync) return;
+        if (statsDue) this.readTypeCounts();
         this.grids.reduceStats();
         const gen = this.generation;
         const sequence = ++this.readingSequence;
@@ -438,15 +437,17 @@ export class ProtostarModel implements GpuModel {
         this.currentEnergy = { ...stats, kinetic, potential };
     }
 
-    onReadback(positions: Float32Array, count: number): void {
-        this.typeCounts = countTypes(positions, count, Math.max(1, this.types.length));
-        const center = centerOfMass(positions, count, this.types.map(t => this.typeMass(t)));
-        // The drawings move the star for real: no correction then, it would hold the star in place.
-        if (center && this.lastCenter && !this.context.drawing.active) {
-            this.pendingKick = driftCorrection(this.lastCenter, center, this.sinceLastCenter, PROTOSTAR_DRIFT_GAIN);
-        }
-        this.lastCenter = center;
-        this.sinceLastCenter = 0;
+    /** Counts the particles of each type on the GPU and reads the counts back (a few texels), on the stats' frames. */
+    private readTypeCounts(): void {
+        if (this.readingTypes) return;
+        const { context, typeReduction } = this;
+        this.readingTypes = true;
+        const gen = this.generation;
+        typeReduction.render(context.positionTexture(), context.activeCount());
+        typeReduction.read()
+            .then(counts => { if (gen === this.generation) this.typeCounts = counts.slice(0, Math.max(1, this.types.length)); })
+            .catch(err => console.error(err))
+            .finally(() => { this.readingTypes = false; });
     }
 
     stat(key: string): number | null {
@@ -510,12 +511,19 @@ export class ProtostarModel implements GpuModel {
         return this.reductionScales;
     }
 
+    /** Dev-only: counts the particles of each type on the GPU right now and reads the counts back (one per type slot), for the lab page. */
+    debugCountTypes(): Promise<number[]> {
+        this.typeReduction.render(this.context.positionTexture(), this.context.activeCount());
+        return this.typeReduction.read();
+    }
+
     liveTypeCounts(): readonly number[] | null {
         return this.typeCounts;
     }
 
     dispose(): void {
         this.generation++;
+        this.typeReduction.dispose();
         this.grids.dispose();
     }
 }

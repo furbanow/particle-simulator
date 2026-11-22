@@ -117,7 +117,7 @@ describe.each(algorithmList())('declaration of $id', algorithm => {
     });
 
     it('has stats with unique keys, meter markers on number parameters', () => {
-        const keyed = (algorithm.stats ?? []).flatMap(s => s.kind === 'typeCounts' ? [] : [s]);
+        const keyed = (algorithm.stats ?? []).flatMap(s => s.kind === 'typeMasses' ? [] : [s]);
         expect(new Set(keyed.map(s => s.key)).size).toBe(keyed.length);
         for (const s of keyed) {
             if (s.kind !== 'meter' || !s.marker) continue;

@@ -32,6 +32,18 @@ export function formatShare(share: number): string {
     return t('format.percent', { value: formatNumber(pct, pct > 0 && pct < 10 ? 1 : 0) });
 }
 
+/** Smallest share written as a number by formatTraceShare(): 0.1 %. */
+const TRACE_SHARE = 0.001;
+
+/**
+ * formatShare(), except that a share too small for it to show (under 0.1 %) reads "<0.1%" and only an empty one reads "0%", so that
+ * a trace of an element does not look like none. "<" is a sign, not a word: no translated text is assembled.
+ */
+export function formatTraceShare(share: number): string {
+    if (share > 0 && share < TRACE_SHARE) return t('format.percent', { value: `<${formatNumber(TRACE_SHARE * 100, 1)}` });
+    return formatShare(share);
+}
+
 /** Random weights in RANDOM_WEIGHT_RANGE (never zero, so every visible species stays populated). */
 export function randomPopulationWeights(count: number, random: () => number = Math.random): number[] {
     const [lo, hi] = RANDOM_WEIGHT_RANGE;

@@ -36,7 +36,10 @@ export interface FusionReaction {
     readonly from: number;
     /** Rank of the type it gives. */
     readonly to: number;
-    /** `from` particles consumed per `to` particle made (4 for 4 H -> He). */
+    /**
+     * `from` atoms consumed per `to` atom made (4 for 4 H -> He). The particles are parcels of constant mass (A4) and do not count atoms: it
+     * only gives the mass defect (and so the energy a fusion releases) and the label of the editor.
+     */
     readonly consumed: number;
     /** Process name, shown in the type editor. */
     readonly label: string;
@@ -64,30 +67,18 @@ export function massDefect(reaction: FusionReaction, mass: (rank: number) => num
 
 /**
  * Fraction of the fused mass released as energy (0 when the reaction would need energy: no
- * feedback then). 4 H -> He: (4 x 1.00783 - 4.0026) / (4 x 1.00783) = 0.71 %.
+ * feedback then). 4 H -> He: (4 x 1.00783 - 4.0026) / (4 x 1.00783) = 0.71 %. A fusing parcel keeps its whole mass (A4): this
+ * fraction leaves only as the energy of the heating, the mass of the cloud is exactly conserved.
  */
 export function defectFraction(reaction: FusionReaction, mass: (rank: number) => number): number {
     const fused = reaction.consumed * mass(reaction.from);
     return fused > 0 ? Math.max(0, massDefect(reaction, mass)) / fused : 0;
 }
 
-/**
- * Mass bookkeeping: one particle is one atom. A particle that fuses becomes a `to` particle with
- * probability 1 / consumed, else it is removed (absorbed). On average `consumed` fused particles
- * leave one `to` particle: particles fused into mass made, per fused particle, m_to / consumed.
- */
-export const survivalProbability = (reaction: FusionReaction): number => 1 / reaction.consumed;
-
-/** Expected mass left per fused `from` particle (m_to / consumed). */
-export const expectedMassAfter = (reaction: FusionReaction, mass: (rank: number) => number): number =>
-    survivalProbability(reaction) * mass(reaction.to);
-
 /** Per-type uniform arrays of the reaction table, indexed by the rank of the fusing type. */
 export interface ReactionArrays {
     /** Rank it fuses into, -1 when the type does not fuse. */
     to: number[];
-    /** Probability that a fusing particle survives as the new type (1 / consumed). */
-    keep: number[];
     /** lambda, 1/s. */
     rate: number[];
     /** p, the power of T of the law's prefactor. */
@@ -120,7 +111,6 @@ export function reactionArrays(reactions: readonly FusionReaction[], types: read
                                size: number, flat = false): ReactionArrays {
     const arrays: ReactionArrays = {
         to: new Array<number>(size).fill(-1),
-        keep: new Array<number>(size).fill(0),
         rate: new Array<number>(size).fill(0),
         power: new Array<number>(size).fill(0),
         barrier: new Array<number>(size).fill(0),
@@ -137,7 +127,6 @@ export function reactionArrays(reactions: readonly FusionReaction[], types: read
             || channels >= PROTOSTAR_FUEL_CHANNELS) continue;
         const rate = params[r.rateParam];
         arrays.to[r.from] = r.to;
-        arrays.keep[r.from] = survivalProbability(r);
         arrays.rate[r.from] = typeof rate === 'number' ? rate : 0;
         arrays.power[r.from] = flat ? 0 : r.law.power;
         arrays.barrier[r.from] = flat ? 0 : barrierTerm(r.law, r.referenceTemperature);
@@ -205,6 +194,19 @@ export function fusionRate(law: FusionLaw, density: number, temperature: number,
     const logLaw = exact ?? point.logLaw - logNoiseBiasCurved(particles, point.exponent, point.barrier, law.barrierPower);
     const log = Math.log(law.rate) + law.densityExponent * Math.log(density * fuel) + logLaw;
     return Math.min(Math.exp(log), PROTOSTAR_FUSION_RATE_MAX);
+}
+
+/**
+ * What fusions do to a parcel of fuel of mass `parcelMass` over a step of `dt` seconds at a fusion rate `rate` (1/s: the share of the fuel that
+ * fuses per second), in expectation (A4). The position pass changes the parcel's type with probability p = 1 - exp(-rate dt): the mass that
+ * fuses is `fusedMass` = p m. The power deposit (protostar-deposit.vert) puts m rate energy into the grid, `depositedEnergy` = m rate dt energy
+ * over the step, `energy` being what a unit of fused mass releases (reactionArrays().energy: feedback x defect fraction x c^2): equal to the
+ * `releasedEnergy` = p m energy of the fused mass to the first order in rate dt, below it by (rate dt / 2) of it.
+ */
+export function fusionExpectation(parcelMass: number, rate: number, dt: number, energy: number):
+    { fusedMass: number; releasedEnergy: number; depositedEnergy: number } {
+    const fusedMass = (1 - Math.exp(-rate * dt)) * parcelMass;
+    return { fusedMass, releasedEnergy: fusedMass * energy, depositedEnergy: parcelMass * rate * dt * energy };
 }
 
 /** Fusion probability over a step: 1 - exp(-rate dt). */

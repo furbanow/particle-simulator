@@ -85,8 +85,8 @@ async function checkFuelFractions(context: LabContext, tolerance: number): Promi
         }
     }
     const inputs = model.debugGrids.debugDepositInputs;
-    const massShare = (k: number): number => MIXED_GAS.weights[k] * inputs.splatMass[k]
-        / MIXED_GAS.weights.reduce((s, w, j) => s + w * inputs.splatMass[j], 0);
+    const massShare = (k: number): number => MIXED_GAS.weights[k] * inputs.depositMass[k]
+        / MIXED_GAS.weights.reduce((s, w, j) => s + w * inputs.depositMass[j], 0);
     const [expectedX, expectedY] = [massShare(0), massShare(1)];
     // The means over the cells against the mass shares of the whole gas are statistical (the cells draw their particles at random).
     // On the half-float path the cells' own error (judged to `tolerance`) shifts the means too.

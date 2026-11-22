@@ -27,8 +27,7 @@ export interface DepositReference {
 }
 
 /**
- * Deposits `count` particles, read from `texels` (RGBA per particle: x, y, type, w; a negative w is
- * a removed particle), the way the deposit shaders do: the particle's cloud is the 2x2 cells
+ * Deposits `count` particles, read from `texels` (RGBA per particle: x, y, type, w), the way the deposit shaders do: the particle's cloud is the 2x2 cells
  * around it with weights max(1 - |distance between cell centers|, 0) per axis, and a particle
  * whose block starts outside the grid is dropped (its point is clipped).
  * `weightMargin` widens the counted footprint (see DepositReference.contributions).
@@ -42,10 +41,9 @@ export function referenceDeposit(texels: ArrayLike<number>, count: number, input
     const payloadMax = new Array<number>(COMPOSITION_CHANNELS).fill(0);
     let deposited = 0;
     for (let i = 0; i < count; i++) {
-        const [x, y, z, w] = [texels[i * 4], texels[i * 4 + 1], texels[i * 4 + 2], texels[i * 4 + 3]];
-        if (!(w >= 0)) continue;
+        const [x, y, z] = [texels[i * 4], texels[i * 4 + 1], texels[i * 4 + 2]];
         const k = Math.min(Math.max(Math.trunc(z + 0.5), 0), MAX_SPECIES - 1);
-        const m = inputs.splatMass[k] * inputs.depositMassScale;
+        const m = inputs.depositMass[k] * inputs.depositMassScale;
         const [fuelX, fuelY] = inputs.fuel[k];
         const payload = [m * inputs.inverseMolecularWeight[k], m * fuelX, m * m, m * fuelY];
         const px = x / inputs.gridCell;

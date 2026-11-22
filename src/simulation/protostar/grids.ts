@@ -86,7 +86,6 @@ export interface ProtostarCommonUniforms extends DrawingUniforms {
     noiseCorrection: Uniform<number>;
     seed: Uniform<number>;
     reactionTo: Uniform<number[]>;
-    reactionKeep: Uniform<number[]>;
     reactionRate: Uniform<number[]>;
     reactionPower: Uniform<number[]>;
     reactionBarrier: Uniform<number[]>;
@@ -103,7 +102,7 @@ export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonU
         ...drawing,
         gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null }, gridThermo: { value: null }, gridFuel: { value: null },
         gridCell: { value: 1 }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },
-        reactionTo: perType(-1), reactionKeep: perType(0), reactionRate: perType(0),
+        reactionTo: perType(-1), reactionRate: perType(0),
         reactionPower: perType(0), reactionBarrier: perType(0), reactionBarrierPower: perType(1), reactionFuel: perType(-1),
         reactionReference: perType(1), reactionDensityExponent: perType(1),
         reactionEnergy: perType(0),
@@ -147,8 +146,8 @@ export interface DepositInputs {
     gridCell: number;
     /** Deposit units per simulation mass unit. */
     depositMassScale: number;
-    /** Mass of a particle of each type, simulation mass units. */
-    splatMass: number[];
+    /** Mass of a particle of each type (a parcel: the same for every type), simulation mass units. */
+    depositMass: number[];
     /** (1 + Z) / A of each type, per u. */
     inverseMolecularWeight: number[];
     /** Whether each type is the fuel of the first reaction (x) or of the second (y): (1, 0), (0, 1) or (0, 0). */
@@ -248,6 +247,7 @@ export class ProtostarGrids {
         densityPerDeposit: { value: 1 },
         gravityPerDeposit: { value: 1 },
         softening2: { value: 1 },
+        speciesDepositMass: { value: new Array<number>(MAX_SPECIES).fill(1) },
         speciesInverseMu: { value: new Array<number>(MAX_SPECIES).fill(0) },
         speciesFuel: { value: Array.from({ length: MAX_SPECIES }, () => new THREE.Vector2()) },
         temperatureWeight: { value: 1 },
@@ -281,15 +281,14 @@ export class ProtostarGrids {
         this.u.molecularWeight.value = enabled ? 1 : 0;
     }
 
-    constructor(private readonly renderer: THREE.WebGLRenderer, geometry: THREE.BufferGeometry,
-                private readonly splatMass: Uniform<number[]>, drawing: DrawingUniforms) {
+    constructor(private readonly renderer: THREE.WebGLRenderer, geometry: THREE.BufferGeometry, drawing: DrawingUniforms) {
         this.common = createCommonUniforms(drawing);
         // Additive float32 blending needs EXT_float_blend (asking for it enables it); half floats otherwise.
         const blendType = !halfFloatDepositForced && renderer.extensions.has('EXT_float_blend')
             ? THREE.FloatType : THREE.HalfFloatType;
         const res = PROTOSTAR_GRID_RES;
         const { u, common } = this;
-        const particleUniforms = { ...common, ...u, speciesSplatMass: splatMass };
+        const particleUniforms = { ...common, ...u };
         this.geometry = geometry;
         this.depositUniforms = particleUniforms;
         this.blendType = blendType;
@@ -355,6 +354,15 @@ export class ProtostarGrids {
     }
 
     /**
+     * The mass of a particle of each type, simulation mass units, written in place (the array is shared by reference with the deposit
+     * materials). The particles are parcels of constant mass (A4): the model gives every type the same, TOTAL_MASS / count.
+     */
+    setDepositMasses(masses: readonly number[]): void {
+        const array = this.u.speciesDepositMass.value;
+        for (let k = 0; k < array.length; k++) array[k] = masses[k] ?? 0;
+    }
+
+    /**
      * The factor (1 + Z) / A of each type, per u (see composition.ts), written in place: the array
      * is shared by reference with the deposit materials.
      */
@@ -377,7 +385,7 @@ export class ProtostarGrids {
             gridResolution: PROTOSTAR_GRID_RES,
             gridCell: this.common.gridCell.value,
             depositMassScale: this.u.depositMassScale.value,
-            splatMass: [...this.splatMass.value],
+            depositMass: [...this.u.speciesDepositMass.value],
             inverseMolecularWeight: [...this.u.speciesInverseMu.value],
             fuel: this.u.speciesFuel.value.map(fuel => [fuel.x, fuel.y]),
         };

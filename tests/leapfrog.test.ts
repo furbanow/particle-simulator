@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Vec2 } from '../src/simulation/protostar/drift';
+import type { Vec2 } from '../src/util/math';
 import { bounceVelocity, mirror, substep, wallHit, type StoredState, type Walls } from '../src/simulation/protostar/leapfrog';
 
 /** The order of convergence seen between two errors measured at a step and at half that step. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RANDOM_WEIGHT_RANGE } from '../src/config';
-import { populationShares, randomPopulationWeights, splitPopulation } from '../src/population';
+import { formatShare, formatTraceShare, populationShares, randomPopulationWeights, splitPopulation } from '../src/population';
 
 describe('population shares', () => {
     it('are proportional to the weights and sum to 1', () => {
@@ -47,5 +47,17 @@ describe('random population weights', () => {
             expect(w).toBeGreaterThanOrEqual(RANDOM_WEIGHT_RANGE[0]);
             expect(w).toBeLessThanOrEqual(RANDOM_WEIGHT_RANGE[1]);
         }
+    });
+});
+
+describe('trace shares', () => {
+    it('read like shares, except that a share too small to show is not written as none', () => {
+        expect(formatTraceShare(0.83)).toBe(formatShare(0.83));
+        expect(formatTraceShare(1)).toBe('100%');
+        expect(formatTraceShare(0.0123)).toBe('1.2%');
+        expect(formatTraceShare(0.0014)).toBe('0.1%');
+        expect(formatTraceShare(0.0004)).toBe('<0.1%');
+        expect(formatTraceShare(1e-9)).toBe('<0.1%');
+        expect(formatTraceShare(0)).toBe('0%');
     });
 });

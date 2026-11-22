@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    MAX_SPECIES, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_HE_IGNITION_KELVIN, PROTOSTAR_T0_KELVIN, REMOVED_PARTICLE_W,
+    MAX_SPECIES, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_HE_IGNITION_KELVIN, PROTOSTAR_T0_KELVIN,
 } from '../src/config';
 import { tabsOf, type ParticleType } from '../src/simulation/algorithm';
 import type { InitialState } from '../src/simulation/gpuModel';
@@ -12,15 +12,13 @@ import {
 import {
     atomicNumber, inverseMeanMolecularWeight, inverseMolecularWeights,
 } from '../src/simulation/protostar/composition';
-import { centerOfMass, driftCorrection } from '../src/simulation/protostar/drift';
 import { logNoiseBiasCurved, logUnbiasedResonant } from '../src/simulation/protostar/noiseBias';
 import { fusionLawOf } from '../src/simulation/protostar/ignition';
 import { fillCloud, type CloudOptions } from '../src/simulation/protostar/initialConditions';
 import {
-    defectFraction, expectedMassAfter, fusionProbability, fusionRate, lawAt, massDefect, reactionArrays, reactionTransitions,
-    survivalProbability, type FusionLaw,
+    defectFraction, fusionExpectation, fusionProbability, fusionRate, lawAt, massDefect, reactionArrays, reactionTransitions,
+    type FusionLaw,
 } from '../src/simulation/protostar/reactions';
-import { countTypes } from '../src/simulation/typeCounts';
 
 /** Deterministic pseudo-random numbers (mulberry32). */
 function seeded(seed: number): () => number {
@@ -76,9 +74,14 @@ describe('protostar declaration', () => {
         ]);
     });
 
-    it('declares counts per type, core temperature and density, fusion rate and the two energy diagnostics', () => {
-        expect(PROTOSTAR.stats?.map(s => s.kind === 'typeCounts' ? s.kind : s.key))
-            .toEqual(['typeCounts', 'coreTemperature', 'coreDensity', 'fusionRate', 'energyDrift', 'virialRatio']);
+    it('declares the mass per element, core temperature and density, fusion rate and the two energy diagnostics', () => {
+        expect(PROTOSTAR.stats?.map(s => s.kind === 'typeMasses' ? s.kind : s.key))
+            .toEqual(['typeMasses', 'coreTemperature', 'coreDensity', 'fusionRate', 'energyDrift', 'virialRatio']);
+    });
+
+    it('explains the mass per element: the particles are parcels of constant mass that change element', () => {
+        const tile = PROTOSTAR.stats?.find(s => s.kind === 'typeMasses');
+        expect(tile?.kind === 'typeMasses' && tile.title?.length).toBeGreaterThan(tile?.label.length ?? 0);
     });
 
     it('has the energy diagnostics switch on, in the features tab', () => {
@@ -137,11 +140,19 @@ describe('fusion reactions', () => {
         expect(massDefect(hToHe, m) * MEV_PER_U).toBeCloseTo(26.75, 1);
     });
 
-    it('mass bookkeeping: a fusing particle survives one time in four, as a helium atom', () => {
-        expect(survivalProbability(hToHe)).toBe(0.25);
-        // Per fused hydrogen atom, 1.00065 u is left on average: the mass defect is lost.
-        expect(expectedMassAfter(hToHe, m)).toBeCloseTo(4.0026 / 4, 10);
-        expect(expectedMassAfter(hToHe, m) / m(HYDROGEN)).toBeCloseTo(1 - defectFraction(hToHe, m), 10);
+    it('a fusing parcel keeps its mass: the mass defect only leaves as the energy of the heating', () => {
+        // Per unit of fused mass, the share that is released is the defect fraction (0.71 %), times c^2 and the feedback.
+        const energy = 3 * defectFraction(hToHe, m) * 2000;
+        const step = fusionExpectation(0.05, 2, 1 / 120, energy);
+        expect(step.fusedMass).toBeCloseTo(0.05 * (1 - Math.exp(-2 / 120)), 14);
+        expect(step.releasedEnergy).toBeCloseTo(step.fusedMass * energy, 14);
+        // The power deposit (m rate energy, per second) agrees with the fused mass to the first order in rate dt...
+        expect(step.depositedEnergy / step.releasedEnergy).toBeCloseTo(1 + 2 / 120 / 2, 3);
+        // ...and a parcel that fuses in the whole step (rate dt large) has released all its mass's worth, not more.
+        const burst = fusionExpectation(1, 50, 1, energy);
+        expect(burst.releasedEnergy).toBeCloseTo(energy, 10);
+        expect(burst.releasedEnergy).toBeLessThan(burst.depositedEnergy);
+        expect(fusionExpectation(1, 0, 1, energy)).toEqual({ fusedMass: 0, releasedEnergy: 0, depositedEnergy: 0 });
     });
 
     it('releases no energy when the product is heavier than the fused atoms', () => {
@@ -150,12 +161,10 @@ describe('fusion reactions', () => {
         expect(defectFraction(hToHe, mass(heavy))).toBe(0);
     });
 
-    it('3 He -> C: mass defect of 0.065 %, one fusing helium in three survives as carbon', () => {
+    it('3 He -> C: mass defect of 0.065 %', () => {
         expect(massDefect(tripleAlpha, m)).toBeCloseTo(3 * 4.0026 - 12, 10);
         expect(defectFraction(tripleAlpha, m)).toBeCloseTo(0.0078 / 12.0078, 6);
         expect(defectFraction(tripleAlpha, m)).toBeGreaterThan(0);
-        expect(survivalProbability(tripleAlpha)).toBeCloseTo(1 / 3, 12);
-        expect(expectedMassAfter(tripleAlpha, m)).toBeCloseTo(4, 10);
     });
 
     it('helium burning releases about 11 times less energy per unit mass than hydrogen burning', () => {
@@ -176,7 +185,6 @@ describe('fusion reactions', () => {
         const params = { ...defaultParams(PROTOSTAR), fusionRate: 0.001, heFusionRate: 1e-6 };
         const a = reactionArrays(PROTOSTAR_REACTIONS, PROTOSTAR_TYPES, params, 'mass', 1000, 2, MAX_SPECIES);
         expect(a.to).toEqual([HELIUM, CARBON, ...new Array(MAX_SPECIES - 2).fill(-1)]);
-        expect(a.keep[HYDROGEN]).toBe(0.25);
         expect(a.rate[HYDROGEN]).toBe(0.001);
         expect(a.power[HYDROGEN]).toBeCloseTo(2 / 3, 12);
         expect(a.barrierPower[HYDROGEN]).toBeCloseTo(1 / 3, 12);
@@ -184,7 +192,6 @@ describe('fusion reactions', () => {
         expect(a.energy[HYDROGEN]).toBeCloseTo(2 * defectFraction(hToHe, m) * 1000, 10);
         expect(a.reference[HYDROGEN]).toBe(1);
         expect(a.densityExponent[HYDROGEN]).toBe(1);
-        expect(a.keep[HELIUM]).toBeCloseTo(1 / 3, 12);
         expect(a.rate[HELIUM]).toBe(1e-6);
         expect(a.power[HELIUM]).toBe(3);
         expect(a.barrier[HELIUM]).toBeCloseTo(44, 12);
@@ -453,31 +460,7 @@ describe('initial cloud', () => {
     });
 });
 
-describe('statistical drift', () => {
-    const texels = (rows: number[][]) => Float32Array.from(rows.flat());
-
-    it('center of mass: weighted by the masses of the types, without the removed particles', () => {
-        const p = texels([[0, 0, 0, 1], [10, 4, 1, 1], [100, 100, 1, REMOVED_PARTICLE_W]]);
-        expect(centerOfMass(p, 3, [1, 3])).toEqual({ x: 7.5, y: 3 });
-        expect(centerOfMass(p, 1, [0, 3])).toBeNull();
-    });
-
-    it('correction: the velocity of the center of mass, scaled by the gain', () => {
-        expect(driftCorrection({ x: 0, y: 10 }, { x: 4, y: 8 }, 2, 0.5)).toEqual({ x: 1, y: -0.5 });
-    });
-
-    it('no correction when no time has passed', () => {
-        expect(driftCorrection({ x: 0, y: 0 }, { x: 4, y: 8 }, 0, 0.5)).toEqual({ x: 0, y: 0 });
-    });
-});
-
-describe('removed particles', () => {
-    it('are not counted', () => {
-        const data = new Float32Array(4 * 4);
-        [[0, 1], [1, 1], [0, REMOVED_PARTICLE_W], [1, 1]].forEach(([z, w], i) => { data[i * 4 + 2] = z; data[i * 4 + 3] = w; });
-        expect(countTypes(data, 4, 2)).toEqual([1, 2]);
-    });
-
+describe('protostar declaration: the particle count', () => {
     it('the population parameter key of the declaration is a parameter', () => {
         expect(PROTOSTAR.params.some(p => p.key === PROTOSTAR_PARAM.count)).toBe(true);
     });

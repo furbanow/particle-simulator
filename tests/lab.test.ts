@@ -197,7 +197,7 @@ describe('lab: CPU reference of the composition deposit', () => {
     const RES = 8;
     const inputs: DepositInputs = {
         gridResolution: RES, gridCell: 10, depositMassScale: 2,
-        splatMass: [1, 3, 0.5, 0, 0, 0, 0, 0, 0, 0], inverseMolecularWeight: [2, 0.75, 0.5, 0, 0, 0, 0, 0, 0, 0],
+        depositMass: [1, 3, 0.5, 0, 0, 0, 0, 0, 0, 0], inverseMolecularWeight: [2, 0.75, 0.5, 0, 0, 0, 0, 0, 0, 0],
         fuel: [[1, 0], [0, 1], [0, 0], ...new Array<[number, number]>(7).fill([0, 0])],
     };
     const cell = (x: number, y: number) => y * RES + x;
@@ -242,9 +242,9 @@ describe('lab: CPU reference of the composition deposit', () => {
         expect(ref.payloadMax).toEqual([4.5, 2, 36, 6]);
     });
 
-    it('skips the removed particles, those beyond count and those whose point is clipped', () => {
-        const texels = [35, 55, 0, -1, 35, 55, 0, 1, -30, 55, 0, 1, 35, 55, 0, 1];
-        const ref = referenceDeposit(texels, 3, inputs, 1e-5);
+    it('skips the particles beyond count and those whose point is clipped', () => {
+        const texels = [35, 55, 0, 1, -30, 55, 0, 1, 35, 55, 0, 1];
+        const ref = referenceDeposit(texels, 2, inputs, 1e-5);
         expect(ref.deposited).toBe(1);
         expect(ref.occupancy[cell(3, 5)]).toBe(1);
     });

@@ -20,7 +20,7 @@
 // the step h_n = dt, it is the velocity Verlet scheme with a step of any length at each step: second order
 // for any sequence of steps, and symplectic as long as the sequence does not depend on the state.
 
-import type { Vec2 } from './drift';
+import type { Vec2 } from '../../util/math';
 
 /** What the three state textures hold between two substeps. */
 export interface StoredState {

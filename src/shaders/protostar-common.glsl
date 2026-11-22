@@ -11,7 +11,6 @@ uniform float fusionTRef;               // T0, px^2/s^2
 uniform float noiseCorrection;          // 1: the fusion rate is divided by the bias that the noise of T causes; 0: it is not (lab)
 uniform float seed;                     // changes every substep
 uniform float reactionTo[MAX_SPECIES];  // rank the type fuses into, -1: none
-uniform float reactionKeep[MAX_SPECIES];
 uniform float reactionRate[MAX_SPECIES];
 uniform float reactionPower[MAX_SPECIES];       // p: the power of T of the law's prefactor (2/3 proton-proton, 3 triple alpha)
 uniform float reactionBarrier[MAX_SPECIES];     // G: the Gamow term b (T_ref / unit)^-q of the law at its reference temperature

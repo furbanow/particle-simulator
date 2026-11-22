@@ -118,8 +118,8 @@ export const STICKINESS_SLIDER: SliderSpec = { min: 0, max: 400, step: 5, defaul
 export const COLLISION_SPEED_SLIDER: SliderSpec = { min: 20, max: 1500, step: 10, default: 600 };    // px/s, above it grains bounce
 
 // ---- Removed particles (common GPU contract) ----
-// A particle whose position w is negative has been removed (e.g. absorbed by a fusion): it is
-// neither drawn nor deposited on any grid nor counted. Live particles have w = 1.
+// A particle whose position w is negative has been removed: it is neither drawn nor deposited on any grid nor counted. Live
+// particles have w = 1. No algorithm removes any now (the protostar's fusions change the type of a parcel of constant mass).
 export const REMOVED_PARTICLE_W = -1;
 
 // ---- Protostar (hydrogen and helium fusion) algorithm ----
@@ -215,7 +215,7 @@ export const PROTOSTAR_MAX_SUBSTEP_RATIO = 1.5;
 export const PROTOSTAR_MAX_SUBSTEPS = 8;
 export const PROTOSTAR_STEP_READ_INTERVAL = 3;
 export const PROTOSTAR_STEP_MAX_READINGS = 3;
-export const PROTOSTAR_DRIFT_GAIN = 0.5;           // fraction of the measured drift of the star taken off at each read-back
+export const PROTOSTAR_TYPES_BLOCK = 32;           // texels of the position texture per texel of the first stage of the type count (protostar-types.frag)
 export const PROTOSTAR_STATS_INTERVAL = 10;        // frames between two GPU reductions of the stats
 export const PROTOSTAR_STATS_REDUCE_RES = 16;      // first reduction stage (GRID_RES / 16 = 8 x 8 cells each)
 // Energy diagnostics (reduction.ts, energy.ts): besides the stats' frames, the first frame is read too, so that the

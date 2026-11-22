@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countTypes } from '../src/simulation/typeCounts';
+import { countTypes } from '../src/lab/typeCounts';
 
 describe('countTypes', () => {
     it('counts the type ranks of the read-back positions (z), clamped like the shaders', () => {

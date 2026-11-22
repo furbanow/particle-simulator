@@ -6,7 +6,7 @@
 // over the previous step's length. See docs/spikes/p5a-integrator-order.md and b5-adaptive-time-step.md.
 
 import { BASE_DT, PROTOSTAR_RESTITUTION } from '../../config';
-import type { Vec2 } from '../../simulation/protostar/drift';
+import type { Vec2 } from '../../util/math';
 import { substep, type StoredState } from '../../simulation/protostar/leapfrog';
 import {
     CONSERVATIVE_OVERRIDES, INTEGRATION_CHANGING_SPEEDS, INTEGRATION_MIN_BOUNCES, INTEGRATION_PARTICLES, INTEGRATION_POSITION_TOLERANCE, INTEGRATION_SIGMA,

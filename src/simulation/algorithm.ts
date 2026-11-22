@@ -198,13 +198,17 @@ export interface MeterStat extends StatBase {
     readonly marker?: { readonly param: string; format(value: number): string };
 }
 
-/** Live particle count per type (GpuModel.liveTypeCounts, else the split of the last restart). */
-export interface TypeCountsStat {
-    readonly kind: 'typeCounts';
+/**
+ * Share of the total mass held by each type (Simulation.liveTypeMasses: the live particle count per type, GpuModel.liveTypeCounts,
+ * else the split of the last restart, times the mass of a particle). `title`: explanation shown on hover.
+ */
+export interface TypeMassesStat {
+    readonly kind: 'typeMasses';
     readonly label: string;
+    readonly title?: string;
 }
 
-export type StatDef = ValueStat | MeterStat | TypeCountsStat;
+export type StatDef = ValueStat | MeterStat | TypeMassesStat;
 
 // ---- Algorithm ----
 

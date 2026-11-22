@@ -8,10 +8,11 @@
 //                                   0 otherwise, so the products and the custom elements are in
 //                                   neither -- and the sum of the squared masses
 //  DEPOSIT_POWER                    (fusion power): (m * expected fusions per s * energy per unit mass, expected fusions per s)
-// Defines: MAX_SPECIES, GRID_RES, DEPOSIT_KIND and the values of the kinds. Masses in units of the mean particle mass.
+// Defines: MAX_SPECIES, GRID_RES, DEPOSIT_KIND and the values of the kinds. Masses in units of the mean particle mass. A particle is a
+// parcel of constant mass (A4): every type deposits the same m, the atomic mass of the editor only enters through 1 / mu and the energy.
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
-uniform float speciesSplatMass[MAX_SPECIES];
+uniform float speciesDepositMass[MAX_SPECIES];   // mass of a particle of each type (a parcel: the same for every type), simulation mass units
 uniform float speciesInverseMu[MAX_SPECIES];     // (1 + Z) / A of each type, per u
 uniform vec2 speciesFuel[MAX_SPECIES];           // (1, 0) for the fuel of the first reaction (hydrogen), (0, 1) for that of the second (helium), else (0, 0)
 uniform float depositMassScale;
@@ -28,9 +29,8 @@ void main() {
     vValue2 = vec4(0.0);
     gl_PointSize = 2.0;
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);             // outside the clip volume: dropped
-    if (posData.w < 0.0) return;                        // removed particle
     int k = clamp(int(posData.z + 0.5), 0, MAX_SPECIES - 1);
-    float m = speciesSplatMass[k] * depositMassScale;
+    float m = speciesDepositMass[k] * depositMassScale;
 #if DEPOSIT_KIND == DEPOSIT_POWER
     float rate = fusionRateOf(k, gasAt(posData.xy));
     if (rate <= 0.0) return;

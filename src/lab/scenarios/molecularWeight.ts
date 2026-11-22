@@ -103,7 +103,7 @@ export async function drawGas(context: LabContext, composition: Composition, box
     // The deposit mass of an average particle of the gas: no channel of the composition counts the particles any more.
     const inputs = model.debugGrids.debugDepositInputs;
     const weightSum = composition.weights.reduce((sum, w) => sum + w, 0);
-    const meanDepositMass = composition.weights.reduce((sum, w, k) => sum + w * inputs.splatMass[k], 0) / weightSum * inputs.depositMassScale;
+    const meanDepositMass = composition.weights.reduce((sum, w, k) => sum + w * inputs.depositMass[k], 0) / weightSum * inputs.depositMassScale;
     const cells = interiorCells(box);
     const cellFactors = new Float32Array(Math.max(0, cells.x1 - cells.x0) * Math.max(0, cells.y1 - cells.y0));
     let mass = 0, density = 0, dispersionSum = 0, temperature = 0, averaged = 0, factor = 0, effective = 0, rate = 0, particles = 0, n = 0;

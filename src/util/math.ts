@@ -1,5 +1,11 @@
 import type { Range } from '../config';
 
+/** A point or a vector of the plane (px, px/s, ...). */
+export interface Vec2 {
+    readonly x: number;
+    readonly y: number;
+}
+
 export const clamp = (x: number, [lo, hi]: Range): number => Math.min(hi, Math.max(lo, x));
 
 // Significant digits kept when rounding to a step, so 0.1 * 23 comes out as 2.3.

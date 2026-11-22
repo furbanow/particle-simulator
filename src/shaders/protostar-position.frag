@@ -1,8 +1,8 @@
-// GPGPU position step of the protostar algorithm (velocity Verlet drift, walls) and the fusions: a
-// fusing particle becomes its reaction's type with probability reactionKeep, else it is removed
-// (w = REMOVED_W). Provided by GPUComputationRenderer: resolution, texturePosition,
-// textureVelocity, textureAccel. Defines: MAX_SPECIES, GRID_RES, REMOVED_W. The twin of the
-// integration is leapfrog.ts.
+// GPGPU position step of the protostar algorithm (velocity Verlet drift, walls) and the fusions: a particle is a parcel of
+// constant mass, and a fusing parcel changes its type (A4), keeping its mass and its velocity (the momentum is conserved
+// exactly; the mass defect leaves as energy through the heating, see protostar-deposit.vert). Provided by
+// GPUComputationRenderer: resolution, texturePosition, textureVelocity, textureAccel. Defines: MAX_SPECIES, GRID_RES. The twin of
+// the integration is leapfrog.ts, that of the fusion reactions.ts (fusionProbability).
 uniform float dt;
 uniform float dtPrev;                   // s, the previous substep's length (see protostar-velocity.frag)
 uniform vec2 screenSize;
@@ -17,7 +17,7 @@ void main() {
     vec2 uv = gl_FragCoord.xy / resolution.xy;
     vec4 pos = texture2D(texturePosition, uv);
     float index = floor(gl_FragCoord.y) * resolution.x + floor(gl_FragCoord.x);
-    if (index >= activeCount || pos.w < 0.0) { gl_FragColor = pos; return; }
+    if (index >= activeCount) { gl_FragColor = pos; return; }
 
     // The same expression as the velocity pass (v(t) = v(t - dtPrev) + (a(t - dtPrev) + a(t)) dtPrev / 2, nothing owed on the first step: z = 1):
     // the two passes must agree on which particles leave the area.
@@ -27,15 +27,13 @@ void main() {
     vec2 kicked = vel + (1.0 - accelState.z) * 0.5 * (accelState.xy + a) * dtPrev;
     vec2 next = pos.xy + kicked * dt + 0.5 * a * dt * dt;
 
+    // The whole parcel fuses with probability 1 - exp(-rate dt), the share of the fuel that fuses in a step: the expected mass that
+    // changes type per step is p m, and the power the heating deposits is m rate energy (protostar-deposit.vert): the same in expectation.
     float type = pos.z;
-    float w = pos.w;
     int k = clamp(int(type + 0.5), 0, MAX_SPECIES - 1);
     if (reactionTo[k] >= 0.0) {
         float p = 1.0 - exp(-fusionRateOf(k, gasAt(pos.xy)) * dt);
-        if (random01(index, 0u) < p) {
-            if (random01(index, 1u) < reactionKeep[k]) type = reactionTo[k];
-            else w = REMOVED_W;
-        }
+        if (random01(index, 0u) < p) type = reactionTo[k];
     }
-    gl_FragColor = vec4(mirrored(next.x, screenSize.x), mirrored(next.y, screenSize.y), type, w);
+    gl_FragColor = vec4(mirrored(next.x, screenSize.x), mirrored(next.y, screenSize.y), type, pos.w);
 }

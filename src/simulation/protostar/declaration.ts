@@ -195,7 +195,7 @@ export const PROTOSTAR: AlgorithmDeclaration = {
         builtinConfig: { id: 'builtin:protostar', name: t('algo.protostar.builtin') },
     },
     stats: [
-        { kind: 'typeCounts', label: t('algo.protostar.stat.typeCounts') },
+        { kind: 'typeMasses', label: t('algo.protostar.stat.typeMasses'), title: t('algo.protostar.stat.typeMasses.doc') },
         { kind: 'value', key: PROTOSTAR_STAT.coreTemperature, label: t('algo.protostar.stat.coreTemperature'),
             format: formatTemperature },
         { kind: 'value', key: PROTOSTAR_STAT.coreDensity, label: t('algo.protostar.stat.coreDensity'),

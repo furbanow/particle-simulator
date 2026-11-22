@@ -16,7 +16,6 @@ uniform float opacityDensity;           // rho / rho0 above which the gas traps 
 uniform float maxSpeed;                 // px/s
 uniform float heatingTFloor;            // px^2/s^2: below this dispersion a cell is heated by a random kick, not by scaling
 uniform float restitution;
-uniform vec2 driftKick;                 // px/s, velocity taken off every particle (statistical drift)
 
 /**
  * The share of the step, from 0 to 1, at which a particle that goes from x (inside the area) to next reaches a wall of the axis
@@ -43,7 +42,6 @@ void main() {
     float index = floor(gl_FragCoord.y) * resolution.x + floor(gl_FragCoord.x);
     if (index >= activeCount) { gl_FragColor = vel; return; }
     vec4 pos = texture2D(texturePosition, uv);
-    if (pos.w < 0.0) { gl_FragColor = vec4(0.0); return; }
 
     // Velocity Verlet: v(t) = v(t - dtPrev) + (a(t - dtPrev) + a(t)) dtPrev / 2, the second half kick of the last
     // step and the first of this one (both over the last step's length: the step may have changed since);
@@ -54,7 +52,7 @@ void main() {
     vec2 a = forceAt(pos.xy);
     vec2 kicked = vel.xy + (1.0 - accelState.z) * 0.5 * (accelState.xy + a) * dtPrev;
     vec2 next = pos.xy + kicked * dt + 0.5 * a * dt * dt;
-    vec2 v = kicked - driftKick;
+    vec2 v = kicked;
 
     // Radiative cooling: only the disordered part of the motion (around the local mean
     // velocity) is damped; rotation and infall are kept. Dense gas is opaque: it radiates

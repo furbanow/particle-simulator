@@ -31,7 +31,7 @@
 //  - potential energy: U = 1/2 sum M phi with the Plummer potential of the gravity grid, minus the
 //    interaction of every particle with itself (see selfPotential).
 
-import type { Vec2 } from './drift';
+import type { Vec2 } from '../../util/math';
 
 export const REDUCTION_TEXEL = { core: 0, extremes: 1, energy: 2, moments: 3 } as const;
 export const REDUCTION_TEXELS = 4;

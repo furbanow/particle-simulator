@@ -187,6 +187,11 @@ export class Simulation {
         return this.pipeline.liveTypeCounts() ?? this.speciesCounts;
     }
 
+    /** Mass of each type now, simulation mass units: the particles of the type (see liveTypeCounts) times the mass of one. */
+    liveTypeMasses(): readonly number[] {
+        return this.liveTypeCounts().map((n, k) => n * this.speciesUniforms.splatMass.value[k]);
+    }
+
     resize(width: number, height: number): void {
         this.width = width;
         this.height = height;

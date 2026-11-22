@@ -79,7 +79,7 @@ async function referenceCloud(context: LabContext, frames: number): Promise<Refe
     const gravity = scales.gravityPerDeposit / scales.massPerDeposit;
 
     // (1) The direct pair sum: no grid.
-    const direct = directEnergies(positions, velocities, count, inputs.splatMass, gravity, scales.softening);
+    const direct = directEnergies(positions, velocities, count, inputs.depositMass, gravity, scales.softening);
     // (2) The twin of the grid scheme: the deposit of the positions read back, summed as the shaders sum it.
     const deposit = referenceDeposit(positions, count, inputs, DEPOSIT_WEIGHT_MARGIN);
     const twin = gridGravity(deposit.mass, {
@@ -250,7 +250,7 @@ export const reductionChannels: Scenario = {
         // (2) The sums that the deposit makes exact, against sums over the particles themselves.
         const positions = await readPositions(renderer, simulation.debugPipeline.debugPositionTarget, count);
         const velocities = await readPositions(renderer, simulation.debugPipeline.debugVelocityTarget, count);
-        const masses = grids.debugDepositInputs.splatMass;
+        const masses = grids.debugDepositInputs.depositMass;
         let mass = 0, x = 0, y = 0, px = 0, py = 0, kinetic = 0, fastest = 0, live = 0;
         for (let i = 0; i < count; i++) {
             if (!(positions[i * 4 + 3] >= 0)) continue;
