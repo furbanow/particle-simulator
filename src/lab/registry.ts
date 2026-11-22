@@ -3,6 +3,7 @@
 
 import { defaultCloud, defaultCloudTuning, defaultCloudVariants, ignitionRatioBaseline } from './scenarios/baseline';
 import { adaptiveStepScenarios } from './scenarios/adaptiveStep';
+import { constantMassScenarios } from './scenarios/constantMass';
 import { diagnosticsCost } from './scenarios/diagnosticsCost';
 import { dustCloudScenarios } from './scenarios/dustCloud';
 import { dustConcentrationScenarios } from './scenarios/dustConcentration';
@@ -23,6 +24,7 @@ import { temperatureNoise } from './scenarios/temperatureNoise';
 import { temperatureSmoothing } from './scenarios/temperatureSmoothing';
 import { perfScenarios } from './scenarios/perf';
 import { perfPhaseScenarios } from './scenarios/perfPhases';
+import { perfProtostarScenarios } from './scenarios/perfProtostar';
 import { secondDeposit, secondDepositLoad } from './scenarios/secondDeposit';
 import { secondDepositCost } from './scenarios/secondDepositCost';
 import { selftest } from './scenarios/selftest';
@@ -44,6 +46,7 @@ export const SCENARIOS: readonly Scenario[] = [
     defaultCloud,
     defaultCloudVariants,
     defaultCloudTuning,
+    ...constantMassScenarios,
     energyReference,
     reductionChannels,
     energyDrift,
@@ -62,6 +65,7 @@ export const SCENARIOS: readonly Scenario[] = [
     ...dustSupernovaHistoryScenarios,
     ...perfScenarios,
     ...perfPhaseScenarios,
+    ...perfProtostarScenarios,
     ...dustHitchScenarios,
     ...dustConcentrationCostScenarios,
     secondDepositCost,

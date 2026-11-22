@@ -432,7 +432,7 @@ async function driftRunUnchecked(context: LabContext, spec: DriftSpec): Promise<
                 frames++;
                 substeps += simulation.lastSubsteps;
                 if (varying) model.debugSubsteps = VARYING_SUBSTEPS[frames % VARYING_SUBSTEPS.length];
-                model.endFrame();                                      // the model alone: the pipeline's drift correction would add a kick
+                model.endFrame();                                      // the model alone: the reduction only
                 if (frames === 1 || frames % ENERGY_DRIFT_READ_EVERY === 0) await take();
             },
         });

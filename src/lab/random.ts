@@ -4,9 +4,10 @@
 //
 // The GPU side is deterministic once the CPU side is: its random numbers are hashes of the
 // particle index and of the model's substep counter, which reset() rewinds (see ProtostarModel).
-// What stays out of reach: the periodic read-back of the positions (drift correction of the star)
-// lands at an unpredictable frame, so a run that calls Simulation.endFrame() is only reproducible
-// to within that kick; the scenarios that compare runs bit for bit step without endFrame().
+// What stays out of reach: the asynchronous read-backs that act on the state (the sticky dust's supernova
+// trigger) land at an unpredictable frame, so a run of the dust that calls Simulation.endFrame() is only
+// reproducible to within that kick; the scenarios that compare runs bit for bit step without endFrame().
+// The protostar's read-backs (the stats, the type count) only read: its runs replay bit for bit with endFrame().
 
 /** A small fast generator (mulberry32): uniform in [0, 1), the same sequence for the same seed. */
 export function mulberry32(seed: number): () => number {

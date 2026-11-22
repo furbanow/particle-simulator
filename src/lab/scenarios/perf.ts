@@ -17,7 +17,7 @@ import { parseCloudVariants } from './baseline';
 const DIGITS = 4;
 const stacks = new WeakMap<LabContext, RenderStack>();
 
-function renderStack(context: LabContext): RenderStack {
+export function renderStack(context: LabContext): RenderStack {
     let stack = stacks.get(context);
     if (!stack) {
         stack = new RenderStack(context.renderer, context.simulation, LAB_AREA.width, LAB_AREA.height);

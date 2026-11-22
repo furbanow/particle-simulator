@@ -572,3 +572,43 @@ export const GAMOW_POINTS = [
     { reaction: 0, kelvin: 8e6 }, { reaction: 0, kelvin: 15e6 }, { reaction: 0, kelvin: 30e6 },
     { reaction: 1, kelvin: 70e6 }, { reaction: 1, kelvin: 100e6 }, { reaction: 1, kelvin: 200e6 },
 ] as const;
+
+// ---- Fusion of parcels of constant mass (proposal A4) ----
+/**
+ * Conservation of the momentum (protostar.constant-mass.momentum): a gas of this many particles, of the density `density` (rho0), drawn cold (a
+ * thermal speed of `sigma` px/s) and moving as a whole (`bulk`), gravity off, a rate of fusion that does not depend on the temperature (the rate
+ * constants below, per second and per rho0) so that it all fuses within the run; `substeps` substeps of a time step of `timeScale` x BASE_DT, one per
+ * frame (the gas stays inside the walls: the fastest particle crosses a fifth of the area). The momentum is summed in double precision from a
+ * read-back of the velocities and of the types, at `checkpoints` instants, against the thermal momentum M sigma.
+ */
+export const CONSTANT_MASS_MOMENTUM = {
+    particles: 100_000, density: 2, sigma: 2, bulk: [3, 1.5], heliumPercent: 20, hydrogenRate: 0.2, heliumRate: 0.3,
+    substeps: 10_000, timeScale: 0.05, checkpoints: 10, seed: 6161,
+} as const;
+/** The fusion-only run must conserve the momentum to this fraction of the thermal momentum (it is exact: nothing else acts on the velocities). */
+export const CONSTANT_MASS_MOMENTUM_TOLERANCE = 1e-6;
+/** The same run with the cooling at its default and a feedback of the sliders' minimum: reported, not judged (the cooling and the heating work around a local mean). */
+export const CONSTANT_MASS_FEEDBACK = 0.01;
+/**
+ * The energy accounting (protostar.constant-mass.energy): pure gases of this many particles at `density` (rho0), a rate of fusion that does not
+ * depend on the temperature, the feedback at 1, `steps` single substeps of BASE_DT; at each step the fusions that happened (the changes of type
+ * read back) against the expected ones (the power grid's fusion rate x dt) and the energy they released against the grid's power x dt.
+ */
+export const CONSTANT_MASS_ENERGY = { particles: 400_000, density: 2, sigma: 2, hydrogenRate: 0.3, heliumRate: 0.1, steps: 100, seed: 6262 } as const;
+/** The measured against the expected number of fusions, and the released against the deposited energy, summed over the steps: the Poisson noise of the events (0.2 %) and the saturation of 1 - exp(-rate dt) (0.3 %). */
+export const CONSTANT_MASS_ENERGY_TOLERANCE = 0.02;
+/** The frames of the default cloud drawn by protostar.constant-mass.appearance (the whole rendering stack, the canvas read back as a JPEG). */
+export const CONSTANT_MASS_APPEARANCE_FRAMES = [100, 300, 700, 1200] as const;
+export const CONSTANT_MASS_APPEARANCE_QUALITY = 0.8;
+/** The population of the default cloud (protostar.constant-mass.population): snapshots every this many frames over `baselineFrames`, and the radius (px) of the core around the densest cell. */
+export const CONSTANT_MASS_POPULATION_EVERY = 100;
+export const CONSTANT_MASS_CORE_RADIUS = 40;
+/** Frame times over the periodic readings of the protostar (perf.protostarHitch.<count>): the counts, the frames run untimed, the frames timed. */
+export const PROTOSTAR_HITCH_COUNTS = [400_000, 1_000_000, 2_000_000] as const;
+export const PROTOSTAR_HITCH_WARMUP_FRAMES = 30;
+export const PROTOSTAR_HITCH_FRAMES = 360;
+/** The cost of the protostar in two phases of the default cloud (perf.protostarPhases.<count>): the counts, the window timed in chunks of this many frames, the early and the late phase (the frames run before it: the hydrogen is mostly burnt by the late one). */
+export const PROTOSTAR_PHASE_COUNTS = [400_000, 1_000_000] as const;
+export const PROTOSTAR_PHASE_CHUNK_FRAMES = 10;
+export const PROTOSTAR_PHASE_CHUNKS = 4;
+export const PROTOSTAR_PHASES = [{ name: 'early', warmupFrames: 10 }, { name: 'late', warmupFrames: 1000 }] as const;
