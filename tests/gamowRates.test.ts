@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_PP_LAW, PROTOSTAR_T0_KELVIN, PROTOSTAR_TRIPLE_ALPHA_LAW } from '../src/config';
+import {
+    PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_GLOW_T_RANGE, PROTOSTAR_HE_IGNITION_KELVIN, PROTOSTAR_PP_LAW, PROTOSTAR_T0_KELVIN,
+    PROTOSTAR_TRIPLE_ALPHA_LAW,
+} from '../src/config';
 import { defaultParams } from '../src/simulation/params';
 import { PROTOSTAR, PROTOSTAR_REACTIONS, PROTOSTAR_TYPES } from '../src/simulation/protostar/declaration';
-import { fusionLawOf, ignitionTemperature } from '../src/simulation/protostar/ignition';
+import { fusionLawOf, ignitionRatio, ignitionTemperature } from '../src/simulation/protostar/ignition';
 import { expm1Minus, logNoiseBias, logNoiseBiasCurved, logUnbiasedResonant } from '../src/simulation/protostar/noiseBias';
 import {
     barrierTerm, fusionRate, lawAt, localExponent, reactionArrays, type FusionLaw,
@@ -298,5 +301,41 @@ describe('Gamow rates: the reaction table\'s arrays', () => {
         expect(flat.power.every(p => p === 0)).toBe(true);
         expect(flat.barrier.every(b => b === 0)).toBe(true);
         expect(flat.rate).toEqual(arrays.rate);
+    });
+});
+
+describe('Gamow rates: the calibration of the defaults (docs/spikes/a2-gamow-rates.md)', () => {
+    const defaults = defaultParams(PROTOSTAR);
+    const [h, he] = [fusionLawOf(PP, defaults), fusionLawOf(TRIPLE, defaults)];
+    const ratioAt = (density: number, rate: number): number => ignitionRatio(PROTOSTAR_REACTIONS, defaults, density, rate, 0, 1);
+
+    it('are the values the default cloud was calibrated with', () => {
+        expect(defaults).toMatchObject({ gravity: 9, cooling: 0.51, opacity: 5.32, fusionRate: 4e-3, heFusionRate: 2.5e-4, feedback: 0.146 });
+    });
+
+    it('ignite a pure helium gas of 20 rho0 at 0.1 fusions per second per particle at 100 MK, its real ignition, and hydrogen within 6 % of 15 MK', () => {
+        // lambda_He rho^2 = 2.5e-4 * 400 = 0.1 at the reference temperature of the law; lambda_0 rho = 4e-3 * 20 = 0.08 there.
+        expect(ignitionTemperature(he, 20, 0.1) * T0 / 1e6).toBeCloseTo(100, 8);
+        expect(ignitionTemperature(h, 20, 0.1) * T0 / 1e6).toBeGreaterThan(15);
+        expect(ignitionTemperature(h, 20, 0.1) * T0 / 1e6).toBeLessThan(15 * 1.06);
+        expect(ratioAt(20, 0.1)).toBeGreaterThan(100 / 15 * 0.93);
+        expect(ratioAt(20, 0.1)).toBeLessThan(100 / 15);
+    });
+
+    it('keep the ratio of the ignition temperatures near the real 6.7 at the density and rate of the star\'s core, and between 4 and 12 wherever a star goes', () => {
+        // The ratio depends on the point: the two laws differ in steepness and in density exponent (1 and 2).
+        expect(ratioAt(40, 0.1)).toBeGreaterThan(6.5);
+        expect(ratioAt(40, 0.1)).toBeLessThan(8.5);
+        for (const density of [20, 40, 100]) {
+            for (const rate of [0.03, 0.1, 0.5]) {
+                expect(ratioAt(density, rate)).toBeGreaterThan(4);
+                expect(ratioAt(density, rate)).toBeLessThan(12);
+            }
+        }
+    });
+
+    it('have a glow range that reaches the carbon ash: above the helium ignition, which nothing burns after', () => {
+        expect(PROTOSTAR_GLOW_T_RANGE[0]).toBe(1);
+        expect(PROTOSTAR_GLOW_T_RANGE[1] * T0).toBeGreaterThanOrEqual(1.4 * PROTOSTAR_HE_IGNITION_KELVIN);
     });
 });

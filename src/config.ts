@@ -211,16 +211,19 @@ export const PROTOSTAR_RATE_SMOOTHING = 0.3;       // weight of a new fusion rat
 // Glow of the particles (0..GLOW_MAX), read by the particle layer from velocity w: it rises with
 // the local temperature (T/T0 over GLOW_T_RANGE) and with the local fusion heating (per unit mass,
 // in T0 per second, GLOW_HEATING_REF giving full glow).
-export const PROTOSTAR_GLOW_T_RANGE: Range = [1, 7];  // 15 to 105 MK: helium burning shines brightest
+// The upper bound is well above the helium ignition (100 MK, 6.7 T0) so that the carbon ash, which nothing burns here (carbon burns
+// at 600 MK) and which reads 3.4 times its dispersion (A1), does not saturate the glow at once: the star's final core, at 100 to 220 MK.
+export const PROTOSTAR_GLOW_T_RANGE: Range = [1, 15];  // 15 to 225 MK
 export const PROTOSTAR_GLOW_TEMPERATURE = 0.7;
 export const PROTOSTAR_GLOW_HEATING_REF = 0.3;
 export const PROTOSTAR_GLOW_FUSION = 1.3;
 export const PROTOSTAR_GLOW_MAX = 2;
 // Panel parameters (slider min, max, step, default).
-// G and lambda_0 were recalibrated for the mean molecular weight in the temperature (A1: docs/spikes/a1-mean-molecular-weight.md):
-// the default cloud burns hydrogen at about 15 MK (T0) and helium at about 100 MK, as read by a thermometer. G 13.85 -> 9 (the core
-// of a hydrogen star settles at about 1.6 MK per unit of G), lambda_0 1.5e-4 -> 4e-3 (so that hydrogen burns at 15 MK and not at 55).
-// A minimal change: the fine recalibration (G, lambda, alpha, feedback, glow ranges) belongs to the Gamow rates of A2.
+// Calibration of the defaults (docs/spikes/a2-gamow-rates.md). A1 (docs/spikes/a1-mean-molecular-weight.md): G 13.85 -> 9 (the core
+// of a hydrogen star settles at about 1.6 MK per unit of G) and lambda_0 1.5e-4 -> 4e-3. A2, the Gamow rates: lambda_He 3.75e-5 ->
+// 2.5e-4, which puts the ignition of a pure helium gas of 20 rho0 at 0.1 fusions per second at exactly 100 MK (lambda_He * 20^2 = 0.1;
+// lambda_0 = 4e-3 gives hydrogen 15.9 MK there, the ratio is 6.3 against the real 6.67). The cooling, the opacity, the feedback, G and
+// lambda_0 were scanned around the old and the new values (3 to 6 seeds each) and left where they were.
 export const PROTOSTAR_COUNT_SLIDER: SliderSpec = { min: 1000, max: 2000000, step: 1000, default: 400000 };
 export const PROTOSTAR_VIRIAL_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.33 };         // alpha_vir = 2K / |U|
 export const PROTOSTAR_ROTATION_ENERGY_SLIDER: SliderSpec = { min: 0, max: 0.5, step: 0.01, default: 0.08 };  // beta_rot = E_rot / |U|
@@ -229,7 +232,7 @@ export const PROTOSTAR_SOFTENING_SLIDER: SliderSpec = { min: 0.2, max: 5, step: 
 export const PROTOSTAR_COOLING_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.51 };        // 1/s
 export const PROTOSTAR_OPACITY_SLIDER: SliderSpec = { min: 1, max: 1000, step: 0, default: 5.32 };         // rho0, log
 export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 4e-3 };       // 1/s, log
-export const PROTOSTAR_HE_LAMBDA_SLIDER: SliderSpec = { min: 1e-10, max: 1e-2, step: 0, default: 3.75e-5 };  // 1/s at 100 MK and rho0, log
+export const PROTOSTAR_HE_LAMBDA_SLIDER: SliderSpec = { min: 1e-10, max: 1e-2, step: 0, default: 2.5e-4 };  // 1/s at 100 MK and rho0, log
 export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 0.146 };       // log
 export const PROTOSTAR_H_SIZE = 1.6;               // px, default rendered diameters
 export const PROTOSTAR_HE_SIZE = 2.4;
