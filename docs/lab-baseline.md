@@ -839,6 +839,23 @@ Recorded on the branch `feat/mpc-collisions` (headless Windows Chrome 157, Direc
 | cost, `perf.protostarPhases.*`, frames 10 to 50 | 400 000: 3.50 -> 3.99 ms (+14 %); 1 000 000: 6.64 -> 7.85 ms (+18 %); frames 1000 to 1040: +31 % and +63 % |
 | cost, `perf.protostar.*` | 400 000: simulation 3.17 -> 4.55 ms, whole frame 5.01 -> 7.47 ms; 1 000 000: 5.74 -> 9.64 and 8.62 -> 15.96 ms |
 
+## After gate P8: B3 not done (RTX 5070)
+
+The gate of B3 ([the spike](spikes/b3-single-pass.md)) measured each pass of a protostar substep alone (`cost.protostar.passes`, commit
+`09b59c4`, headless Windows Chrome 157, Direct3D 11). Nothing in the simulation changed. ms per substep, flags off (TSC and collisions on in
+brackets):
+
+| Particles, frame | deposits (moments + power) | collision deposit | gas, heat, coarse, gravity | 3 particle passes | substep | B3 bound |
+|---|---|---|---|---|---|---|
+| 400 000, 90 | 1.59 (3.04) | – (0.22) | 0.07 | 0.18 (0.19) | 1.84 (3.51) | 0.13 (0.13) |
+| 400 000, 1030 | 1.84 (3.50) | – (0.46) | 0.08 | 0.17 (0.17) | 2.10 (4.20) | 0.11 (0.11) |
+| 1 000 000, 90 | 3.96 (7.65) | – (0.55) | 0.10 | 0.26 (0.28) | 4.32 (8.56) | 0.16 (0.18) |
+| 1 000 000, 1030 | 5.47 (10.18) | – (1.26) | 0.09 | 0.26 (0.30) | 5.81 (11.82) | 0.15 (0.19) |
+
+`spike.b3.mrt`: three float or half-float attachments of 1733² in ping-pong are exact; the merged pass would use 11 of 16 samplers. B3
+would save at most 2 to 7 % of the simulation frame: dropped (the user's decision). Drawing the particle passes over the active rows only
+would save as much (0.13 to 0.18 ms per substep), not done.
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a; it was a documented

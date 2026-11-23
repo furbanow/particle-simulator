@@ -141,6 +141,8 @@ the one a visitor gets; the recorded GTX 1060 numbers used `gl` on Linux.
 | `protostar.collisions.sod` | Sod's shock tube across the area (density 8 : 1, pressure 10 : 1, 600 000 particles, 2 s): the column profiles against the exact Riemann solution (`riemann.ts`) for γ = 1.4, 5/3, 2, 2.5, 3; passes when γ = 2 fits best in the collisional limit. |
 | `protostar.collisions.sound-speed` | A standing sound wave (4 wavelengths across the width) fitted by a damped cosine (`oscillation.ts`): c_s against √(γP/ρ) = √2 σ; passes within 10 % of γ = 2 in the collisional limit. |
 | `protostar.collisions.equipartition` | Hydrogen and helium parcels of dispersions 4 : 1 mixed, at 50 000 and 400 000 particles: the ratio of the dispersions against time and its e-folding time in substeps. |
+| `spike.b3.mrt` | Feasibility of B3 (one pass per particle, [spike](spikes/b3-single-pass.md)): a 1733² target of three unblended attachments stepped in ping-pong, float and half float, every texel of the three read back; the MRT limits and extensions; the active samplers of the three compiled particle passes and their union (the merged pass's budget). 3 s. |
+| `cost.protostar.passes` | Each pass of a protostar substep (moments, gas, power, heat, coarse, gravity, collision deposit, velocity, position, acceleration) rendered alone 100 times on a frozen default cloud at 400 000 and 1 000 000 particles, frames 90 and 1030, with TSC and the collisions off, each alone and both on (median of 7 rounds, the synchronization taken off); also the particle passes drawn over the active rows only (a scissor). Gives B3's bound (the position and acceleration passes). 90 s. |
 
 The recorded numbers are in [lab-baseline.md](lab-baseline.md).
 
