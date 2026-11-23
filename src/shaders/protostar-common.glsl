@@ -1,7 +1,9 @@
 // Shared by the protostar shaders: sampling of the grids at a particle, fusion rate, random numbers.
 // Defines: MAX_SPECIES, GRID_RES, FUSION_RATE_MAX, NOISE_N_MIN, NOISE_SHIFT_MAX, and GAS_THERMO (0 or 1: whether gasAt() reads the
-// temperature that feeds the fusion rate; only the shaders that compute a rate need it). Included after drawing.glsl (drawingAccel).
+// temperature that feeds the fusion rate; only the shaders that compute a rate need it). Included after deposit-kernel.glsl (tscWeight)
+// and drawing.glsl (drawingAccel).
 uniform sampler2D gridForce;            // gravitational acceleration at the cell centers (px/s^2)
+uniform float tscForce;                 // 1: forceAt() reads gridForce with the TSC weights (the tscDeposit switch)
 uniform sampler2D gridGas;              // (rho / rho0, dispersion px^2/s^2, mean vx, mean vy) of the 3x3 neighborhood
 uniform sampler2D gridHeat;             // (fusion heating per unit mass T0 per s, mu / mu_H, 0, 0) of the 3x3 neighborhood
 uniform sampler2D gridThermo;           // (T averaged over time px^2/s^2, effective number of particles, mu / mu_H, 0) of the 3x3 neighborhood
@@ -37,12 +39,29 @@ void gridCorners(vec2 x, out ivec2 c[4], out float w[4]) {
     w[3] = f.x * f.y;
 }
 
-/** Acceleration at x: bilinear interpolation of the gravity grid, plus the static drawings' force. */
+/**
+ * Acceleration at x: the gravity grid interpolated with the weights of the deposit (bilinear for cloud-in-cell, the 3x3 TSC weights
+ * of deposit-kernel.glsl for TSC), plus the static drawings' force. The same weights for the deposit and the read, with a force
+ * between cells that is odd in their offset, make a particle's force on itself vanish (Hockney & Eastwood); TSC deposited and read
+ * bilinearly gives a particle up to 2 % of the pull it exerts at 1.5 cells on itself (lab: protostar.tsc.aliasing).
+ */
 vec2 forceAt(vec2 x) {
-    ivec2 c[4]; float w[4];
-    gridCorners(x, c, w);
     vec2 a = vec2(0.0);
-    for (int k = 0; k < 4; k++) a += w[k] * texelFetch(gridForce, c[k], 0).xy;
+    if (tscForce > 0.5) {
+        vec2 p = x / gridCell;
+        ivec2 first = ivec2(floor(p)) - 1;
+        ivec2 hi = ivec2(GRID_RES - 1);
+        for (int dy = 0; dy < 3; dy++) {
+            for (int dx = 0; dx < 3; dx++) {
+                ivec2 c = first + ivec2(dx, dy);
+                a += tscWeight(vec2(c) + 0.5 - p) * texelFetch(gridForce, clamp(c, ivec2(0), hi), 0).xy;
+            }
+        }
+    } else {
+        ivec2 c[4]; float w[4];
+        gridCorners(x, c, w);
+        for (int k = 0; k < 4; k++) a += w[k] * texelFetch(gridForce, c[k], 0).xy;
+    }
     return a + drawingAccel(x);
 }
 

@@ -1,6 +1,7 @@
 // The granular physics of the sticky dust (docs/spikes/a10-granular-dust.md): the deposit of the agitation
 // energy against a CPU reference, and the free cooling of a uniform cloud against Haff's law.
 
+import type { DepositKernel } from '../../simulation/depositKernel';
 import {
     BASE_DT, DENSITY_RES, GLOBAL_DRAG, KINETIC_PRESSURE, K_PRESSURE, MOMENTUM_SCALE, RESTITUTION, TEX_SIZE, TOTAL_MASS,
 } from '../../config';
@@ -38,7 +39,7 @@ function errorStats(errors: readonly number[]): Record<string, JsonValue> {
     };
 }
 
-interface DepositReport {
+export interface DepositReport {
     metrics: Record<string, JsonValue>;
     comparisons: DustChannelComparison[];
     /** Median relative error of the agitation over the texels judged, with the reference and without. */
@@ -52,7 +53,8 @@ interface DepositReport {
  * channel by channel against the tolerance model, then the agitation T the shader will compute from it against the exact variance
  * of the particles in each texel, with the energy deposited about the reference velocity and about zero.
  */
-async function validateDeposit(context: LabContext, prepare: () => Promise<void>, title: string): Promise<DepositReport> {
+export async function validateDeposit(context: LabContext, prepare: () => Promise<void>, title: string,
+                                      kernel: DepositKernel = 'cic'): Promise<DepositReport> {
     const { renderer, simulation } = context;
     await prepare();
     const model = stickyDustModel(context);
@@ -89,7 +91,7 @@ async function validateDeposit(context: LabContext, prepare: () => Promise<void>
                 MOMENTUM_SCALE, x, y, REFERENCE_WEIGHT_BITS),
         }),
     };
-    const reference = referenceDustDeposit(positions, velocities, count, inputs, DEPOSIT_WEIGHT_MARGIN);
+    const reference = referenceDustDeposit(positions, velocities, count, inputs, DEPOSIT_WEIGHT_MARGIN, kernel);
     const comparisons = compareDustDeposit(withReference.grid, reference, {
         roundoff: DEPOSIT_ROUNDOFF_HALF, roundings: DEPOSIT_ROUNDINGS, weightError: DEPOSIT_WEIGHT_ERROR,
     });
@@ -97,7 +99,7 @@ async function validateDeposit(context: LabContext, prepare: () => Promise<void>
     // The exact moments of each texel, unscaled and about zero: the variance the particles really have there.
     const exactScales: MomentScales = { momentum: 1, energy: 1 };
     const exact = referenceDustDeposit(positions, velocities, count, { ...inputs, scales: exactScales, reference: () => ({ velocity: [0, 0], uncertainty: 0 }) },
-        DEPOSIT_WEIGHT_MARGIN);
+        DEPOSIT_WEIGHT_MARGIN, kernel);
     const texel = domainSize / DENSITY_RES;
     const referenceAtCenter = (grid: Float32Array, offset: readonly [number, number]) => (x: number, y: number): [number, number] =>
         referenceFromGrid(grid, REFERENCE_RES, offset, domainSize, MOMENTUM_SCALE, (x + 0.5) * texel - domainOffset[0], (y + 0.5) * texel - domainOffset[1]);

@@ -30,6 +30,7 @@ import { secondDeposit, secondDepositLoad } from './scenarios/secondDeposit';
 import { secondDepositCost } from './scenarios/secondDepositCost';
 import { selftest } from './scenarios/selftest';
 import { stabilityScenarios } from './scenarios/stabilityMap';
+import { tscDepositScenarios } from './scenarios/tscDeposit';
 import type { Scenario } from './types';
 
 export const SCENARIOS: readonly Scenario[] = [
@@ -75,4 +76,5 @@ export const SCENARIOS: readonly Scenario[] = [
     diagnosticsCost,
     ...adaptiveStepScenarios,
     ...stabilityScenarios,
+    ...tscDepositScenarios,
 ];

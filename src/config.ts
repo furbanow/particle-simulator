@@ -184,10 +184,13 @@ export const PROTOSTAR_HEATING_T_FLOOR = 1e-3;
 // NOISE_N_SHAPE: the effective number of particles of the temperature a particle sees over the (sum m)^2 / sum m^2 of
 // its 3 x 3 neighborhood: the cloud-in-cell weights, the sum over 3 x 3 cells and the bilinear interpolation spread the
 // particles' weights, 1.27 for a particle at a cell center and up to 1.65 between four cells; 1.5 is what the lab measures
-// (the bias of a thermal gas at alpha = 40, protostar.temperature-noise).
+// (the bias of a thermal gas at alpha = 40, protostar.temperature-noise), and the mean of the theory over the place of the
+// particle in its cell (depositKernel.ts: 1.51). NOISE_N_SHAPE_TSC: the same with the TSC deposit (the tscDeposit switch, C4), whose
+// smoother weights give 1.40 at a cell center, 1.76 between four cells and 1.63 on average (the lab measures 1.38 to 1.42 at the centers).
 // NOISE_N_MIN: the smallest shape of the temperature's Gamma law (below it the temperature carries no information).
 // TEMPERATURE_TAU: time constant (s) of the exponential average of the temperature, well below the cooling time.
 export const PROTOSTAR_NOISE_N_SHAPE = 1.5;
+export const PROTOSTAR_NOISE_N_SHAPE_TSC = 1.63;
 export const PROTOSTAR_NOISE_N_MIN = 1;
 // NOISE_SHIFT_MAX: bound of the Newton step of the curvature correction of the bias (noiseBias.ts, logNoiseBiasCurved): where it
 // would be larger the cell is so cold that its rate is nil anyway, and exp() must stay finite.

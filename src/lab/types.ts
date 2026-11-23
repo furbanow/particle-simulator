@@ -31,6 +31,11 @@ export interface LabOptions {
     cloudVariants: string;
     /** One variant (JSON, see CloudVariant: `overrides`, `molecularWeight`) for the performance probe of the protostar: the same physics in two builds. */
     perfVariant: string;
+    /**
+     * Panel parameters (JSON object) set on every restart, after the defaults and before the scenario's own `params`, for the keys the
+     * restarted algorithm declares: `{"tscDeposit":true}` runs any scenario with the TSC deposit.
+     */
+    params: string;
 }
 
 /** What a scenario is given: the renderer, the real simulation and the helpers that go with them. */

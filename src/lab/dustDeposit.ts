@@ -1,8 +1,9 @@
-// The sticky dust's cloud-in-cell deposit (splat.vert / splat.frag) computed on the CPU in double
+// The sticky dust's deposit (splat.vert / splat.frag: cloud-in-cell, or TSC behind the tscDeposit switch) computed on the CPU in double
 // precision from the positions and velocities read back: the reference the density grid is compared with.
 // Pure (tested in tests/dustLab.test.ts): no GPU, no DOM.
 
 import { MAX_SPECIES } from '../config';
+import { kernelFirstCell, kernelWeight, kernelWidth, type DepositKernel } from '../simulation/depositKernel';
 import { agitation, peculiarEnergy, type Moments, type MomentScales } from '../simulation/stickyDust/granular';
 
 /** Channels of a density texel. */
@@ -43,17 +44,21 @@ export interface DustDepositReference {
 
 /**
  * Deposits `count` particles, read from `positions` (x, y, type, w per texel; a negative w is a removed particle) and
- * `velocities` (vx, vy, ..), the way the splat shaders do: the particle covers the 2 x 2 texels around it with the
- * weights max(1 - |distance between centers|, 0) per axis.
+ * `velocities` (vx, vy, ..), the way the splat shaders do with `kernel`: cloud-in-cell, the particle covers the 2 x 2 texels
+ * around it with the weights max(1 - |distance between centers|, 0) per axis; TSC, the 3 x 3 texels around the one that holds it
+ * with quadratic weights (depositKernel.ts).
  */
 export function referenceDustDeposit(positions: ArrayLike<number>, velocities: ArrayLike<number>, count: number,
-                                     inputs: DustDepositInputs, weightMargin: number): DustDepositReference {
+                                     inputs: DustDepositInputs, weightMargin: number, kernel: DepositKernel = 'cic'): DustDepositReference {
     const res = inputs.resolution;
     const grid = new Float64Array(res * res * DUST_CHANNELS);
     const magnitude = new Float64Array(res * res * DUST_CHANNELS);
     const contributions = new Uint32Array(res * res);
     const energySlack = new Float64Array(res * res);
     const payloadMax = new Array<number>(DUST_CHANNELS).fill(0);
+    const width = kernelWidth(kernel);
+    const reach = width / 2 + weightMargin;
+    const centerMax = kernel === 'cic' ? res : res - 1;
     let deposited = 0;
     for (let i = 0; i < count; i++) {
         const [x, y, z, w] = [positions[i * 4], positions[i * 4 + 1], positions[i * 4 + 2], positions[i * 4 + 3]];
@@ -67,21 +72,21 @@ export function referenceDustDeposit(positions: ArrayLike<number>, velocities: A
         const slackPerWeight = 2 * m * Math.hypot(dx, dy) * inputs.scales.energy * ref.uncertainty;
         const px = (x + inputs.domainOffset[0]) / inputs.domainSize * res;
         const py = (y + inputs.domainOffset[1]) / inputs.domainSize * res;
-        const cx = Math.floor(px - 0.5) + 1;
-        const cy = Math.floor(py - 0.5) + 1;
-        if (!(cx >= 0 && cx <= res && cy >= 0 && cy <= res)) continue;
+        const fx = kernelFirstCell(kernel, px);
+        const fy = kernelFirstCell(kernel, py);
+        if (!(fx + 1 >= 0 && fx + 1 <= centerMax && fy + 1 >= 0 && fy + 1 <= centerMax)) continue;
         deposited++;
         payload.forEach((v, c) => { payloadMax[c] = Math.max(payloadMax[c], Math.abs(v)); });
-        // A 4 x 4 block around the particle covers the GPU's 2 x 2 one and the texels at its margin.
-        for (let iy = cy - 2; iy <= cy + 1; iy++) {
-            const wy = 1 - Math.abs(iy + 0.5 - py);
-            if (iy < 0 || iy >= res || wy <= -weightMargin) continue;
-            for (let ix = cx - 2; ix <= cx + 1; ix++) {
-                const wx = 1 - Math.abs(ix + 0.5 - px);
-                if (ix < 0 || ix >= res || wx <= -weightMargin) continue;
+        // A block one texel wider on each side covers the GPU's and the texels at its margin.
+        for (let iy = fy - 1; iy <= fy + width; iy++) {
+            const oy = iy + 0.5 - py;
+            if (iy < 0 || iy >= res || Math.abs(oy) >= reach) continue;
+            for (let ix = fx - 1; ix <= fx + width; ix++) {
+                const ox = ix + 0.5 - px;
+                if (ix < 0 || ix >= res || Math.abs(ox) >= reach) continue;
                 const texel = iy * res + ix;
                 contributions[texel]++;
-                const weight = Math.max(wx, 0) * Math.max(wy, 0);
+                const weight = kernelWeight(kernel, ox) * kernelWeight(kernel, oy);
                 if (weight === 0) continue;
                 for (let c = 0; c < DUST_CHANNELS; c++) {
                     grid[texel * DUST_CHANNELS + c] += payload[c] * weight;

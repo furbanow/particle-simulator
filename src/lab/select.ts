@@ -30,5 +30,6 @@ export function parseOptions(search: string, defaults: LabOptions): LabOptions {
         cloudSeeds: integer('cloudSeeds', defaults.cloudSeeds),
         cloudVariants: query.get('cloudVariants') ?? defaults.cloudVariants,
         perfVariant: query.get('perfVariant') ?? defaults.perfVariant,
+        params: query.get('params') ?? defaults.params,
     };
 }

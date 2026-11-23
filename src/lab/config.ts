@@ -661,3 +661,29 @@ export const STABILITY_RADII = [0.1, 0.2, 0.25, 0.5, 0.75, 0.9] as const;
 export const STABILITY_RING_WIDTH = 0.05;
 export const STABILITY_EVOLUTION_SECONDS = 30;
 export const STABILITY_EVOLUTION_EVERY = 1.5;
+
+// ---- TSC deposit (C4) ----
+/**
+ * deposit.tsc.parity: the protostar's deposit (SECOND_DEPOSIT_PARTICLES of the default cloud after SECOND_DEPOSIT_FRAMES) and the dust's
+ * (its sparse cloud) with each kernel against the CPU reference of each kernel. protostar.tsc.noise: a thermal gas at rest of
+ * TSC_NOISE_TEMPERATURE T0 filling the area but THERMAL_GAS_MARGIN px, TSC_NOISE_COUNTS particles, TSC_NOISE_DRAWS draws each: the noise of the
+ * temperature and of the density from cell to cell, per kernel. protostar.tsc.aliasing: a blob of TSC_BLOB_PARTICLES particles at one point
+ * at TSC_BLOB_OFFSETS of a cell (along the diagonal) from a cell center, massless probes on rings of TSC_RING_RADII cells at TSC_RING_ANGLES
+ * angles: the pull against the blob's place in its cell and against the angle, and the blob's force on itself. dust.tsc.noise: a uniform
+ * cloud of TSC_DUST_COUNTS grains over the middle TSC_DUST_FILL of the area (each axis), the relative variance of the mass of the texels of
+ * the density grid and of its first TSC_DUST_LEVELS coarser levels (the gravity's), per kernel. cost.tsc-deposit: simulation ms per frame
+ * alternated between the kernels, chunk after chunk (COST_ROUNDS of COST_CHUNK_FRAMES), at TSC_COST_PROTOSTAR_COUNTS and
+ * TSC_COST_DUST_COUNTS, after COST_EARLY_FRAMES frames of the default cloud, and the deposit passes alone on that frozen state.
+ */
+export const TSC_NOISE_TEMPERATURE = 1;
+export const TSC_NOISE_COUNTS = [100_000, 400_000, 1_600_000] as const;
+export const TSC_NOISE_DRAWS = 4;
+export const TSC_BLOB_PARTICLES = 4096;
+export const TSC_BLOB_OFFSETS = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875] as const;
+export const TSC_RING_RADII = [1.5, 3, 6, 12, 24] as const;
+export const TSC_RING_ANGLES = 32;
+export const TSC_DUST_COUNTS = [100_000, 400_000, 1_000_000] as const;
+export const TSC_DUST_FILL = 0.6;
+export const TSC_DUST_LEVELS = 4;
+export const TSC_COST_PROTOSTAR_COUNTS = [400_000, 1_000_000] as const;
+export const TSC_COST_DUST_COUNTS = [400_000, 1_000_000, 3_000_000] as const;

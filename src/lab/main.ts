@@ -3,7 +3,7 @@
 // <pre id="lab-json"> and as window.__labResults, then sets window.__labDone.
 //
 // Query string: ?scenarios=a,b (ids, groups or tags, see select.ts), ?autorun=0 (wait for the
-// button), ?baselineFrames=, ?baselineParticles=, ?perfFrames=, ?noiseReadings=, ?noiseBudgetSeconds=, ?cloudSeeds=, ?cloudVariants=, ?perfVariant= (quick experiments).
+// button), ?baselineFrames=, ?baselineParticles=, ?perfFrames=, ?noiseReadings=, ?noiseBudgetSeconds=, ?cloudSeeds=, ?cloudVariants=, ?perfVariant=, ?params= (quick experiments).
 
 import * as THREE from 'three';
 import { createRenderer } from '../gl/createRenderer';
@@ -69,6 +69,7 @@ function createContext(): LabContext {
             cloudSeeds: CLOUD_VARIANT_SEEDS,
             cloudVariants: '[]',
             perfVariant: '{}',
+            params: '{}',
         }),
         log,
     };

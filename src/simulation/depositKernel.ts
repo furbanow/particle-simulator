@@ -52,3 +52,13 @@ export function neighborhoodNoiseShape(kernel: DepositKernel, offset: number, sa
     const ratio = sum / square;                       // (sum w)^2 / sum w^2 over sum w, per unit density
     return ratio * ratio;
 }
+
+/**
+ * neighborhoodNoiseShape() averaged over the place of the particle that reads the estimate, uniform in its cell (the 2D shape is the
+ * product of the 1D ratios, so the mean of the 1D ratio squared): the PROTOSTAR_NOISE_N_SHAPE of a kernel.
+ */
+export function meanNeighborhoodNoiseShape(kernel: DepositKernel, places = 40, samples = 400): number {
+    let sum = 0;
+    for (let i = 0; i < places; i++) sum += Math.sqrt(neighborhoodNoiseShape(kernel, (i + 0.5) / places, samples));
+    return (sum / places) ** 2;
+}

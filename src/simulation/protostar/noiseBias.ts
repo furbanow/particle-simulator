@@ -144,11 +144,11 @@ export const noiseBias = (particles: number, alpha: number): number => Math.exp(
 /**
  * Effective number of independent particles behind the temperature of a neighborhood whose
  * cloud-in-cell sums are `mass` (sum w m) and `massSquared` (sum w m^2): the effective sample size
- * of a mass-weighted mean, (sum m)^2 / sum m^2, times PROTOSTAR_NOISE_N_SHAPE for the cloud-in-cell
- * weights. A cell without mass has no particles.
+ * of a mass-weighted mean, (sum m)^2 / sum m^2, times the noise shape of the deposit's weights (PROTOSTAR_NOISE_N_SHAPE for
+ * cloud-in-cell, PROTOSTAR_NOISE_N_SHAPE_TSC for TSC). A cell without mass has no particles.
  */
-export function effectiveParticles(mass: number, massSquared: number): number {
-    return massSquared > 0 ? PROTOSTAR_NOISE_N_SHAPE * mass * mass / massSquared : 0;
+export function effectiveParticles(mass: number, massSquared: number, shape = PROTOSTAR_NOISE_N_SHAPE): number {
+    return massSquared > 0 ? shape * mass * mass / massSquared : 0;
 }
 
 /**

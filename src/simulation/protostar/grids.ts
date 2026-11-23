@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
     MAX_SPECIES, PROTOSTAR_COARSE_FACTOR, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_NOISE_EXACT_MARGIN, PROTOSTAR_NOISE_N_MIN,
-    PROTOSTAR_NOISE_N_SHAPE, PROTOSTAR_NOISE_SHIFT_MAX, PROTOSTAR_REFERENCE_INVERSE_MU, PROTOSTAR_STATS_REDUCE_RES, PROTOSTAR_TEMPERATURE_TAU,
+    PROTOSTAR_NOISE_N_SHAPE, PROTOSTAR_NOISE_N_SHAPE_TSC, PROTOSTAR_NOISE_SHIFT_MAX, PROTOSTAR_REFERENCE_INVERSE_MU, PROTOSTAR_STATS_REDUCE_RES, PROTOSTAR_TEMPERATURE_TAU,
 } from '../../config';
 import { additiveBlending, clipSpaceCamera, type Uniform } from '../../gl/common';
 import { GridPass, gridTarget } from '../../gl/gridPass';
@@ -29,9 +29,9 @@ const REDUCE_BLOCK = PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES;
  */
 export const PROTOSTAR_DEFINES = {
     MAX_SPECIES, GRID_RES: PROTOSTAR_GRID_RES, FUSION_RATE_MAX: glslFloat(PROTOSTAR_FUSION_RATE_MAX),
-    NOISE_N_MIN: glslFloat(PROTOSTAR_NOISE_N_MIN), NOISE_N_SHAPE: glslFloat(PROTOSTAR_NOISE_N_SHAPE),
+    NOISE_N_MIN: glslFloat(PROTOSTAR_NOISE_N_MIN),
     NOISE_SHIFT_MAX: glslFloat(PROTOSTAR_NOISE_SHIFT_MAX), NOISE_EXACT_MARGIN: glslFloat(PROTOSTAR_NOISE_EXACT_MARGIN),
-    INVERSE_MU_REF: glslFloat(PROTOSTAR_REFERENCE_INVERSE_MU), GAS_THERMO: 0,
+    INVERSE_MU_REF: glslFloat(PROTOSTAR_REFERENCE_INVERSE_MU), GAS_THERMO: 0, DEPOSIT_TSC: 0,
     ...DRAWING_DEFINES,
 } as const;
 
@@ -68,9 +68,9 @@ const DEPOSIT_KIND_DEFINES = {
     DEPOSIT_MOMENTS_AND_COMPOSITION: DEPOSIT_KIND.momentsAndComposition,
 } as const;
 
-/** Prepends the defines and the shared GLSL (grid sampling and drawings, fusion rate, random numbers). */
+/** Prepends the defines and the shared GLSL (deposit kernel, grid sampling and drawings, fusion rate, random numbers). */
 export const withProtostarCommon = (source: string, defines: Record<string, string | number> = {}): string =>
-    withDefines(`${drawingGlsl}\n${commonGlsl}\n${source}`, { ...PROTOSTAR_DEFINES, ...defines });
+    withDefines(`${kernelGlsl}\n${drawingGlsl}\n${commonGlsl}\n${source}`, { ...PROTOSTAR_DEFINES, ...defines });
 
 /**
  * The uniforms of protostar-common.glsl (and of drawing.glsl, which it uses), shared by reference
@@ -83,6 +83,8 @@ export interface ProtostarCommonUniforms extends DrawingUniforms {
     gridThermo: Uniform<THREE.Texture | null>;
     gridFuel: Uniform<THREE.Texture | null>;
     gridCell: Uniform<number>;
+    /** 1: forceAt() reads the gravity grid with the TSC weights, matched to the TSC deposit (no self-force); 0: bilinearly, matched to cloud-in-cell. */
+    tscForce: Uniform<number>;
     fusionTRef: Uniform<number>;
     noiseCorrection: Uniform<number>;
     seed: Uniform<number>;
@@ -102,7 +104,7 @@ export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonU
     return {
         ...drawing,
         gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null }, gridThermo: { value: null }, gridFuel: { value: null },
-        gridCell: { value: 1 }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },
+        gridCell: { value: 1 }, tscForce: { value: 0 }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },
         reactionTo: perType(-1), reactionRate: perType(0),
         reactionPower: perType(0), reactionBarrier: perType(0), reactionBarrierPower: perType(1), reactionFuel: perType(-1),
         reactionReference: perType(1), reactionDensityExponent: perType(1),
@@ -194,7 +196,7 @@ class DepositPass {
         const kernel = { DEPOSIT_TSC: tsc ? 1 : 0 };
         this.materials[index] ??= new THREE.ShaderMaterial({
             uniforms: this.uniforms,
-            vertexShader: withProtostarCommon(`${kernelGlsl}\n${depositVert}`, {
+            vertexShader: withProtostarCommon(depositVert, {
                 DEPOSIT_KIND: this.kind, ...DEPOSIT_KIND_DEFINES, ...kernel, GAS_THERMO: this.kind === DEPOSIT_KIND.power ? 1 : 0,
             }),
             fragmentShader: withDefines(`${kernelGlsl}\n${depositFrag}`, { DEPOSIT_KIND: this.kind, ...DEPOSIT_KIND_DEFINES, ...kernel }),
@@ -269,6 +271,8 @@ export class ProtostarGrids {
         speciesFuel: { value: Array.from({ length: MAX_SPECIES }, () => new THREE.Vector2()) },
         temperatureWeight: { value: 1 },
         molecularWeight: { value: 1 },
+        /** The noise shape of the deposit's kernel (PROTOSTAR_NOISE_N_SHAPE, or _TSC): the gas pass's effective number of particles. */
+        noiseShape: { value: PROTOSTAR_NOISE_N_SHAPE },
     };
     /**
      * Dev-only (the lab's cost comparison): false makes the moments pass deposit the moments alone,
@@ -319,7 +323,7 @@ export class ProtostarGrids {
             gridMoments: this.momentsTexture, gridComposition: { value: this.moments.target.textures[1] },
             gridThermoPrevious: { value: gasTargets[1 - current].textures[1] },
             depositVelScale: u.depositVelScale, densityPerDeposit: u.densityPerDeposit, temperatureWeight: u.temperatureWeight,
-            molecularWeight: u.molecularWeight,
+            molecularWeight: u.molecularWeight, noiseShape: u.noiseShape,
         }, gasTargets[current]);
         this.gasPasses = [gasPass(0), gasPass(1)];
         common.gridGas.value = this.gasPasses[0].target.texture;
@@ -398,10 +402,13 @@ export class ProtostarGrids {
 
     /**
      * Deposits the particles with the TSC kernel (3x3 cells, quadratic weights) instead of the cloud-in-cell one (2x2, bilinear):
-     * the moments, the composition and the fusion power alike (the `tscDeposit` switch, C4).
+     * the moments, the composition and the fusion power alike (the `tscDeposit` switch, C4); the particles then read the gravity with
+     * the same weights, as a mismatched read gives each particle a force on itself.
      */
     setTscDeposit(tsc: boolean): void {
         this.tscDeposit = tsc;
+        this.common.tscForce.value = tsc ? 1 : 0;
+        this.u.noiseShape.value = tsc ? PROTOSTAR_NOISE_N_SHAPE_TSC : PROTOSTAR_NOISE_N_SHAPE;
         for (const pass of [this.moments, this.power, this.momentsAlone]) pass?.setTsc(tsc);
     }
 

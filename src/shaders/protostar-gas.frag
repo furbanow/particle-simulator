@@ -13,13 +13,14 @@
 // read it. The averaged one in the second attachment is T; the factor mu / mu_H goes to its third channel. The third
 // attachment holds the mass fractions of the fuel of the two reactions (X: hydrogen, Y: helium) of the neighborhood,
 // which the rates of fusion read (A2).
-// Defines: GRID_RES, NOISE_N_SHAPE, INVERSE_MU_REF.
+// Defines: GRID_RES, INVERSE_MU_REF.
 uniform sampler2D gridMoments;          // (m, m vx, m vy, m |v|^2), deposit units
 uniform sampler2D gridComposition;      // (m / mu, m X, m^2, m Y): m / mu in x, the mass of hydrogen in y, m^2 in z, the mass of helium in w
 uniform sampler2D gridThermoPrevious;   // the second attachment of the previous substep
 uniform float depositVelScale;
 uniform float densityPerDeposit;        // rho / rho0 per deposited mass in a 3x3 neighborhood
 uniform float temperatureWeight;        // weight of the new temperature in the average: 1 - exp(-dt / tau), 1 without history
+uniform float noiseShape;              // effective particles over (sum m)^2 / sum m^2: the deposit kernel's (PROTOSTAR_NOISE_N_SHAPE, _TSC)
 uniform float molecularWeight;          // 1: the temperature carries the molecular weight; 0: it is the dispersion (lab: the model before A1)
 
 layout(location = 1) out highp vec4 outThermo;   // (T averaged over time px^2/s^2, effective particles, mu / mu_H, 0)
@@ -55,7 +56,7 @@ void main() {
     float previous = texelFetch(gridThermoPrevious, cell, 0).x;
     float averaged = previous > 0.0 ? mix(previous, temperature, temperatureWeight) : temperature;
     // Effective sample size of a mass-weighted mean, (sum m)^2 / sum m^2, times the shape factor of the weights.
-    float particles = comp.z > 0.0 ? NOISE_N_SHAPE * s.x * s.x / comp.z : 0.0;
+    float particles = comp.z > 0.0 ? noiseShape * s.x * s.x / comp.z : 0.0;
     outThermo = vec4(averaged, particles, factor, 0.0);
     // Mass fractions of the fuels, the same ratios of 3x3 sums of the same weights as the factor (a half-float deposit errs alike in both).
     outFuel = vec4(clamp(vec2(comp.y, comp.w) / s.x, 0.0, 1.0), 0.0, 0.0);

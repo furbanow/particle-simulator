@@ -64,6 +64,22 @@ export interface RunOptions {
     weights?: readonly number[];
 }
 
+/** The page's `params` option (LabOptions.params): the booleans, numbers and strings of a JSON object, nothing if it is not one. */
+export function pageParams(context: LabContext): ParamValues {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(context.options.params);
+    } catch {
+        return {};
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+    const out: ParamValues = {};
+    for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') out[key] = value;
+    }
+    return out;
+}
+
 /**
  * Restarts the simulation as the application does after a click on Start: the algorithm at its
  * default parameters and speed, a seeded cloud, `resize()` already done by the lab page.
@@ -77,6 +93,8 @@ export async function restart(context: LabContext, options: RunOptions): Promise
     simulation.paused = false;
     for (const [key, value] of Object.entries(defaultParams(algorithm))) simulation.setParam(key, value);
     simulation.setParam(PARTICLE_COUNT_PARAM, options.count);
+    const declared = new Set(algorithm.params.map(p => p.key));
+    for (const [key, value] of Object.entries(pageParams(context))) if (declared.has(key)) simulation.setParam(key, value);
     for (const [key, value] of Object.entries(options.params ?? {})) simulation.setParam(key, value);
     const overrides = options.overrides ?? {};
     const flatRates = options.flatRates === true;

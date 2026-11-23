@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { referenceDeposit } from '../src/lab/depositReference';
-import { kernelStencil, kernelWeight, neighborhoodNoiseShape, type DepositKernel } from '../src/simulation/depositKernel';
+import { PROTOSTAR_NOISE_N_SHAPE, PROTOSTAR_NOISE_N_SHAPE_TSC } from '../src/config';
+import { kernelStencil, kernelWeight, meanNeighborhoodNoiseShape, neighborhoodNoiseShape, type DepositKernel } from '../src/simulation/depositKernel';
 import type { DepositInputs } from '../src/simulation/protostar/grids';
 
 const KERNELS: readonly DepositKernel[] = ['cic', 'tsc'];
@@ -41,6 +42,11 @@ describe('the noise shape of a 3x3 neighborhood', () => {
     it('is the cloud-in-cell factor of config.ts: 1.27 at a cell center, 1.65 between four cells', () => {
         expect(neighborhoodNoiseShape('cic', 0)).toBeCloseTo(81 / 64, 3);    // (3 / (8/3))^2
         expect(neighborhoodNoiseShape('cic', 0.5)).toBeCloseTo(1.653, 2);
+    });
+
+    it('averaged over the place of the particle, is the shape of config.ts: 1.5 measured for cloud-in-cell, 1.63 for TSC', () => {
+        expect(meanNeighborhoodNoiseShape('cic')).toBeCloseTo(PROTOSTAR_NOISE_N_SHAPE, 1);
+        expect(meanNeighborhoodNoiseShape('tsc')).toBeCloseTo(PROTOSTAR_NOISE_N_SHAPE_TSC, 2);
     });
 
     it('is larger with TSC: about 7 to 11 % more effective particles', () => {
