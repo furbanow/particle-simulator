@@ -5,8 +5,18 @@ import { filteredGridTarget, GridPass } from '../gl/gridPass';
 import { withDefines } from '../gl/withDefines';
 import referenceGlsl from '../shaders/density-reference.glsl?raw';
 import referenceFrag from '../shaders/density-reference.frag?raw';
+import kernelGlsl from '../shaders/deposit-kernel.glsl?raw';
 import splatVert from '../shaders/splat.vert?raw';
 import splatFrag from '../shaders/splat.frag?raw';
+
+/** The splat's shaders with the cloud-in-cell kernel or the TSC one. */
+const splatShaders = (tsc: boolean): { vertexShader: string; fragmentShader: string } => {
+    const defines = { MAX_SPECIES, DEPOSIT_TSC: tsc ? 1 : 0 };
+    return {
+        vertexShader: withDefines(`${referenceGlsl}\n${kernelGlsl}\n${splatVert}`, defines),
+        fragmentShader: withDefines(`${kernelGlsl}\n${splatFrag}`, defines),
+    };
+};
 
 /** Texels a side of the reference velocity's grid. */
 export const REFERENCE_RES = DENSITY_RES >> REFERENCE_LEVEL;
@@ -14,7 +24,7 @@ export const REFERENCE_RES = DENSITY_RES >> REFERENCE_LEVEL;
 /**
  * Mipmapped density field: mass in R, scaled momentum in G/B, agitation energy in A (m |v - v_ref|^2 x
  * ENERGY_SCALE about a reference velocity, see density-reference.glsl). Particles are splatted with a
- * cloud-in-cell kernel into a square power-of-two grid twice the screen size, shifted randomly
+ * cloud-in-cell kernel (or TSC, setTsc(): deposit-kernel.glsl) into a square power-of-two grid twice the screen size, shifted randomly
  * every step so the coarse mip levels don't bias the pull toward fixed texel centers.
  */
 export class DensityField {
@@ -33,7 +43,9 @@ export class DensityField {
     /** Dev-only (the lab's comparison): false deposits the energy about a zero reference, as a plain E = m |v|^2. */
     referenceEnabled = true;
 
-    private readonly material: THREE.ShaderMaterial;
+    /** The splat's material for each kernel (cloud-in-cell, TSC), the TSC one built on first use; they share their uniforms. */
+    private readonly materials: [THREE.ShaderMaterial, THREE.ShaderMaterial | null];
+    private readonly points: THREE.Points;
     private readonly scene = new THREE.Scene();
     private readonly reference: GridPass;
     /** Domain offset of the deposit the target holds. */
@@ -45,7 +57,7 @@ export class DensityField {
             textureDensity: { value: this.target.texture }, level: { value: REFERENCE_LEVEL },
         }, filteredGridTarget(REFERENCE_RES, THREE.RGBAFormat));
         this.referenceTexture = { value: this.reference.target.texture };
-        this.material = new THREE.ShaderMaterial({
+        this.materials = [new THREE.ShaderMaterial({
             uniforms: {
                 texturePosition: { value: null },
                 textureVelocity: { value: null },
@@ -58,13 +70,12 @@ export class DensityField {
                 momentumScale: { value: MOMENTUM_SCALE },
                 energyScale: { value: ENERGY_SCALE },
             },
-            vertexShader: withDefines(`${referenceGlsl}\n${splatVert}`, { MAX_SPECIES }),
-            fragmentShader: splatFrag,
+            ...splatShaders(false),
             ...additiveBlending,
-        });
-        const points = new THREE.Points(geometry, this.material);
-        points.frustumCulled = false;
-        this.scene.add(points);
+        }), null];
+        this.points = new THREE.Points(geometry, this.materials[0]);
+        this.points.frustumCulled = false;
+        this.scene.add(this.points);
         clearTarget(renderer, this.target);
         clearTarget(renderer, this.reference.target);
     }
@@ -72,6 +83,15 @@ export class DensityField {
     /** Dev-only, read-only: the render target of the reference velocity, for the lab page (src/lab). Not used by the app. */
     get debugReferenceTarget(): THREE.WebGLRenderTarget {
         return this.reference.target;
+    }
+
+    /** Splats with the TSC kernel (3x3 texels, quadratic weights) instead of the cloud-in-cell one (the `tscDeposit` switch, C4). */
+    setTsc(tsc: boolean): void {
+        if (tsc && !this.materials[1]) {
+            const base = this.materials[0];
+            this.materials[1] = new THREE.ShaderMaterial({ uniforms: base.uniforms, ...splatShaders(true), ...additiveBlending });
+        }
+        this.points.material = (tsc ? this.materials[1] : null) ?? this.materials[0];
     }
 
     resize(width: number, height: number): void {
@@ -90,8 +110,9 @@ export class DensityField {
      */
     render(positions: THREE.Texture, velocities: THREE.Texture): void {
         this.updateReference();
-        this.material.uniforms.texturePosition.value = positions;
-        this.material.uniforms.textureVelocity.value = velocities;
+        const { uniforms } = this.materials[0];      // shared by both materials
+        uniforms.texturePosition.value = positions;
+        uniforms.textureVelocity.value = velocities;
         this.renderer.setRenderTarget(this.target);
         // The alpha channel holds a sum: it starts from 0, whatever the renderer clears to.
         const clearAlpha = this.renderer.getClearAlpha();
@@ -120,6 +141,6 @@ export class DensityField {
     dispose(): void {
         this.target.dispose();
         this.reference.dispose();
-        this.material.dispose();
+        for (const material of this.materials) material?.dispose();
     }
 }

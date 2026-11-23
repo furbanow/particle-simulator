@@ -132,6 +132,7 @@ describe('sticky dust keeps its defaults', () => {
     it('parameters', () => {
         expect(defaultParams(STICKY_DUST)).toEqual({
             count: 400000, gravity: 2.5, stickiness: 100, collisionSpeed: 600, supernovaThreshold: 37, concentrationRadius: 65, supernovaPower: 70,
+            tscDeposit: false,
         });
         const bounds = STICKY_DUST.params.map(p => p.kind === 'number' ? [p.key, p.min, p.max, p.step, p.tab] : []);
         expect(bounds).toEqual([
@@ -142,6 +143,7 @@ describe('sticky dust keeps its defaults', () => {
             ['supernovaThreshold', 0, 100, 1, 'supernova'],
             ['concentrationRadius', 10, 400, 5, 'supernova'],
             ['supernovaPower', 5, 100, 5, 'supernova'],
+            [],
         ]);
         expect([PARTICLE_COUNT_SLIDER, SUPERNOVA_THRESHOLD_SLIDER, CONCENTRATION_RADIUS_SLIDER, SUPERNOVA_POWER_SLIDER,
             STICKINESS_SLIDER, COLLISION_SPEED_SLIDER].map(s => s.default)).toEqual([400000, 37, 65, 70, 100, 600]);
@@ -152,9 +154,9 @@ describe('sticky dust keeps its defaults', () => {
         const display = Object.fromEntries(STICKY_DUST.params.map(p => [p.key, p.kind === 'number' ? p.format(p.default) : '']));
         expect(display).toEqual({
             count: (400000).toLocaleString('en'), gravity: 'G = 2.5', stickiness: '100%', collisionSpeed: '600 px/s',
-            supernovaThreshold: '37%', concentrationRadius: '65 px', supernovaPower: '70%',
+            supernovaThreshold: '37%', concentrationRadius: '65 px', supernovaPower: '70%', tscDeposit: '',
         });
-        expect(tabsOf(STICKY_DUST.params).map(t => t.id)).toEqual(['initial', 'physics', 'supernova']);
+        expect(tabsOf(STICKY_DUST.params).map(t => t.id)).toEqual(['initial', 'physics', 'supernova', 'features']);
     });
 
     it('particle types: the first ten elements, atomic masses in u', () => {
@@ -191,7 +193,7 @@ describe('panel tabs', () => {
         expect(Object.fromEntries(flags)).toEqual({
             count: true, alphaVir: true, betaRot: true, profile: true, turbulence: true, gravity: false, softening: false, radiation: false,
             kappa: false, minTemperature: false, fusionRate: false, heFusionRate: false, feedback: false,
-            diagnostics: false, adaptiveTimeStep: false, jeansFloor: false, stabilityMap: false,
+            diagnostics: false, adaptiveTimeStep: false, jeansFloor: false, stabilityMap: false, tscDeposit: false,
         });
     });
 });

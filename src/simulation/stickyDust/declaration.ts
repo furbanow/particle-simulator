@@ -26,6 +26,7 @@ export const STICKY_DUST_PARAM = {
     supernovaThreshold: 'supernovaThreshold',
     concentrationRadius: 'concentrationRadius',
     supernovaPower: 'supernovaPower',
+    tscDeposit: 'tscDeposit',
 } as const;
 
 export const STICKY_DUST_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -56,6 +57,8 @@ const params: readonly ParamDef[] = [
     { ...sliderFields(SUPERNOVA_POWER_SLIDER), key: STICKY_DUST_PARAM.supernovaPower, tab: 'supernova', label: t('algo.stickyDust.param.supernovaPower.label'),
         doc: t('algo.stickyDust.param.supernovaPower.doc'),
         format: percent },
+    { kind: 'boolean', key: STICKY_DUST_PARAM.tscDeposit, tab: 'features', label: t('algo.stickyDust.param.tscDeposit.label'),
+        doc: t('algo.stickyDust.param.tscDeposit.doc'), default: false },
 ];
 
 // Rendered diameters are proportional to the atomic radii, the largest atom filling the slider.

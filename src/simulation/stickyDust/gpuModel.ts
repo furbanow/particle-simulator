@@ -152,6 +152,7 @@ export class StickyDustModel implements GpuModel {
 
     setParam(key: string, value: ParamValue): void {
         this.params[key] = value;
+        if (key === P.tscDeposit) this.context.density.setTsc(value === true);
         if (typeof value !== 'number') return;
         switch (key) {
             case P.gravity: this.velocityUniforms.kGravity.value = value * DUST_GRAVITY_GAIN; break;

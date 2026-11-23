@@ -1,5 +1,5 @@
-// Cloud-in-cell deposit of the particles on the protostar grid: each particle covers the 2x2
-// nearest cells with bilinear weights, and every channel is added with that weight. DEPOSIT_KIND:
+// Deposit of the particles on the protostar grid with the kernel of deposit-kernel.glsl (included before: cloud-in-cell, or
+// TSC behind the tscDeposit switch): every channel is added with the weight of each cell the particle covers. DEPOSIT_KIND:
 //  DEPOSIT_MOMENTS                  (m, m vx, m vy, m |v|^2)
 //  DEPOSIT_MOMENTS_AND_COMPOSITION  the same to the first attachment, and to the second one the
 //                                   composition (m / mu, m X, m^2, m Y): m / mu = m * (1 + Z) / A, the
@@ -8,7 +8,7 @@
 //                                   0 otherwise, so the products and the custom elements are in
 //                                   neither -- and the sum of the squared masses
 //  DEPOSIT_POWER                    (fusion power): (m * expected fusions per s * energy per unit mass, expected fusions per s)
-// Defines: MAX_SPECIES, GRID_RES, DEPOSIT_KIND and the values of the kinds. Masses in units of the mean particle mass. A particle is a
+// Defines: MAX_SPECIES, GRID_RES, DEPOSIT_TSC, DEPOSIT_KIND and the values of the kinds. Masses in units of the mean particle mass. A particle is a
 // parcel of constant mass (A4): every type deposits the same m, the atomic mass of the editor only enters through 1 / mu and the energy.
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
@@ -27,7 +27,7 @@ void main() {
     vCell = vec2(0.0);
     vValue = vec4(0.0);
     vValue2 = vec4(0.0);
-    gl_PointSize = 2.0;
+    gl_PointSize = DEPOSIT_POINT_SIZE;
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);             // outside the clip volume: dropped
     int k = clamp(int(posData.z + 0.5), 0, MAX_SPECIES - 1);
     float m = speciesDepositMass[k] * depositMassScale;
@@ -44,6 +44,6 @@ void main() {
 #endif
     vec2 p = posData.xy / gridCell;
     vCell = p;
-    vec2 c = floor(p - 0.5) + 1.0;
+    vec2 c = depositCenter(p);
     gl_Position = vec4(c / float(GRID_RES) * 2.0 - 1.0, 0.0, 1.0);
 }

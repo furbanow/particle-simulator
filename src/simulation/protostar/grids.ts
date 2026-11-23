@@ -8,6 +8,7 @@ import { GridPass, gridTarget } from '../../gl/gridPass';
 import { glslFloat, withDefines } from '../../gl/withDefines';
 import { DRAWING_DEFINES, drawingGlsl, type DrawingUniforms } from '../drawing/DrawingField';
 import commonGlsl from '../../shaders/protostar-common.glsl?raw';
+import kernelGlsl from '../../shaders/deposit-kernel.glsl?raw';
 import depositVert from '../../shaders/protostar-deposit.vert?raw';
 import depositFrag from '../../shaders/protostar-deposit.frag?raw';
 import gasFrag from '../../shaders/protostar-gas.frag?raw';
@@ -167,24 +168,39 @@ export interface GridScales {
     softening: number;
 }
 
-/** An additive cloud-in-cell deposit of the particles into a render target. */
+/**
+ * An additive deposit of the particles into a render target, with the cloud-in-cell kernel or the TSC one (deposit-kernel.glsl):
+ * one material per kernel, the TSC one built on first use.
+ */
 class DepositPass {
-    readonly material: THREE.ShaderMaterial;
+    private readonly materials: [THREE.ShaderMaterial | null, THREE.ShaderMaterial | null] = [null, null];
+    private readonly points: THREE.Points;
     private readonly scene = new THREE.Scene();
 
-    constructor(kind: DepositKind, uniforms: Record<string, THREE.IUniform>, geometry: THREE.BufferGeometry,
+    constructor(private readonly kind: DepositKind, private readonly uniforms: Record<string, THREE.IUniform>, geometry: THREE.BufferGeometry,
                 readonly target: THREE.WebGLRenderTarget) {
-        this.material = new THREE.ShaderMaterial({
-            uniforms,
-            vertexShader: withProtostarCommon(depositVert, {
-                DEPOSIT_KIND: kind, ...DEPOSIT_KIND_DEFINES, GAS_THERMO: kind === DEPOSIT_KIND.power ? 1 : 0,
+        this.points = new THREE.Points(geometry, this.material(false));
+        this.points.frustumCulled = false;
+        this.scene.add(this.points);
+    }
+
+    /** Deposits with the TSC kernel (true) or the cloud-in-cell one (false) from the next render. */
+    setTsc(tsc: boolean): void {
+        this.points.material = this.material(tsc);
+    }
+
+    private material(tsc: boolean): THREE.ShaderMaterial {
+        const index = tsc ? 1 : 0;
+        const kernel = { DEPOSIT_TSC: tsc ? 1 : 0 };
+        this.materials[index] ??= new THREE.ShaderMaterial({
+            uniforms: this.uniforms,
+            vertexShader: withProtostarCommon(`${kernelGlsl}\n${depositVert}`, {
+                DEPOSIT_KIND: this.kind, ...DEPOSIT_KIND_DEFINES, ...kernel, GAS_THERMO: this.kind === DEPOSIT_KIND.power ? 1 : 0,
             }),
-            fragmentShader: withDefines(depositFrag, { DEPOSIT_KIND: kind, ...DEPOSIT_KIND_DEFINES }),
+            fragmentShader: withDefines(`${kernelGlsl}\n${depositFrag}`, { DEPOSIT_KIND: this.kind, ...DEPOSIT_KIND_DEFINES, ...kernel }),
             ...additiveBlending,
         });
-        const points = new THREE.Points(geometry, this.material);
-        points.frustumCulled = false;
-        this.scene.add(points);
+        return this.materials[index];
     }
 
     render(renderer: THREE.WebGLRenderer): void {
@@ -194,7 +210,7 @@ class DepositPass {
 
     dispose(): void {
         this.target.dispose();
-        this.material.dispose();
+        for (const material of this.materials) material?.dispose();
     }
 }
 
@@ -226,6 +242,7 @@ export class ProtostarGrids {
     private readonly depositUniforms: Record<string, THREE.IUniform>;
     private readonly blendType: THREE.TextureDataType;
     private readonly power: DepositPass;
+    private tscDeposit = false;
     /** The gas pass, drawn into one of two targets in turn: the averaged temperature of the previous substep is read from the other. */
     private readonly gasPasses: readonly [GridPass, GridPass];
     private gasCurrent = 0;
@@ -379,6 +396,15 @@ export class ProtostarGrids {
         this.u.speciesFuel.value.forEach((fuel, k) => fuel.set(channels[k] === 0 ? 1 : 0, channels[k] === 1 ? 1 : 0));
     }
 
+    /**
+     * Deposits the particles with the TSC kernel (3x3 cells, quadratic weights) instead of the cloud-in-cell one (2x2, bilinear):
+     * the moments, the composition and the fusion power alike (the `tscDeposit` switch, C4).
+     */
+    setTscDeposit(tsc: boolean): void {
+        this.tscDeposit = tsc;
+        for (const pass of [this.moments, this.power, this.momentsAlone]) pass?.setTsc(tsc);
+    }
+
     /** Dev-only, read-only: the values the deposit shader runs with, to compute the deposit again on the CPU. */
     get debugDepositInputs(): DepositInputs {
         return {
@@ -457,6 +483,7 @@ export class ProtostarGrids {
     private momentsWithoutComposition(): DepositPass {
         this.momentsAlone ??= new DepositPass(DEPOSIT_KIND.moments, this.depositUniforms, this.geometry,
             gridTarget(PROTOSTAR_GRID_RES, this.blendType));
+        this.momentsAlone.setTsc(this.tscDeposit);
         return this.momentsAlone;
     }
 

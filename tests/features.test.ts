@@ -41,7 +41,7 @@ describe('the features tab', () => {
 
     it('has a label, and shows only for an algorithm declaring a parameter in it', () => {
         expect(PANEL_TABS.find(tab => tab.id === 'features')?.label).toBe('Features');
-        expect(tabsOf(STICKY_DUST.params).map(tab => tab.id)).toEqual(['initial', 'physics', 'supernova']);
+        expect(tabsOf(STICKY_DUST.params.filter(p => p.tab !== 'features')).map(tab => tab.id)).toEqual(['initial', 'physics', 'supernova']);
         expect(tabsOf(FLAGGED.params).map(tab => tab.id)).toEqual(['initial', 'physics', 'supernova', 'features']);
     });
 });

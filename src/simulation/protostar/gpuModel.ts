@@ -213,6 +213,7 @@ export class ProtostarModel implements GpuModel {
         if (key === P.kappa && typeof value === 'number') this.own.opacityKappa.value = value;
         if (key === P.minTemperature && typeof value === 'number') this.own.minTemperature.value = value;
         if (key === P.jeansFloor) this.jeansFloor = value === true;
+        if (key === P.tscDeposit) this.grids.setTscDeposit(value === true);
         if (key === P.diagnostics) this.setDiagnostics(value === true);
         if (key === P.adaptiveTimeStep) this.setAdaptiveStep(value === true);
         if (key === P.stabilityMap) {

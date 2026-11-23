@@ -1,6 +1,6 @@
-// Cloud-in-cell splat: each particle covers the 2x2 nearest density texels with bilinear weights. It deposits
+// Splat with the kernel of deposit-kernel.glsl (cloud-in-cell, or TSC behind the tscDeposit switch). It deposits
 // its mass, its momentum and its agitation energy m |v - v_ref|^2 about the reference velocity of
-// density-reference.glsl (included before). Defines: MAX_SPECIES.
+// density-reference.glsl and deposit-kernel.glsl (included before). Defines: MAX_SPECIES, DEPOSIT_TSC.
 uniform sampler2D texturePosition;
 uniform sampler2D textureVelocity;
 uniform vec2 domainOffset;
@@ -29,7 +29,7 @@ void main() {
     vVel = texture2D(textureVelocity, reference).xy;
     vec2 relative = vVel - referenceVelocity(posData.xy, domainSize, momentumScale);
     vEnergy = dot(relative, relative) * energyScale;
-    vec2 c = floor(p - 0.5) + 1.0;
+    vec2 c = depositCenter(p);
     gl_Position = vec4(c / densityRes * 2.0 - 1.0, 0.0, 1.0);
-    gl_PointSize = 2.0;
+    gl_PointSize = DEPOSIT_POINT_SIZE;
 }

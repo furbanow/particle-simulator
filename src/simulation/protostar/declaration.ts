@@ -43,6 +43,7 @@ export const PROTOSTAR_PARAM = {
     adaptiveTimeStep: 'adaptiveTimeStep',
     jeansFloor: 'jeansFloor',
     stabilityMap: 'stabilityMap',
+    tscDeposit: 'tscDeposit',
 } as const;
 
 export const PROTOSTAR_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -139,6 +140,8 @@ const params: readonly ParamDef[] = [
     { kind: 'choice', key: PROTOSTAR_PARAM.stabilityMap, tab: 'features', label: t('algo.protostar.param.stabilityMap.label'), default: 'off',
         options: STABILITY_MAP_MODES.map(value => ({ value, label: t(`algo.protostar.option.stabilityMap.${value}`) })),
         doc: t('algo.protostar.param.stabilityMap.doc') },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.tscDeposit, tab: 'features', label: t('algo.protostar.param.tscDeposit.label'),
+        doc: t('algo.protostar.param.tscDeposit.doc'), default: false },
 ];
 
 const element = (symbol: string) => {
