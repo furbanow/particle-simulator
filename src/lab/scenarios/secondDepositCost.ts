@@ -91,11 +91,12 @@ export const secondDepositCost: Scenario = {
             return { status: 'skip', metrics: { valid: false }, details: `INVALID: software renderer (${context.rendererName}), timings are meaningless.` };
         }
         const { simulation } = context;
-        const grids = protostarModel(context).debugGrids;
         let simulatedFrames = 0;
         const simulate = () => { simulation.step(); simulation.endFrame(); simulatedFrames++; };
 
         await restart(context, { count: COST_PARTICLES });
+        // After the restart: before it, the running algorithm may be another one (the scenarios before this one).
+        const grids = protostarModel(context).debugGrids;
         // The early state is a number of frames, not a duration: the cloud has not collapsed yet, whatever the machine's speed.
         await warmUp(context, simulate, COST_EARLY_FRAMES, COST_EARLY_FRAMES, 0);
         const framesAtEarly = simulatedFrames;

@@ -758,6 +758,69 @@ What changed against the build before, honestly:
 
 - **Cost** (six alternated pairs on the GPU in its P5 state, [the spike](spikes/a4-constant-mass-fusion.md)): the late window of the default cloud (frames 1 000 to 1 040) costs **15.6 -> 23.3 ms/frame at 400 000 particles and 27.0 -> 41.8 at 1 000 000** (x1.5: nothing is removed any more); the early window is the same load (50.0 against 51.1 ms at 1 000 000; at 400 000 the pairs read 25.4 against 10.8 and a clocked pair 10.9 against 11.0: a state of the GPU); the worst frame over the median of the periodic readings falls from 65, 68 and 135 ms to 8, 14 and 26 ms at 400 000, 1 000 000 and 2 000 000 particles. The type count on the GPU costs 2.1, 4.2 and 5.9 ms per count at 400 000, 1 000 000 and 2 000 000 particles, every 10 frames. The first-visit benchmark's cap is 580 000 for both builds at equal early cost (replayed with a fake 60 Hz clock).
 
+## Reference on the RTX 5070
+
+The whole lab run again on a new development machine, before phase C1, so that later phases compare with numbers of the same machine
+(compare ratios with the GTX 1060 tables above, not milliseconds).
+
+| | |
+|---|---|
+| Date | 2026-11-23 |
+| Code | commit `04d892c` (the head of `feat/improvements` after C4, plus C1's pure twin: no change of the simulation), served frozen from a worktree |
+| Renderer string | `ANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)` |
+| Browser | HeadlessChrome 157 on Windows, started from WSL2 (`--angle default`, Direct3D 11), `EXT_float_blend` available |
+| Command | `npx vite --port 5199` in the worktree, then `LAB_CHROME=... LAB_TMPDIR=... node scripts/run-lab.mjs --angle default --url http://localhost:5199/particle-simulator/lab.html` ([lab.md](lab.md)) |
+| Whole run | 31 minutes, 83 scenarios: 78 pass, 1 skip (the tuning scenario without variants), 4 fail (below) |
+
+**The default cloud** (`baseline.protostar.default-cloud`, the current model: 400 000 particles, 34 s of simulated time in 8.4 s of wall time):
+
+| t (s) | frame | core T (MK) | peak density (rho0) | fusions / s | omega.dt | H, He, C |
+|---|---|---|---|---|---|---|
+| 0.28 | 10 | 2.5 | 1.1 | 0.031 | 0.009 | 400 000, 0, 0 |
+| 1.42 | 50 | 3.9 | 1.9 | 0.53 | 0.015 | 400 000, 0, 0 |
+| 2.27 | 80 | 10.7 | 6.2 | 289 | 0.032 | 399 967, 33, 0 |
+| 4.25 | 150 | 5.8 | 2.2 | 3.9 | 0.018 | 265 535, 119 698, 14 767 |
+| 8.22 | 290 | 4.4 | 2.3 | 0.27 | 0.020 | 265 535, 119 698, 14 767 |
+| 11.6 | 410 | 14.5 | 8.5 | 154 | 0.044 | 265 313, 119 920, 14 767 |
+| 14.5 | 510 | 19.4 | 10.4 | 2 244 | 0.049 | 263 235, 121 998, 14 767 |
+| 20.4 | 720 | 51.3 | 20.0 | 14 931 | 0.064 | 161 915, 223 106, 14 979 |
+| 25.5 | 900 | 128.4 | 104.9 | 13 775 | 0.168 | 54 546, 107 210, 238 244 |
+| 34 | 1200 | 113.0 | 192.6 | 913 | 0.237 | 35 717, 116 730, 247 553 |
+
+**Determinism on Direct3D 11.** Two runs of the same seed are not always identical to the last bit here: the default cloud replayed on the
+same code differs from 4.5 s on at 2e-5, and by up to 0.3 % in the core temperature and 2 % in the fusion rate at 34 s; `lab.selftest`'s
+replay check failed once in the whole run (6.2e-6 in the moments grid) and passes alone. The order of the additive blending of many
+fragments into one texel is the likely cause (it was exact on the GTX 1060 with OpenGL). Compare runs of this machine within that spread.
+
+**Performance** (simulation and whole frame, ms; ratio GTX 1060 / RTX 5070 for the simulation):
+
+| Algorithm | Particles | Simulation | Whole frame | 1060 / 5070 |
+|---|---|---|---|---|
+| Protostar | 400 000 | 3.14 (3.12 to 3.45 over five pages) | 5.0 | 2.6 |
+| Protostar | 1 000 000 | 5.75 | 8.8 | 3.1 |
+| Sticky dust | 400 000 | 1.25 | 1.93 | |
+| Sticky dust | 1 000 000 | 2.37 | 3.50 | |
+| Sticky dust | 3 000 000 | 6.99 | 9.15 | |
+
+The deposits dominate the protostar here: the moments (with the composition) and the power deposits are 1.38 ms per substep at 400 000
+particles and 3.0 ms at 1 000 000 (`cost.tsc-deposit`), 60 to 75 % of the simulation; the TSC deposit costs +74 % (400 000) and +78 %
+(1 000 000) per protostar frame on this GPU, against +44 % and +68 % on the 1060. The protostar's early and late windows
+(`perf.protostarPhases.*`) read 3.5 and 6.2 ms (400 000), 6.5 and 11.2 ms (1 000 000). The first-visit benchmark's cap will be far higher
+than on the 1060; the lab does not use it (its `Simulation` keeps `MAX_PARTICLES` and every scenario sets its count), and the application's
+default count stays min(400 000, cap).
+
+**The four failures**:
+- `lab.selftest`, replay check: see the determinism above.
+- `cost.protostar.second-deposit` and `cost.protostar.diagnostics`: they took the protostar's model before their restart, and failed when a
+  dust scenario ran before them. Fixed with C1 (they pass after `dust.haff`: +0.44 ms for the composition, +0.10 ms for the diagnostics).
+- `baseline.protostar.adaptive-step`: the adaptive step's ω·dt bound of 0.15 is exceeded (worst 0.225, seed 20240612; 0.152 and 0.172 for
+  the other two; the fixed step reaches 0.24 to 0.34). The step still halves the density error against dt/8 (0.038 to 0.045 against 0.063
+  to 0.069 for the fixed step). Not looked into: the asynchronous reads of the maxima land at other frames on this machine, and the bound
+  carries the margin for the lag measured on the 1060. A matter for B5's constants (the flag is off by default).
+
+The ignition ratio is unchanged (4.43 at 0.5 per second and 60 rho0), and so is the conservative energy drift (-0.16 % over 100 orbits,
++0.24 % on circular orbits).
+
 ## After phase C1: the collisions of the gas (RTX 5070)
 
 Phase C1 ([the spike](spikes/c1-mpc-collisions.md)) adds the `collisions` flag, **off by default**: with it off, the passes take one
