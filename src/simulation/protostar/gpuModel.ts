@@ -483,10 +483,9 @@ export class ProtostarModel implements GpuModel {
             this.fusionRate = this.fusionRate === null ? reduction.fusionRate
                 : this.fusionRate + PROTOSTAR_RATE_SMOOTHING * (reduction.fusionRate - this.fusionRate);
         }
-        const { kinetic, potential, thicknessWork } = reduction.energy;
+        const { kinetic, potential } = reduction.energy;
         if (!this.diagnostics || !scales || potential === null) return;
-        // With the adaptive thickness the balance is K + U - W: the work of the changing softening is not the integrator's (reduction.ts).
-        const stats = this.energyBalance.record(kinetic, potential, thicknessWork ?? 0);
+        const stats = this.energyBalance.record(kinetic, potential);
         if (!stats) return;
         this.currentEnergy = { ...stats, kinetic, potential };
     }

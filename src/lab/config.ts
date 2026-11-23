@@ -798,7 +798,7 @@ export const THICKNESS_KERNEL_SIGMA = 30;
 export const THICKNESS_KERNEL_TOLERANCE = 0.05;
 export const THICKNESS_KERNEL_CHECKED_MODE = 24;
 /** Below this response K the miss is judged against it, not against K (a relative error of a nearly zero response is noise). */
-export const THICKNESS_KERNEL_MIN_RESPONSE = 0.1;
+export const THICKNESS_KERNEL_MIN_RESPONSE = 0.05;
 /**
  * protostar.thickness.loop: a conservative virial disc (THICKNESS_VIRIAL_PARAMS) with the flag on for THICKNESS_LOOP_SECONDS, the source grid
  * read every THICKNESS_LOOP_READ_EVERY frames: every thickness within its bounds, and the rms change of the cells' thickness between two

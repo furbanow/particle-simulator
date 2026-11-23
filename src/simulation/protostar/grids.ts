@@ -20,9 +20,8 @@ import collisionVert from '../../shaders/protostar-collision.vert?raw';
 import collisionFrag from '../../shaders/protostar-collision.frag?raw';
 import { COLLISION_GRID_RES, COLLISION_SEED_SALT } from './collisions';
 import reduceFrag from '../../shaders/protostar-reduce.frag?raw';
-import workFrag from '../../shaders/protostar-thickness-work.frag?raw';
 import { smoothingWeight } from './noiseBias';
-import { REDUCTION_NO_THICKNESS, REDUCTION_STAGE_ATTACHMENTS, REDUCTION_TEXEL, REDUCTION_TEXELS } from './reduction';
+import { REDUCTION_NO_THICKNESS, REDUCTION_TEXEL, REDUCTION_TEXELS } from './reduction';
 
 const COARSE_RES = PROTOSTAR_GRID_RES / PROTOSTAR_COARSE_FACTOR;
 const REDUCE_BLOCK = PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES;
@@ -47,15 +46,11 @@ const STAGE = { first: 0, second: 1 } as const;
 const reduceDefines = (stage: number, block: number) => withDefines(reduceFrag, {
     REDUCE_STAGE: stage, REDUCE_FIRST: STAGE.first, REDUCE_SECOND: STAGE.second, BLOCK: block,
     TEXEL_CORE: REDUCTION_TEXEL.core, TEXEL_EXTREMES: REDUCTION_TEXEL.extremes,
-    TEXEL_ENERGY: REDUCTION_TEXEL.energy, TEXEL_MOMENTS: REDUCTION_TEXEL.moments, TEXEL_THICKNESS: REDUCTION_TEXEL.thickness, NO_THICKNESS: glslFloat(REDUCTION_NO_THICKNESS),
+    TEXEL_ENERGY: REDUCTION_TEXEL.energy, TEXEL_MOMENTS: REDUCTION_TEXEL.moments, NO_THICKNESS: glslFloat(REDUCTION_NO_THICKNESS),
 });
 const potentialDefines = (stage: number, block: number) => withDefines(potentialFrag, {
     POTENTIAL_STAGE: stage, POTENTIAL_FIRST: STAGE.first, POTENTIAL_SECOND: STAGE.second, BLOCK: block,
 });
-const workDefines = (stage: number, block: number) => withDefines(workFrag, {
-    WORK_STAGE: stage, WORK_FIRST: STAGE.first, WORK_SECOND: STAGE.second, BLOCK: block,
-});
-const ZERO_FRAG = 'void main() { gl_FragColor = vec4(0.0); }';
 
 let halfFloatDepositForced = false;
 
@@ -338,16 +333,6 @@ export class ProtostarGrids {
     private gravityFixed: GridPass | null = null;
     /** The source of the gravity, (m, h^2) of the gas pass's fourth attachment, shared by reference with the passes that read it. */
     private readonly sourceTexture: Uniform<THREE.Texture | null>;
-    /** The previous substep's source (the other gas target's), for the work of the thickness. */
-    private readonly sourcePrevious: Uniform<THREE.Texture | null>;
-    /** The work of the adaptive thickness (A11, protostar-thickness-work.frag): its first stage, two 1 x 1 accumulators in turn, a clear. */
-    private readonly work1: GridPass;
-    private readonly work2: readonly [GridPass, GridPass];
-    private workCurrent = 0;
-    private readonly workTexture: Uniform<THREE.Texture | null>;
-    private readonly zeros: readonly [GridPass, GridPass];
-    private sourceHistory = false;                     // the other gas target holds this run's previous substep
-    private thicknessWasOn = false;                    // the adaptive thickness was on at the previous substep
     private readonly gravityUniforms: Record<string, THREE.IUniform>;
     private readonly reduce1: GridPass;
     readonly reduce2: GridPass;
@@ -426,7 +411,6 @@ export class ProtostarGrids {
         // thickness's factor of the fusion law; the fuel fractions; the source of the gravity), two targets in turn.
         const gasTargets = [gridTarget(res, THREE.FloatType, 4), gridTarget(res, THREE.FloatType, 4)] as const;
         this.sourceTexture = { value: gasTargets[0].textures[3] };
-        this.sourcePrevious = { value: gasTargets[1].textures[3] };
         const gasPass = (current: number): GridPass => new GridPass(withDefines(gasFrag, PROTOSTAR_DEFINES), {
             gridMoments: this.momentsTexture, gridComposition: { value: this.moments.target.textures[1] },
             gridThermoPrevious: { value: gasTargets[1 - current].textures[1] },
@@ -457,34 +441,24 @@ export class ProtostarGrids {
         };
         this.gravity = this.gravityPass(true);
         common.gridForce.value = this.gravity.target.texture;
-        this.work1 = new GridPass(workDefines(STAGE.first, REDUCE_BLOCK), {
-            gridForce: common.gridForce, gridSource: this.sourceTexture, gridSourcePrevious: this.sourcePrevious,
-        }, gridTarget(PROTOSTAR_STATS_REDUCE_RES, THREE.FloatType));
-        const accumulators = [gridTarget(1, THREE.FloatType), gridTarget(1, THREE.FloatType)] as const;
-        this.workTexture = { value: accumulators[0].texture };
-        const workPass = (current: number): GridPass => new GridPass(workDefines(STAGE.second, PROTOSTAR_STATS_REDUCE_RES), {
-            source: { value: this.work1.target.texture }, accumulator: { value: accumulators[1 - current].texture },
-        }, accumulators[current]);
-        this.work2 = [workPass(0), workPass(1)];
-        this.zeros = [new GridPass(ZERO_FRAG, {}, accumulators[0]), new GridPass(ZERO_FRAG, {}, accumulators[1])];
         this.potential1 = new GridPass(potentialDefines(STAGE.first, REDUCE_BLOCK), {
             gridMoments: this.momentsTexture, gridForce: common.gridForce,
             gridComposition: { value: this.moments.target.textures[1] }, gridSource: this.sourceTexture, gravityPerDeposit: u.gravityPerDeposit,
         }, gridTarget(PROTOSTAR_STATS_REDUCE_RES, THREE.FloatType));
         this.potential2 = new GridPass(potentialDefines(STAGE.second, PROTOSTAR_STATS_REDUCE_RES), {
-            source: { value: this.potential1.target.texture }, thicknessWork: this.workTexture,
+            source: { value: this.potential1.target.texture },
         }, gridTarget(1, THREE.FloatType));
         this.reduce1 = new GridPass(reduceDefines(STAGE.first, REDUCE_BLOCK), {
             gridGas: common.gridGas, gridThermo: common.gridThermo, gridMoments: this.momentsTexture,
             gridComposition: { value: this.moments.target.textures[1] }, gridForce: common.gridForce,
             gridPower: { value: this.power.target.texture }, gridCell: common.gridCell, fusionTRef: common.fusionTRef,
             gridSource: this.sourceTexture, gravityPerDeposit: u.gravityPerDeposit,
-        }, gridTarget(PROTOSTAR_STATS_REDUCE_RES, THREE.FloatType, REDUCTION_STAGE_ATTACHMENTS));
+        }, gridTarget(PROTOSTAR_STATS_REDUCE_RES, THREE.FloatType, REDUCTION_TEXELS));
         const stages = this.reduce1.target.textures;
         this.reduce2 = new GridPass(reduceDefines(STAGE.second, PROTOSTAR_STATS_REDUCE_RES), {
             stageCore: { value: stages[REDUCTION_TEXEL.core] }, stageExtremes: { value: stages[REDUCTION_TEXEL.extremes] },
             stageEnergy: { value: stages[REDUCTION_TEXEL.energy] }, stageMoments: { value: stages[REDUCTION_TEXEL.moments] },
-            potentialBefore: { value: this.potential2.target.texture }, thicknessWork: this.workTexture,
+            potentialBefore: { value: this.potential2.target.texture },
         }, gridTarget(REDUCTION_TEXELS, THREE.FloatType, 1, 1));
     }
 
@@ -592,11 +566,6 @@ export class ProtostarGrids {
         this.common.noiseCorrection.value = 1;
         this.common.collisionRate.value = PROTOSTAR_COLLISION_RATE;
         this.molecularWeightEnabled = true;
-        // The work of the thickness starts at 0 (both accumulators: the next one adds to the other).
-        for (const zero of this.zeros) zero.render(this.renderer);
-        this.renderer.setRenderTarget(null);
-        this.sourceHistory = false;
-        this.thicknessWasOn = false;
     }
 
     /**
@@ -622,7 +591,6 @@ export class ProtostarGrids {
         this.common.gridThermo.value = gas.target.textures[1];
         this.common.gridFuel.value = gas.target.textures[2];
         this.sourceTexture.value = gas.target.textures[3];
-        this.sourcePrevious.value = this.gasPasses[1 - this.gasCurrent].target.textures[3];
         this.power.render(renderer);
         this.heat.render(renderer);
         this.coarse.render(renderer);
@@ -631,16 +599,6 @@ export class ProtostarGrids {
         gravity.render(renderer);
         // After the gravity: the collision deposit kicks every velocity to the instant of the positions with this substep's force.
         if (this.common.collisionsOn.value > 0) this.collisionDeposit?.render(renderer);
-        // The work of the thickness of this substep (A11), also in the one that turns it off (the softening jumps back to eps then).
-        const thicknessOn = this.u.thicknessOn.value > 0;
-        if ((thicknessOn || this.thicknessWasOn) && this.sourceHistory) {
-            this.work1.render(renderer);
-            this.workCurrent = 1 - this.workCurrent;
-            this.work2[this.workCurrent].render(renderer);
-            this.workTexture.value = this.work2[this.workCurrent].target.texture;
-        }
-        this.thicknessWasOn = thicknessOn;
-        this.sourceHistory = true;
         renderer.setClearAlpha(clearAlpha);
         renderer.setRenderTarget(null);
     }
@@ -733,10 +691,9 @@ export class ProtostarGrids {
 
     dispose(): void {
         for (const pass of [this.moments, this.power, ...this.gasPasses, this.heat, this.coarse, this.gravity, this.reduce1, this.reduce2,
-                            this.potential1, this.potential2, this.work1, ...this.work2]) {
+                            this.potential1, this.potential2]) {
             pass.dispose();
         }
-        for (const zero of this.zeros) zero.material.dispose();       // their targets are the accumulators, disposed with work2
         this.momentsAlone?.dispose();
         this.gravityPlain?.dispose();
         this.gravityFixed?.dispose();

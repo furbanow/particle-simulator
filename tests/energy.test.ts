@@ -64,14 +64,6 @@ describe('energy bookkeeping of a run', () => {
         expect(balance.initialEnergy).toBe(-2);
     });
 
-    it('takes the work no force did (the adaptive thickness\'s) off the total, not off the virial ratio', () => {
-        const balance = new EnergyBalance();
-        balance.record(1, -3, 0);
-        const later = balance.record(1, -2.5, 0.5);                    // U rose by 0.5 through the softening alone: K + U - W unchanged
-        expect(later?.drift).toBe(0);
-        expect(later?.virial).toBeCloseTo(2 / 2.5, 12);
-    });
-
     it('starts again after a restart: the next reading is the new initial energy', () => {
         const balance = new EnergyBalance();
         balance.record(1, -3);
@@ -127,9 +119,9 @@ describe('the multichannel reduction', () => {
         return out;
     }
 
-    it('lays out five texels of four floats, each in its own place', () => {
-        expect(REDUCTION_TEXELS).toBe(5);
-        expect(REDUCTION_FLOATS).toBe(20);
+    it('lays out four texels of four floats, each in its own place', () => {
+        expect(REDUCTION_TEXELS).toBe(4);
+        expect(REDUCTION_FLOATS).toBe(16);
         expect(new Set(Object.values(REDUCTION_TEXEL)).size).toBe(REDUCTION_TEXELS);
         expect(Math.max(...Object.values(REDUCTION_TEXEL))).toBe(REDUCTION_TEXELS - 1);
     });
@@ -183,13 +175,6 @@ describe('the multichannel reduction', () => {
         const reduction = unpackReduction(texels({ core: [0, 0, 0, 10], energy: [0, -280, 12, -260] }), scales, true);
         expect(reduction.energy.potentialNow).toBeCloseTo(-280 * 0.05, 12);
         expect(reduction.energy.potential).toBeCloseTo(-260 * 0.05, 12);
-    });
-
-    it('reads the work of the thickness, synchronized with the potential, and none without the stash', () => {
-        const reduction = unpackReduction(texels({ thickness: [40, 30, 0, 0] }), scales, true);
-        expect(reduction.energy.thicknessWorkNow).toBeCloseTo(40 * 0.05, 12);
-        expect(reduction.energy.thicknessWork).toBeCloseTo(30 * 0.05, 12);
-        expect(unpackReduction(texels({ thickness: [40, 30, 0, 0] }), scales, false).energy.thicknessWork).toBeNull();
     });
 
     it('reads the smallest softening, and none without mass or with the marker of no cell', () => {

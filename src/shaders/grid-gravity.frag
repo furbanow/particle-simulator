@@ -6,8 +6,7 @@
 // GRAVITY_SOURCE (the protostar's, A11): the masses and the thicknesses come from the gas pass's source grid (m, h^2) and the coarse
 // grid's w (the monopole's mean h^2), and a pair is softened by eps_ij^2 = (h_i^2 + h_j^2) / 2 (twin: softenedGravityAt() in
 // thickness.ts). With the fixed softening every h^2 is eps^2 and the sum is the plain one to the bit. Without it (the drawings'
-// fields), the masses come from gridMoments and every pair has softening2. With GRAVITY_SOURCE the fourth channel holds
-// G sum_j m_j / (r^2 + eps_ij^2)^(3/2), what the work of the changing thickness needs (protostar-thickness-work.frag); 0 otherwise.
+// fields), the masses come from gridMoments and every pair has softening2.
 //
 // Output (ax, ay, phi, 0). Without GRAVITY_POTENTIAL, phi is 0 (the drawings' fields, which only
 // need the force, are built like that). With it, phi is the Plummer potential of the very same
@@ -33,7 +32,6 @@ void main() {
     vec2 acc = vec2(0.0);
 #ifdef GRAVITY_SOURCE
     float h2i = texelFetch(gridSource, cell, 0).y;
-    float stiffness = 0.0;
 #endif
 #ifdef GRAVITY_POTENTIAL
     float potential = 0.0;
@@ -49,7 +47,6 @@ void main() {
             vec2 r = m.yz - x;
 #ifdef GRAVITY_SOURCE
             float s = inversesqrt(dot(r, r) + 0.5 * (h2i + m.w));
-            stiffness += m.x * s * s * s;
 #else
             float s = inversesqrt(dot(r, r) + softening2);
 #endif
@@ -71,7 +68,6 @@ void main() {
             if (m <= 0.0) continue;
             vec2 r = (vec2(c) + 0.5) * gridCell - x;
             float s = inversesqrt(dot(r, r) + 0.5 * (h2i + source.y));
-            stiffness += m * s * s * s;
 #else
             float m = texelFetch(gridMoments, c, 0).x;
             if (m <= 0.0) continue;
@@ -84,14 +80,9 @@ void main() {
 #endif
         }
     }
-#ifdef GRAVITY_SOURCE
-    float w = stiffness * gravityPerDeposit;
-#else
-    float w = 0.0;
-#endif
 #ifdef GRAVITY_POTENTIAL
-    gl_FragColor = vec4(acc * gravityPerDeposit, potential * gravityPerDeposit, w);
+    gl_FragColor = vec4(acc * gravityPerDeposit, potential * gravityPerDeposit, 0.0);
 #else
-    gl_FragColor = vec4(acc * gravityPerDeposit, 0.0, w);
+    gl_FragColor = vec4(acc * gravityPerDeposit, 0.0, 0.0);
 #endif
 }

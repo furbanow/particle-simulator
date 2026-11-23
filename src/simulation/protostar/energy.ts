@@ -54,13 +54,9 @@ export class EnergyBalance {
         return this.initial;
     }
 
-    /**
-     * One reading; `work` is what no force did and the balance takes off (the work of the adaptive thickness, A11: total = K + U - W),
-     * while the virial ratio stays 2K / |U|.
-     */
-    record(kinetic: number, potential: number, work = 0): EnergyStats | null {
-        if (!finite(kinetic, potential, work)) return null;
-        const total = kinetic + potential - work;
+    record(kinetic: number, potential: number): EnergyStats | null {
+        if (!finite(kinetic, potential)) return null;
+        const total = kinetic + potential;
         if (this.initial === null) {
             const scale = Math.abs(kinetic) + Math.abs(potential);
             if (Math.abs(total) > PROTOSTAR_ENERGY_RATIO_FLOOR * scale) this.initial = total;

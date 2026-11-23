@@ -4,7 +4,6 @@
 // before the grids are drawn again, so that it holds the energy of the previous substep, whose
 // positions go with the velocities the next deposit sees (see reduction.ts). The self-interaction of the particles, -G m^2 / h per
 // particle with h the softening of its cell (A11: the cell's thickness), is taken off cell by cell, as in protostar-reduce.frag.
-// The second stage keeps, in y, the work of the adaptive thickness that goes with that potential (A11).
 // Defines: POTENTIAL_STAGE, POTENTIAL_FIRST, POTENTIAL_SECOND, BLOCK.
 #if POTENTIAL_STAGE == POTENTIAL_FIRST
 uniform sampler2D gridMoments;          // mass in x
@@ -14,7 +13,6 @@ uniform sampler2D gridSource;           // h^2 in y
 uniform float gravityPerDeposit;
 #else
 uniform sampler2D source;               // first stage, x
-uniform sampler2D thicknessWork;        // W, the work of the adaptive thickness so far (protostar-thickness-work.frag), x
 #endif
 
 void main() {
@@ -32,9 +30,5 @@ void main() {
 #endif
         }
     }
-#if POTENTIAL_STAGE == POTENTIAL_FIRST
     gl_FragColor = vec4(sum, 0.0, 0.0, 0.0);
-#else
-    gl_FragColor = vec4(sum, texelFetch(thicknessWork, ivec2(0), 0).x, 0.0, 0.0);   // the work that goes with that potential, in y
-#endif
 }
