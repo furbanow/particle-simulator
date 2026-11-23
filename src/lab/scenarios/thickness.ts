@@ -16,9 +16,9 @@ import {
 } from '../../simulation/protostar/thickness';
 import {
     CONSERVATIVE_OVERRIDES, ELASTIC_WALLS, GRAVITY_TWIN_TOLERANCE, LAB_AREA, LAB_SEED, THICKNESS_KERNEL_AMPLITUDE, THICKNESS_KERNEL_CHECKED_MODE,
-    THICKNESS_KERNEL_HEIGHTS, THICKNESS_KERNEL_MODES, THICKNESS_KERNEL_PARTICLES, THICKNESS_KERNEL_SIGMA, THICKNESS_KERNEL_TOLERANCE,
+    THICKNESS_KERNEL_HEIGHTS, THICKNESS_KERNEL_MIN_RESPONSE, THICKNESS_KERNEL_MODES, THICKNESS_KERNEL_PARTICLES, THICKNESS_KERNEL_SIGMA, THICKNESS_KERNEL_TOLERANCE,
     THICKNESS_LOOP_GROWTH, THICKNESS_LOOP_MIN_DENSITY, THICKNESS_LOOP_PARTICLES, THICKNESS_LOOP_READ_EVERY, THICKNESS_LOOP_SECONDS,
-    THICKNESS_MOMENTUM_FRAMES, THICKNESS_MOMENTUM_PARTICLES, THICKNESS_MOMENTUM_READ_EVERY, THICKNESS_PARITY_FRAMES,
+    THICKNESS_MOMENTUM_FRAMES, THICKNESS_MOMENTUM_PARTICLES, THICKNESS_MOMENTUM_READ_EVERY, THICKNESS_MOMENTUM_WALL_MARGIN, THICKNESS_PARITY_FRAMES,
     THICKNESS_PARITY_PARTICLES, THICKNESS_PARITY_STRIDE, THICKNESS_START_PARTICLES, THICKNESS_START_RADIUS, THICKNESS_START_TOLERANCE,
     THICKNESS_TWIN_TOLERANCE, THICKNESS_VIRIAL_PARAMS,
 } from '../config';
@@ -247,14 +247,16 @@ const kernel: Scenario = {
                 const expected = kernelResponse(k, flat.cell, softening, setting.adaptive);
                 const fixedLaw = kernelResponse(k, flat.cell, softening, false);
                 const error = measured / expected - 1;
-                if (mode <= THICKNESS_KERNEL_CHECKED_MODE) ok &&= Math.abs(error) <= THICKNESS_KERNEL_TOLERANCE;
+                // Where the response is tiny (thick layers, short waves) its relative error is noise: judge it against the floor instead.
+                const miss = Math.abs(measured - expected) / Math.max(expected, THICKNESS_KERNEL_MIN_RESPONSE);
+                if (mode <= THICKNESS_KERNEL_CHECKED_MODE) ok &&= miss <= THICKNESS_KERNEL_TOLERANCE;
                 modes.push({ mode, kPerPx: sig(k), kSoftening: sig(k * softening), measured: sig(measured), expected: sig(expected),
                     relativeError: sig(error), plainExponential: sig(fixedLaw) });
             }
-            const worst = modes.filter(m => numeric(m.mode) <= THICKNESS_KERNEL_CHECKED_MODE)
+            const worst = modes.filter(m => numeric(m.mode) <= THICKNESS_KERNEL_CHECKED_MODE && numeric(m.expected) >= THICKNESS_KERNEL_MIN_RESPONSE)
                 .reduce((w, m) => Math.max(w, Math.abs(numeric(m.relativeError))), 0);
             runs.push({ name: setting.name, gravity: sig(gravity), modes });
-            notes.push(`${setting.name}: worst ${(100 * worst).toFixed(1)} % to the twin`);
+            notes.push(`${setting.name}: worst ${(100 * worst).toFixed(1)} % to the twin where K >= ${THICKNESS_KERNEL_MIN_RESPONSE}`);
         }
         return { status: ok ? 'pass' : 'fail', metrics: { amplitude: THICKNESS_KERNEL_AMPLITUDE, sigma: THICKNESS_KERNEL_SIGMA, runs }, details: notes.join('; ') };
     },
@@ -331,22 +333,33 @@ const momentum: Scenario = {
             await restart(context, { count: THICKNESS_MOMENTUM_PARTICLES, overrides: { ...CONSERVATIVE_OVERRIDES }, params: { adaptiveThickness: adaptive } });
             protostarModel(context).velocityUniforms.restitution.value = ELASTIC_WALLS;
             const count = simulation.activeCount;
+            // The walls exchange momentum with the cloud: only the readings before any particle came near one judge the gravity.
+            let touched = false;
             const sums = async () => {
                 await context.sync.wait(simulation.positionTexture);
                 const positions = await readPositions(renderer, simulation.debugPipeline.debugPositionTarget, count);
                 const velocities = await readPositions(renderer, simulation.debugPipeline.debugVelocityTarget, count);
+                for (let i = 0; i < count && !touched; i++) {
+                    const x = positions[i * 4], y = positions[i * 4 + 1];
+                    touched = x < THICKNESS_MOMENTUM_WALL_MARGIN || y < THICKNESS_MOMENTUM_WALL_MARGIN
+                        || x > LAB_AREA.width - THICKNESS_MOMENTUM_WALL_MARGIN || y > LAB_AREA.height - THICKNESS_MOMENTUM_WALL_MARGIN;
+                }
                 return totalMomentum(positions, velocities, count, () => 1);
             };
             const first = await sums();
-            const series: number[] = [];
+            const series: number[] = [], beforeWalls: number[] = [];
             await runFrames(context, THICKNESS_MOMENTUM_FRAMES, {
                 async onFrame(frame) {
-                    if (frame % THICKNESS_MOMENTUM_READ_EVERY === 0) series.push(momentumChange(first, await sums()).relativeThermal);
+                    if (frame % THICKNESS_MOMENTUM_READ_EVERY !== 0) return;
+                    const change = momentumChange(first, await sums()).relativeThermal;
+                    series.push(change);
+                    if (!touched) beforeWalls.push(change);
                 },
             });
-            const worst = Math.max(...series);
-            runs.push({ adaptiveThickness: adaptive, relativeThermal: series.map(sig), worst: sig(worst) });
-            notes.push(`${adaptive ? 'on' : 'off'}: |dP| up to ${worst.toExponential(2)} M sigma`);
+            const worst = beforeWalls.length ? Math.max(...beforeWalls) : NaN;
+            runs.push({ adaptiveThickness: adaptive, relativeThermal: series.map(sig), readingsBeforeWalls: beforeWalls.length,
+                worstBeforeWalls: sig(worst), worstWithWalls: sig(Math.max(...series)) });
+            notes.push(`${adaptive ? 'on' : 'off'}: |dP| up to ${worst.toExponential(2)} M sigma over ${beforeWalls.length} readings before the walls`);
         }
         return { status: 'pass', metrics: { frames: THICKNESS_MOMENTUM_FRAMES, runs }, details: notes.join('; ') };
     },

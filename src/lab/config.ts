@@ -797,6 +797,8 @@ export const THICKNESS_KERNEL_HEIGHTS = [20, 40] as const;
 export const THICKNESS_KERNEL_SIGMA = 30;
 export const THICKNESS_KERNEL_TOLERANCE = 0.05;
 export const THICKNESS_KERNEL_CHECKED_MODE = 24;
+/** Below this response K the miss is judged against it, not against K (a relative error of a nearly zero response is noise). */
+export const THICKNESS_KERNEL_MIN_RESPONSE = 0.05;
 /**
  * protostar.thickness.loop: a conservative virial disc (THICKNESS_VIRIAL_PARAMS) with the flag on for THICKNESS_LOOP_SECONDS, the source grid
  * read every THICKNESS_LOOP_READ_EVERY frames: every thickness within its bounds, and the rms change of the cells' thickness between two
@@ -809,8 +811,11 @@ export const THICKNESS_LOOP_GROWTH = 2;
 export const THICKNESS_LOOP_MIN_DENSITY = 0.3;
 /**
  * protostar.thickness.momentum: the total momentum (float64 sum of the velocities read back) of the conservative default cloud over
- * THICKNESS_MOMENTUM_FRAMES frames, flag off and on, read every THICKNESS_MOMENTUM_READ_EVERY frames, in units of the thermal momentum.
+ * THICKNESS_MOMENTUM_FRAMES frames, flag off and on, read every THICKNESS_MOMENTUM_READ_EVERY frames, in units of the thermal momentum,
+ * judged before any particle comes within THICKNESS_MOMENTUM_WALL_MARGIN of a wall.
  */
 export const THICKNESS_MOMENTUM_PARTICLES = 100_000;
 export const THICKNESS_MOMENTUM_FRAMES = 600;
-export const THICKNESS_MOMENTUM_READ_EVERY = 60;
+export const THICKNESS_MOMENTUM_READ_EVERY = 10;
+/** px: a particle this close to a wall has (or is about to have) exchanged momentum with it. */
+export const THICKNESS_MOMENTUM_WALL_MARGIN = 2;
