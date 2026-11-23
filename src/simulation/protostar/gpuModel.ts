@@ -10,11 +10,12 @@ import { glslFloat } from '../../gl/withDefines';
 import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
 import type { GpuModel, GpuModelContext, GpuVariable, GridOverlay, InitialState } from '../gpuModel';
 import type { Vec2 } from '../../util/math';
+import { collisionShift } from './collisions';
 import { jeansPerDensity } from './cooling';
 import { EnergyBalance, type EnergyStats } from './energy';
 import { PROTOSTAR_PARAM, PROTOSTAR_PROPERTY, PROTOSTAR_REACTIONS, PROTOSTAR_STAT } from './declaration';
 import { inverseMolecularWeights } from './composition';
-import { ProtostarGrids, withProtostarCommon, type ProtostarGridTargets } from './grids';
+import { ProtostarGrids, withProtostarCommon, type GridScales, type ProtostarGridTargets } from './grids';
 import { fillCloud, type CloudSummary } from './initialConditions';
 import { reactionArrays } from './reactions';
 import { isStabilityMapMode, type StabilityMapMode } from './stability';
@@ -214,6 +215,7 @@ export class ProtostarModel implements GpuModel {
         if (key === P.minTemperature && typeof value === 'number') this.own.minTemperature.value = value;
         if (key === P.jeansFloor) this.jeansFloor = value === true;
         if (key === P.tscDeposit) this.grids.setTscDeposit(value === true);
+        if (key === P.collisions) this.grids.setCollisions(value === true);
         if (key === P.diagnostics) this.setDiagnostics(value === true);
         if (key === P.adaptiveTimeStep) this.setAdaptiveStep(value === true);
         if (key === P.stabilityMap) {
@@ -379,12 +381,15 @@ export class ProtostarModel implements GpuModel {
         this.own.jeansPerDensity.value = this.jeansFloor
             ? jeansPerDensity(PROTOSTAR_JEANS_CELLS, cell, this.gravity(length), rho0) : 0;
         grids.common.seed.value = this.substep = (this.substep + 1) % SEED_PERIOD;
-        const scales = {
+        const scales: GridScales = {
             depositMassScale,
             depositVelScale: 1 / length,
             densityPerDeposit: meanMass / (neighborhood * rho0),
             gravityPerDeposit: this.gravity(length) * meanMass,
             softening: this.softening(length),
+            // The collision grid (C1): one particle's mass over a cell's area in rho0, and the substep's random shift.
+            collisionDensity: meanMass / (cell * cell * rho0),
+            collisionShift: collisionShift(this.substep, cell),
         };
         // The energy of the frame about to end needs the potential of the grids this substep is going to overwrite.
         if (this.diagnostics && this.gridsDrawn && this.readingDue(this.frame + 1)) {

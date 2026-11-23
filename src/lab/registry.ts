@@ -4,6 +4,7 @@
 import { defaultCloud, defaultCloudTuning, defaultCloudVariants, ignitionRatioBaseline } from './scenarios/baseline';
 import { adaptiveStepScenarios } from './scenarios/adaptiveStep';
 import { constantMassScenarios } from './scenarios/constantMass';
+import { collisionScenarios } from './scenarios/collisions';
 import { coolingScenarios } from './scenarios/cooling';
 import { diagnosticsCost } from './scenarios/diagnosticsCost';
 import { dustCloudScenarios } from './scenarios/dustCloud';
@@ -77,4 +78,5 @@ export const SCENARIOS: readonly Scenario[] = [
     ...adaptiveStepScenarios,
     ...stabilityScenarios,
     ...tscDepositScenarios,
+    ...collisionScenarios,
 ];

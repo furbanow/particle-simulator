@@ -1,4 +1,4 @@
-// Shared by the protostar shaders: sampling of the grids at a particle, fusion rate, random numbers.
+// Shared by the protostar shaders: sampling of the grids at a particle, fusion rate, random numbers, collisions of the gas.
 // Defines: MAX_SPECIES, GRID_RES, FUSION_RATE_MAX, NOISE_N_MIN, NOISE_SHIFT_MAX, and GAS_THERMO (0 or 1: whether gasAt() reads the
 // temperature that feeds the fusion rate; only the shaders that compute a rate need it). Included after deposit-kernel.glsl (tscWeight)
 // and drawing.glsl (drawingAccel).
@@ -228,4 +228,57 @@ uint pcgHash(uint v) {
 float random01(float index, uint stream) {
     uint h = pcgHash(uint(index) * 4u + stream + pcgHash(uint(seed)));
     return float(h) / 4294967296.0;
+}
+
+// ---- Collisions of the gas (C1, the `collisions` flag; twin: collisions.ts) ----
+// Defines: COLLISION_RES (GRID_RES + 1), COLLISION_MIN_PARTICLES, COLLISION_COS and COLLISION_SIN (the rotation's angle), COLLISION_SALT.
+uniform sampler2D gridCollision;        // (n, sum vx, sum vy, sum |v|^2) of the particles of each cell of the shifted grid, velocities in L/s
+uniform float collisionsOn;             // 1: the gas collides; 0: it does not (the collision grid is then stale)
+uniform vec2 collisionShift;            // px: the shift of the collision grid at this substep, in [0, gridCell)^2
+uniform float collisionVelScale;        // L/s per px/s: the deposit's velocity unit
+uniform float collisionDensity;         // rho / rho0 per particle in a cell
+uniform float collisionRate;            // collisions per s of a cell at rho0 and the dispersion T0: nu = rate rho sqrt(t)
+
+/** The cell of the shifted collision grid that holds x. Twin: collisionCell(). */
+ivec2 collisionCellOf(vec2 x) {
+    return clamp(ivec2(floor((x + collisionShift) / gridCell)), ivec2(0), ivec2(COLLISION_RES - 1));
+}
+
+/** Uniform random number in [0, 1) of a cell for `stream`, new every substep, the same in every pass. Twin: cellRandom(). */
+float collisionRandom(ivec2 cell, uint stream) {
+    uint index = uint(cell.y * COLLISION_RES + cell.x);
+    return float(pcgHash(index * 4u + stream + pcgHash(uint(seed) ^ COLLISION_SALT))) / 4294967296.0;
+}
+
+/** What the cell of a particle does at this substep: its mean velocity (px/s), its dispersion (px^2/s^2), the rotation's sign (0: none). */
+struct Collision {
+    vec2 u;
+    float t;
+    float sign;
+};
+
+/**
+ * The collision of the cell that holds x after a step of `dt` seconds (twin: cellCollision()): it collides with probability
+ * 1 - exp(-nu dt), nu = rate rho sqrt(t), if it holds COLLISION_MIN_PARTICLES or more.
+ */
+Collision collisionAt(vec2 x, float dt) {
+    ivec2 cell = collisionCellOf(x);
+    vec4 s = texelFetch(gridCollision, cell, 0);
+    Collision c = Collision(vec2(0.0), 0.0, 0.0);
+    if (s.x <= 0.0) return c;
+    vec2 mean = s.yz / s.x;
+    c.u = mean / collisionVelScale;
+    c.t = max(s.w / s.x - dot(mean, mean), 0.0) / (collisionVelScale * collisionVelScale);
+    if (s.x < float(COLLISION_MIN_PARTICLES) - 0.5) return c;
+    float p = 1.0 - exp(-collisionRate * s.x * collisionDensity * sqrt(c.t / fusionTRef) * dt);
+    if (collisionRandom(cell, 0u) < p) c.sign = collisionRandom(cell, 1u) < 0.5 ? -1.0 : 1.0;
+    return c;
+}
+
+/** v turned about the cell's mean by +-the angle: the cell's momentum and kinetic energy are kept (twin: collide()). */
+vec2 collide(vec2 v, Collision c) {
+    if (c.sign == 0.0) return v;
+    vec2 w = v - c.u;
+    float s = c.sign * COLLISION_SIN;
+    return c.u + vec2(COLLISION_COS * w.x - s * w.y, s * w.x + COLLISION_COS * w.y);
 }

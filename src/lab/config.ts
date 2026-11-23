@@ -687,3 +687,51 @@ export const TSC_DUST_FILL = 0.6;
 export const TSC_DUST_LEVELS = 4;
 export const TSC_COST_PROTOSTAR_COUNTS = [400_000, 1_000_000] as const;
 export const TSC_COST_DUST_COUNTS = [400_000, 1_000_000, 3_000_000] as const;
+
+// ---- Collisions of the gas (C1) ----
+/**
+ * The gases of the collision scenarios (src/lab/scenarios/collisions.ts) are set up directly, without gravity, cooling, heating or fusion
+ * (COLLISION_GAS_OVERRIDES), with elastic walls and one substep of BASE_DT per frame, the collisions on (or off for the comparison).
+ * COLLISION_ALWAYS is a collision rate that makes every cell of two particles or more collide at every substep (the collisional
+ * limit). Velocities per component: COLLISION_SIGMA px/s.
+ *  - protostar.collisions.parity: COLLISION_PARITY_PARTICLES of a thermal gas moving at COLLISION_PARITY_BULK px/s, inside the area but
+ *    COLLISION_PARITY_MARGIN px; one substep in the collisional limit, the GPU velocities against collisionStep() of collisions.ts,
+ *    within COLLISION_PARITY_TOLERANCE of sigma (the float32 sums of the deposit); the momentum and the energy within COLLISION_CONSERVATION.
+ *  - protostar.collisions.conservation: the same gas over COLLISION_CONSERVATION_FRAMES at the application's collision rate: the total
+ *    momentum (over N sigma) and the kinetic energy within COLLISION_CONSERVATION_DRIFT, nothing touching a wall.
+ *  - protostar.collisions.sod: Sod's shock tube across the area (SOD_DENSITY_RATIO and SOD_PRESSURE_RATIO from left to right,
+ *    SOD_PARTICLES, SOD_SECONDS), the profiles in SOD_BINS columns against the exact solution of each of SOD_GAMMAS (riemann.ts), in
+ *    the collisional limit, at the application's rate and without collisions.
+ *  - protostar.collisions.sound-speed: a standing wave of SOUND_MODE wavelengths across the width (density antinodes at the walls),
+ *    of relative amplitude SOUND_AMPLITUDE, in SOUND_PARTICLES; its amplitude read on the density grid every SOUND_READ_EVERY frames for
+ *    SOUND_SECONDS, fitted by a damped cosine (oscillation.ts): the sound speed against sqrt(gamma) sigma.
+ *  - protostar.collisions.equipartition: hydrogen and helium parcels mixed, the helium with a velocity dispersion EQUIPARTITION_RATIO times
+ *    smaller, at EQUIPARTITION_COUNTS particles (about 6 and 50 per cell); the ratio of their dispersions read every EQUIPARTITION_READ_EVERY
+ *    frames for EQUIPARTITION_FRAMES.
+ */
+export const COLLISION_GAS_OVERRIDES = { gravity: 0, radiation: 0, feedback: 0, fusionRate: 0, heFusionRate: 0 } as const;
+export const COLLISION_ALWAYS = 1e12;
+export const COLLISION_SIGMA = 60;
+export const COLLISION_SEED = 20261123;
+export const COLLISION_PARITY_PARTICLES = 200_000;
+export const COLLISION_PARITY_BULK = [25, -10] as const;
+export const COLLISION_PARITY_MARGIN = 160;
+export const COLLISION_PARITY_TOLERANCE = 1e-4;
+export const COLLISION_CONSERVATION = 1e-5;
+export const COLLISION_CONSERVATION_FRAMES = 60;
+export const COLLISION_CONSERVATION_DRIFT = 1e-5;
+export const SOD_PARTICLES = 600_000;
+export const SOD_DENSITY_RATIO = 8;
+export const SOD_PRESSURE_RATIO = 10;
+export const SOD_SECONDS = 2;
+export const SOD_BINS = 64;
+export const SOD_GAMMAS = [1.4, 5 / 3, 2, 2.5, 3] as const;
+export const SOUND_PARTICLES = 400_000;
+export const SOUND_MODE = 4;
+export const SOUND_AMPLITUDE = 0.08;
+export const SOUND_SECONDS = 7;
+export const SOUND_READ_EVERY = 2;
+export const EQUIPARTITION_COUNTS = [50_000, 400_000] as const;
+export const EQUIPARTITION_RATIO = 4;
+export const EQUIPARTITION_FRAMES = 300;
+export const EQUIPARTITION_READ_EVERY = 5;

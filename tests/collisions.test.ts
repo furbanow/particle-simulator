@@ -282,3 +282,43 @@ describe('the exact Riemann solver', () => {
         expect(rightShockSpeed(sodLeft, sodRight, gamma, star)).toBeGreaterThan(star.u);
     });
 });
+
+describe('the lab\'s fits', () => {
+    it('find the frequency and the damping of a noisy damped cosine', async () => {
+        const { fitDampedCosine, eFoldingTime } = await import('../src/lab/oscillation');
+        const random = mulberry32(9);
+        const times = Array.from({ length: 200 }, (_, i) => i * 0.035);
+        const values = times.map(t => 0.05 * Math.exp(-0.2 * t) * Math.cos(2.1 * t + 0.3) + 0.001 + 0.002 * (random() - 0.5));
+        const fit = fitDampedCosine(times, values, [0.5, 6], 2);
+        expect(fit.omega).toBeCloseTo(2.1, 2);
+        expect(fit.beta).toBeCloseTo(0.2, 1);
+        expect(fit.amplitude).toBeCloseTo(0.05, 2);
+        expect(fit.residual).toBeLessThan(0.1);
+        expect(eFoldingTime([0, 1, 2, 3], [8, 4, 2, 1])).toBeCloseTo(1 / Math.LN2, 9);
+        expect(eFoldingTime([0, 1], [1, 2])).toBeNull();
+    });
+});
+
+describe('the shock tube profiles', () => {
+    it('are null for the exact solution sampled at the column centers, and grow for another gamma', async () => {
+        const { profileErrors } = await import('../src/lab/shockTube');
+        const left: GasState = { rho: 1, u: 0, p: 1 }, right: GasState = { rho: 0.125, u: 0, p: 0.1 };
+        const units = { leftCount: 1000, sigma: 60, x0: 512, seconds: 2, binWidth: 16 };
+        const profile = Array.from({ length: 64 }, (_, b) => sampleRiemann(left, right, 2, ((b + 0.5) * 16 - 512) / (2 * 60)));
+        const same = profileErrors(profile, left, right, 2, units, 2, 62);
+        expect(same.rho + same.u + same.p).toBeLessThan(1e-12);
+        expect(profileErrors(profile, left, right, 1.4, units, 2, 62).rho).toBeGreaterThan(0.01);
+    });
+
+    it('add up particles into columns with their mean velocity and dispersions', async () => {
+        const { columnProfiles } = await import('../src/lab/shockTube');
+        const positions = [1, 0, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0];
+        const velocities = [1, 2, 0, 0, 3, -2, 0, 0, 5, 5, 0, 0];
+        const p = columnProfiles(positions, velocities, 3, 10, 2);
+        expect(p.count).toEqual([2, 1]);
+        expect(p.ux).toEqual([2, 5]);
+        expect(p.pxx[0]).toBeCloseTo(1, 12);
+        expect(p.pyy[0]).toBeCloseTo(4, 12);
+        expect(p.pxx[1]).toBe(0);
+    });
+});

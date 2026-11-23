@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-    MAX_SPECIES, PROTOSTAR_COARSE_FACTOR, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_NOISE_EXACT_MARGIN, PROTOSTAR_NOISE_N_MIN,
+    MAX_SPECIES, PROTOSTAR_COARSE_FACTOR, PROTOSTAR_COLLISION_ANGLE, PROTOSTAR_COLLISION_MIN_PARTICLES, PROTOSTAR_COLLISION_RATE, PROTOSTAR_FUSION_RATE_MAX, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_NOISE_EXACT_MARGIN, PROTOSTAR_NOISE_N_MIN,
     PROTOSTAR_NOISE_N_SHAPE, PROTOSTAR_NOISE_N_SHAPE_TSC, PROTOSTAR_NOISE_SHIFT_MAX, PROTOSTAR_REFERENCE_INVERSE_MU, PROTOSTAR_STATS_REDUCE_RES, PROTOSTAR_TEMPERATURE_TAU,
 } from '../../config';
 import { additiveBlending, clipSpaceCamera, type Uniform } from '../../gl/common';
@@ -16,6 +16,9 @@ import heatFrag from '../../shaders/protostar-heat.frag?raw';
 import coarseFrag from '../../shaders/grid-coarse.frag?raw';
 import gravityFrag from '../../shaders/grid-gravity.frag?raw';
 import potentialFrag from '../../shaders/protostar-potential.frag?raw';
+import collisionVert from '../../shaders/protostar-collision.vert?raw';
+import collisionFrag from '../../shaders/protostar-collision.frag?raw';
+import { COLLISION_GRID_RES, COLLISION_SEED_SALT } from './collisions';
 import reduceFrag from '../../shaders/protostar-reduce.frag?raw';
 import { smoothingWeight } from './noiseBias';
 import { REDUCTION_TEXEL, REDUCTION_TEXELS } from './reduction';
@@ -32,6 +35,9 @@ export const PROTOSTAR_DEFINES = {
     NOISE_N_MIN: glslFloat(PROTOSTAR_NOISE_N_MIN),
     NOISE_SHIFT_MAX: glslFloat(PROTOSTAR_NOISE_SHIFT_MAX), NOISE_EXACT_MARGIN: glslFloat(PROTOSTAR_NOISE_EXACT_MARGIN),
     INVERSE_MU_REF: glslFloat(PROTOSTAR_REFERENCE_INVERSE_MU), GAS_THERMO: 0, DEPOSIT_TSC: 0,
+    COLLISION_RES: COLLISION_GRID_RES, COLLISION_MIN_PARTICLES: PROTOSTAR_COLLISION_MIN_PARTICLES,
+    COLLISION_COS: glslFloat(Math.cos(PROTOSTAR_COLLISION_ANGLE)), COLLISION_SIN: glslFloat(Math.sin(PROTOSTAR_COLLISION_ANGLE)),
+    COLLISION_SALT: `${COLLISION_SEED_SALT}u`,
     ...DRAWING_DEFINES,
 } as const;
 
@@ -97,6 +103,16 @@ export interface ProtostarCommonUniforms extends DrawingUniforms {
     reactionReference: Uniform<number[]>;
     reactionDensityExponent: Uniform<number[]>;
     reactionEnergy: Uniform<number[]>;
+    /** The collision deposit (C1): (n, sum v, sum |v|^2) per cell of the shifted collision grid, velocities in L/s. */
+    gridCollision: Uniform<THREE.Texture | null>;
+    /** 1 while the gas collides (the `collisions` flag): the particle passes then turn the velocities in their cells. */
+    collisionsOn: Uniform<number>;
+    /** The shift of the collision grid at this substep, px. */
+    collisionShift: Uniform<THREE.Vector2>;
+    collisionVelScale: Uniform<number>;
+    collisionDensity: Uniform<number>;
+    /** Collisions per s of a cell at rho0 and the dispersion T0 (PROTOSTAR_COLLISION_RATE; the lab changes it). */
+    collisionRate: Uniform<number>;
 }
 
 export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonUniforms {
@@ -109,6 +125,8 @@ export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonU
         reactionPower: perType(0), reactionBarrier: perType(0), reactionBarrierPower: perType(1), reactionFuel: perType(-1),
         reactionReference: perType(1), reactionDensityExponent: perType(1),
         reactionEnergy: perType(0),
+        gridCollision: { value: null }, collisionsOn: { value: 0 }, collisionShift: { value: new THREE.Vector2() },
+        collisionVelScale: { value: 1 }, collisionDensity: { value: 1 }, collisionRate: { value: PROTOSTAR_COLLISION_RATE },
     };
 }
 
@@ -140,6 +158,8 @@ export interface ProtostarGridTargets {
     readonly reduce2: THREE.WebGLRenderTarget;
     /** The potential energy of the grids as they were before the last stashPotential(): one texel, x. */
     readonly potential: THREE.WebGLRenderTarget;
+    /** The collision deposit (C1, see ProtostarCommonUniforms.gridCollision), null before the collisions were first switched on. */
+    readonly collision: THREE.WebGLRenderTarget | null;
 }
 
 /** What the deposit shader reads, as plain numbers (see ProtostarGrids.debugDepositInputs). */
@@ -168,6 +188,10 @@ export interface GridScales {
     /** G_eff x simulation mass of one deposit unit. */
     gravityPerDeposit: number;
     softening: number;
+    /** rho / rho0 per particle in a cell of the collision grid. */
+    collisionDensity: number;
+    /** The shift of the collision grid at this substep, px (collisionShift() of collisions.ts). */
+    collisionShift: readonly [number, number];
 }
 
 /**
@@ -217,6 +241,36 @@ class DepositPass {
 }
 
 /**
+ * The collision deposit of the gas (C1): every particle adds (1, v, |v|^2) to the texel of its cell of the shifted collision grid
+ * (COLLISION_GRID_RES cells per axis), one fragment per particle (protostar-collision.vert).
+ */
+class CollisionDeposit {
+    private readonly material: THREE.ShaderMaterial;
+    private readonly scene = new THREE.Scene();
+    readonly target: THREE.WebGLRenderTarget;
+
+    constructor(uniforms: Record<string, THREE.IUniform>, geometry: THREE.BufferGeometry, type: THREE.TextureDataType) {
+        this.material = new THREE.ShaderMaterial({
+            uniforms, vertexShader: withProtostarCommon(collisionVert), fragmentShader: collisionFrag, ...additiveBlending,
+        });
+        const points = new THREE.Points(geometry, this.material);
+        points.frustumCulled = false;
+        this.scene.add(points);
+        this.target = gridTarget(COLLISION_GRID_RES, type);
+    }
+
+    render(renderer: THREE.WebGLRenderer): void {
+        renderer.setRenderTarget(this.target);
+        renderer.render(this.scene, clipSpaceCamera);   // autoClear clears it first
+    }
+
+    dispose(): void {
+        this.target.dispose();
+        this.material.dispose();
+    }
+}
+
+/**
  * The grid passes of the protostar algorithm, rendered before every substep from the current
  * particle state (GRID_RES x GRID_RES square cells over max(width, height)):
  *  1. moments: cloud-in-cell deposit of (m, m v, m |v|^2) and, on a second attachment of the same
@@ -228,7 +282,8 @@ class DepositPass {
  *  3. power: deposit of the expected fusion power of the fusing particles;
  *  4. heat: fusion heating per unit mass of each 3x3 neighborhood, and the molecular weight's factor for the velocity pass;
  *  5. coarse + gravity: softened gravity and its Plummer potential at the cell centers, summed cell
- *     to cell on two levels (the force in x and y, the potential in z).
+ *     to cell on two levels (the force in x and y, the potential in z);
+ *  6. with the collisions of the gas (C1), the collision deposit on the shifted grid (CollisionDeposit).
  * The particle passes sample gas, heat and gravity through the common uniforms. reduceStats()
  * reduces the grids to REDUCTION_TEXELS texels (max density, temperature there, fusions / s, the
  * densest cell, the extreme speeds and accelerations, the center of mass, the energies: see
@@ -258,6 +313,8 @@ export class ProtostarGrids {
     readonly reduce2: GridPass;
     private readonly potential1: GridPass;
     private readonly potential2: GridPass;
+    /** The collision deposit, built when the collisions are first switched on. */
+    private collisionDeposit: CollisionDeposit | null = null;
     private readonly u = {
         texturePosition: { value: null as THREE.Texture | null },
         textureVelocity: { value: null as THREE.Texture | null },
@@ -370,7 +427,7 @@ export class ProtostarGrids {
         return {
             moments: this.moments.target, gas: this.gasPasses[this.gasCurrent].target, power: this.power.target, heat: this.heat.target,
             coarse: this.coarse.target, gravity: this.gravity.target, reduce1: this.reduce1.target, reduce2: this.reduce2.target,
-            potential: this.potential2.target,
+            potential: this.potential2.target, collision: this.collisionDeposit?.target ?? null,
         };
     }
 
@@ -412,6 +469,18 @@ export class ProtostarGrids {
         for (const pass of [this.moments, this.power, this.momentsAlone]) pass?.setTsc(tsc);
     }
 
+    /**
+     * Switches the collisions of the gas (C1) on or off: on, update() draws the collision deposit and the particle passes turn the
+     * velocities; off, neither runs (the deposit is skipped and the passes take one uniform branch).
+     */
+    setCollisions(on: boolean): void {
+        if (on && !this.collisionDeposit) {
+            this.collisionDeposit = new CollisionDeposit(this.depositUniforms, this.geometry, this.blendType);
+            this.common.gridCollision.value = this.collisionDeposit.target.texture;
+        }
+        this.common.collisionsOn.value = on ? 1 : 0;
+    }
+
     /** Dev-only, read-only: the values the deposit shader runs with, to compute the deposit again on the CPU. */
     get debugDepositInputs(): DepositInputs {
         return {
@@ -431,16 +500,21 @@ export class ProtostarGrids {
         u.densityPerDeposit.value = s.densityPerDeposit;
         u.gravityPerDeposit.value = s.gravityPerDeposit;
         u.softening2.value = s.softening * s.softening;
+        const { common } = this;
+        common.collisionVelScale.value = s.depositVelScale;
+        common.collisionDensity.value = s.collisionDensity;
+        common.collisionShift.value.set(s.collisionShift[0], s.collisionShift[1]);
     }
 
     /**
      * A new run starts: its first temperature is not averaged with the one of the run before, and the dev-only switches of the lab
-     * (the time constant of the average, the correction of the noise of T, the molecular weight) are back at the application's values.
+     * (the time constant of the average, the correction of the noise of T, the molecular weight, the collision rate) are back at the application's values.
      */
     startRun(): void {
         this.temperatureHistory = false;
         this.temperatureTau = PROTOSTAR_TEMPERATURE_TAU;
         this.common.noiseCorrection.value = 1;
+        this.common.collisionRate.value = PROTOSTAR_COLLISION_RATE;
         this.molecularWeightEnabled = true;
     }
 
@@ -456,6 +530,7 @@ export class ProtostarGrids {
         const moments = this.compositionEnabled ? this.moments : this.momentsWithoutComposition();
         this.momentsTexture.value = moments.target.texture;
         moments.render(renderer);
+        if (this.common.collisionsOn.value > 0) this.collisionDeposit?.render(renderer);
         this.gasCurrent = 1 - this.gasCurrent;
         const gas = this.gasPasses[this.gasCurrent];
         gas.render(renderer);
@@ -525,5 +600,6 @@ export class ProtostarGrids {
         }
         this.momentsAlone?.dispose();
         this.gravityPlain?.dispose();
+        this.collisionDeposit?.dispose();
     }
 }

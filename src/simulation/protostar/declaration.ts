@@ -44,6 +44,7 @@ export const PROTOSTAR_PARAM = {
     jeansFloor: 'jeansFloor',
     stabilityMap: 'stabilityMap',
     tscDeposit: 'tscDeposit',
+    collisions: 'collisions',
 } as const;
 
 export const PROTOSTAR_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -142,6 +143,8 @@ const params: readonly ParamDef[] = [
         doc: t('algo.protostar.param.stabilityMap.doc') },
     { kind: 'boolean', key: PROTOSTAR_PARAM.tscDeposit, tab: 'features', label: t('algo.protostar.param.tscDeposit.label'),
         doc: t('algo.protostar.param.tscDeposit.doc'), default: false },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.collisions, tab: 'features', label: t('algo.protostar.param.collisions.label'),
+        doc: t('algo.protostar.param.collisions.doc'), default: false },
 ];
 
 const element = (symbol: string) => {

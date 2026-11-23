@@ -1,8 +1,9 @@
-// GPGPU velocity step of the protostar algorithm (velocity Verlet: the half kick of the previous step
-// and the first of this one), then the radiative cooling, the Jeans floor, the fusion heating and the walls. Velocity:
+// GPGPU velocity step of the protostar algorithm: the collision of the gas (C1, the `collisions` flag), velocity Verlet (the half kick of
+// the previous step and the first of this one), then the radiative cooling, the Jeans floor, the fusion heating and the walls. Velocity:
 // (vx, vy, 0, glow). The pass declares its own state samplers (bound by GpuPipeline); textureAccel
 // holds each particle's acceleration of the previous step (z = 1 on the first step of a run: see
-// below). The twin of the integration is leapfrog.ts, of the cooling and the Jeans floor cooling.ts, of the heating heating.ts.
+// below). The twin of the integration is leapfrog.ts, of the cooling and the Jeans floor cooling.ts, of the heating heating.ts, of the
+// collisions collisions.ts.
 // Defines: MAX_SPECIES, GRID_RES, GLOW_*.
 // Provided: resolution.
 uniform sampler2D texturePosition;
@@ -53,25 +54,38 @@ void main() {
     // run the velocity stored is v(t) itself and nothing is owed (textureAccel.z = 1).
     vec4 accelState = texture2D(textureAccel, uv);
     vec2 a = forceAt(pos.xy);
-    vec2 kicked = vel.xy + (1.0 - accelState.z) * 0.5 * (accelState.xy + a) * dtPrev;
+    vec2 kick = (1.0 - accelState.z) * 0.5 * (accelState.xy + a) * dtPrev;
+
+    // Collision of the gas (C1, twin collisions.ts): the state read here, x(t) and v(t - dtPrev), is the one after the drift of the
+    // step that ended, and the collision deposit of this substep summed exactly these particles. The cell of the shifted grid turns
+    // the velocities relative to its mean by +-the angle (with probability 1 - exp(-nu dtPrev): dtPrev is the time since the last
+    // collision), which keeps its momentum and energy. The position pass turns the velocity the same way for the drift.
+    bool collides = collisionsOn > 0.5;
+    Collision cell = collides ? collisionAt(pos.xy, dtPrev) : Collision(vec2(0.0), 0.0, 0.0);
+    vec2 kicked = (collides ? collide(vel.xy, cell) : vel.xy) + kick;
     vec2 next = pos.xy + kicked * dt + 0.5 * a * dt * dt;
     vec2 v = kicked;
+    // What the cooling, the Jeans floor and the heating scale the velocities about, and the dispersion they scale. Without the
+    // collisions, the mean velocity and the dispersion of the 3x3 neighborhood. With them, those of the particle's collision cell
+    // before the kicks (the kick is added back), which makes every scaling keep the cell's momentum exactly and change its energy
+    // by exactly what the law says; the laws themselves still read the neighborhood's temperature.
+    Gas gas = gasAt(pos.xy);
+    vec2 center = collides ? cell.u + kick : gas.v;
+    float dispersion = collides ? cell.t : gas.t;
 
     // Radiative cooling of a thin disc (A6, twin and derivation: cooling.ts): a column of surface density Sigma radiates through the
     // effective optical depth tau_eff = 3 tau / 8 + sqrt(3) / 4 + 1 / (4 tau), tau = kappa Sigma / 2, so that dT/dt = -c mu T^4 / (Sigma tau_eff),
     // integrated exactly over the step (unconditionally stable) down to the floor T_min. Only the disordered part of the motion (around
     // the local mean velocity) loses energy: its deviations are scaled by sqrt(T' / T); rotation and infall are kept. The radiation goes
     // as the temperature mu t (T0 units), the energy per unit mass as the dispersion t: that is what the heating below and the floor work on.
-    Gas gas = gasAt(pos.xy);
-    float dispersion = gas.t;
-    if (gas.rho > 0.0 && radiation > 0.0 && opacityKappa > 0.0 && dispersion > 0.0) {
-        float temperature = gas.mu * dispersion / fusionTRef;
+    if (gas.rho > 0.0 && radiation > 0.0 && opacityKappa > 0.0 && gas.t > 0.0) {
+        float temperature = gas.mu * gas.t / fusionTRef;
         if (temperature > minTemperature) {
             // Sigma tau_eff, finite when Sigma goes to 0 (the optically thin limit).
             float column = 0.1875 * opacityKappa * gas.rho * gas.rho + 0.4330127 * gas.rho + 0.5 / opacityKappa;
             float x = 3.0 * radiation * gas.mu * temperature * temperature * temperature * dt / column;
             float ratio = max(pow(1.0 + x, -1.0 / 3.0), minTemperature / temperature);
-            v = gas.v + (v - gas.v) * sqrt(ratio);
+            v = center + (v - center) * sqrt(ratio);
             dispersion *= ratio;
         }
     }
@@ -81,7 +95,7 @@ void main() {
     float jeans = jeansPerDensity * gas.rho;
     if (jeans > dispersion) {
         if (dispersion > heatingTFloor) {
-            v = gas.v + (v - gas.v) * sqrt(jeans / dispersion);
+            v = center + (v - center) * sqrt(jeans / dispersion);
         } else {
             float angle = 6.2831853 * random01(index, 3u);
             v += sqrt(jeans - dispersion) * vec2(cos(angle), sin(angle));
@@ -91,7 +105,7 @@ void main() {
 
     // Fusion feedback: the heating adds q dt of kinetic energy per unit mass, that is 2 q dt to
     // |v|^2 (twin and derivation: heating.ts). The deviations from the local mean velocity u are
-    // scaled by sqrt(1 + 2 q dt / T), T being the dispersion |v - u|^2 of the neighborhood (left
+    // scaled by sqrt(1 + 2 q dt / T), T being the dispersion |v - u|^2 of the neighborhood (of the collision cell with the collisions; left
     // after the cooling and the Jeans floor): the dispersion grows by exactly that
     // energy, the mean velocity (the momentum) does not move and no noise is added. A cell too
     // cold for that (T near 0: nothing to scale) gets the same energy as a kick in a random
@@ -101,7 +115,7 @@ void main() {
     if (q > 0.0) {
         float energy = min(2.0 * q * dt, maxSpeed * maxSpeed);
         if (dispersion > heatingTFloor) {
-            v = gas.v + (v - gas.v) * sqrt(1.0 + energy / dispersion);
+            v = center + (v - center) * sqrt(1.0 + energy / dispersion);
         } else {
             float angle = 6.2831853 * random01(index, 2u);
             v += sqrt(energy) * vec2(cos(angle), sin(angle));
