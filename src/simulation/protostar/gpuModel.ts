@@ -8,7 +8,7 @@ import {
 } from '../../config';
 import { glslFloat } from '../../gl/withDefines';
 import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
-import type { GpuModel, GpuModelContext, GpuVariable, InitialState } from '../gpuModel';
+import type { GpuModel, GpuModelContext, GpuVariable, GridOverlay, InitialState } from '../gpuModel';
 import type { Vec2 } from '../../util/math';
 import { jeansPerDensity } from './cooling';
 import { EnergyBalance, type EnergyStats } from './energy';
@@ -17,6 +17,8 @@ import { inverseMolecularWeights } from './composition';
 import { ProtostarGrids, withProtostarCommon, type ProtostarGridTargets } from './grids';
 import { fillCloud, type CloudSummary } from './initialConditions';
 import { reactionArrays } from './reactions';
+import { isStabilityMapMode, type StabilityMapMode } from './stability';
+import { StabilityPass } from './stabilityPass';
 import { TypeCountReduction } from './typeReduction';
 import { REDUCTION_FLOATS, REDUCTION_TEXELS, unpackReduction, type Reduction, type ReductionScales } from './reduction';
 import { criticalStep, substepBounds, SubstepController } from './timeStep';
@@ -108,6 +110,10 @@ export class ProtostarModel implements GpuModel {
     private diagnostics = true;
     private adaptiveStep = false;
     private jeansFloor = false;
+    private stabilityMode: StabilityMapMode = 'off';
+    private stability: StabilityPass | null = null;    // built when the map is first shown
+    private stabilityStale = true;                     // the grids changed since the map was drawn
+    private gravityDensity = 0;                        // G_eff rho0 of the last substep, px/s^2
     private readonly stepController = new SubstepController(PROTOSTAR_STEP_RELEASE);
     private lastDt = 0;                                // the length of the previous substep of this run, 0 before the first
     private stepInfo: StepInfo | null = null;
@@ -209,6 +215,10 @@ export class ProtostarModel implements GpuModel {
         if (key === P.jeansFloor) this.jeansFloor = value === true;
         if (key === P.diagnostics) this.setDiagnostics(value === true);
         if (key === P.adaptiveTimeStep) this.setAdaptiveStep(value === true);
+        if (key === P.stabilityMap) {
+            this.stabilityMode = isStabilityMapMode(value) ? value : 'off';
+            this.stabilityStale = true;
+        }
         if (REACTION_PARAMS.has(key)) this.updateReactions();
     }
 
@@ -279,6 +289,7 @@ export class ProtostarModel implements GpuModel {
         this.stepController.reset();
         this.stepInfo = null;
         this.clearEnergy();
+        this.stabilityStale = true;
         this.typeCounts = null;
         this.own.maxSpeed.value = PROTOSTAR_MAX_SPEED * length;
         this.grids.common.fusionTRef.value = PROTOSTAR_FUSION_T_REF * length * length;
@@ -382,6 +393,8 @@ export class ProtostarModel implements GpuModel {
         grids.setScales(scales);
         grids.update(context.positionTexture(), context.velocityTexture(), dt);
         this.gridsDrawn = true;
+        this.stabilityStale = true;
+        this.gravityDensity = this.gravity(length) * rho0;
         this.reductionScales = {
             massPerDeposit: meanMass, depositVelScale: scales.depositVelScale,
             gravityPerDeposit: scales.gravityPerDeposit, softening: scales.softening,
@@ -535,9 +548,35 @@ export class ProtostarModel implements GpuModel {
         return this.typeCounts;
     }
 
+    /**
+     * The stability map (A12), drawn from the latest grids when they changed since the last call, about the center of mass of the latest
+     * reduction (the middle of the area before the first one); null while the map is off or before the first substep of the run.
+     */
+    overlay(): GridOverlay | null {
+        if (this.stabilityMode === 'off' || !this.gridsDrawn) return null;
+        const { grids } = this;
+        const common = grids.common;
+        this.stability ??= new StabilityPass(
+            { gridGas: common.gridGas, gridThermo: common.gridThermo, gridCell: common.gridCell, fusionTRef: common.fusionTRef },
+            { radiation: this.own.radiation, opacityKappa: this.own.opacityKappa, minTemperature: this.own.minTemperature },
+        );
+        if (this.stabilityStale) {
+            const size = this.context.screenSize.value;
+            this.stability.render(this.context.renderer, this.centerOfMass ?? { x: size.x / 2, y: size.y / 2 }, this.gravityDensity);
+            this.stabilityStale = false;
+        }
+        return { texture: this.stability.target.texture, extent: common.gridCell.value * PROTOSTAR_GRID_RES, mode: this.stabilityMode };
+    }
+
+    /** Dev-only, read-only: the stability map's target (Q, beta, rho / rho0, kappa^2 per cell), null before the map was first shown; for the lab page. */
+    get debugStabilityTarget(): THREE.WebGLRenderTarget | null {
+        return this.stability?.target ?? null;
+    }
+
     dispose(): void {
         this.generation++;
         this.typeReduction.dispose();
+        this.stability?.dispose();
         this.grids.dispose();
     }
 }

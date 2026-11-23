@@ -8,7 +8,7 @@ import type { ParamValue, ParamValues, ParticleType } from './algorithm';
 import { ClusterProbe } from './clusterProbe';
 import type { DrawingField } from './drawing/DrawingField';
 import { DensityField } from './densityField';
-import type { GpuModel, GpuModelContext, GpuModelFactory, InitialState, SpeciesUniforms } from './gpuModel';
+import type { GpuModel, GpuModelContext, GpuModelFactory, GridOverlay, InitialState, SpeciesUniforms } from './gpuModel';
 import positionFrag from '../shaders/position.frag?raw';
 
 /** The objects shared with the render layers: they outlive the pipelines (one per algorithm). */
@@ -189,6 +189,11 @@ export class GpuPipeline {
 
     stat(key: string): number | null {
         return this.model.stat(key);
+    }
+
+    /** The model's map to draw over the animation now (see GpuModel.overlay), null when none is shown. */
+    overlay(): GridOverlay | null {
+        return this.model.overlay?.() ?? null;
     }
 
     liveTypeCounts(): readonly number[] | null {

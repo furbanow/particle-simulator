@@ -12,6 +12,7 @@ import { applyStaticTranslations, getLanguage, t } from './i18n';
 import { NebulaLayer } from './render/nebulaLayer';
 import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
+import { StabilityLayer } from './render/stabilityLayer';
 import { defaultTypeCount, PARTICLE_COUNT_PARAM, type ParamValues } from './simulation/algorithm';
 import {
     ALGORITHMS, BENCHMARK_ALGORITHM, BENCHMARK_PARAMS, DEFAULT_ALGORITHM, isAlgorithmId, type AlgorithmId,
@@ -89,6 +90,8 @@ const particles = new ParticleLayer(simulation.geometry, simulation.speciesUnifo
 const nebula = new NebulaLayer(renderer, simulation.geometry, simulation.speciesUniforms, simulation.screenSize,
     particles.texturePosition, viewUniforms);
 const post = new PostProcessing(renderer, particles.scene, nebula.target.texture, width, height);
+// The protostar's stability map, over the finished image (off unless chosen in the features tab).
+const stability = new StabilityLayer(simulation.screenSize, viewUniforms);
 
 function resize(): void {
     width = container.clientWidth;
@@ -361,6 +364,7 @@ function renderFrame(): void {
     particles.update(simulation.positionTexture, simulation.velocityTexture, simulation.paused ? 0 : BASE_DT * simulation.timeScale);
     nebula.render();
     post.render(visualTime);
+    stability.render(renderer, simulation.overlay());
     simulation.endFrame();
 }
 

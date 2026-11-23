@@ -11,7 +11,7 @@ import { DrawingField } from './drawing/DrawingField';
 import { GpuPipeline } from './GpuPipeline';
 import { GPU_MODELS } from './gpuModels';
 import { defaultParams, validParamValue } from './params';
-import type { SpeciesUniforms } from './gpuModel';
+import type { GridOverlay, SpeciesUniforms } from './gpuModel';
 
 export type { SpeciesUniforms } from './gpuModel';
 
@@ -185,6 +185,11 @@ export class Simulation {
     /** Particles per type now: the GPU model's count when types change, else the restart split. */
     liveTypeCounts(): readonly number[] {
         return this.pipeline.liveTypeCounts() ?? this.speciesCounts;
+    }
+
+    /** The map to draw over the animation now (the protostar's stability map), computed on demand; null when none is shown. */
+    overlay(): GridOverlay | null {
+        return this.pipeline.overlay();
     }
 
     /** Mass of each type now, simulation mass units: the particles of the type (see liveTypeCounts) times the mass of one. */

@@ -200,6 +200,18 @@ export const PROTOSTAR_TEMPERATURE_TAU = 0.1;
 // tau = kappa Sigma / 2, T in T0 and Sigma in rho0, down to T_min (the sliders below). Jeans floor (A13, the `jeansFloor` flag): the dispersion of a
 // neighborhood is kept at 2 JEANS_CELLS dx G Sigma or more, so that the Jeans length of the sheet spans JEANS_CELLS cells of the grid (Truelove et al. 1997).
 export const PROTOSTAR_JEANS_CELLS = 4;
+// Stability map (A12, protostar/stability.ts, the `stabilityMap` choice): Toomre's Q and the cooling parameter beta = t_cool Omega of every
+// cell of the gas grid, drawn over the animation. A disc fragments where Q < Q_CRITICAL (self-gravity beats rotation and pressure) and
+// beta < BETA_CRITICAL (it cools faster than shear can heat it: Gammie 2001, the value of a 2D gas). Cells lighter than MIN_DENSITY
+// (rho0) are not drawn; the continuous maps span LOG_RANGE decades on each side of the threshold; OPACITY is the strongest tint. A value
+// with no bound (no gas, no cooling) is written as CAP.
+export const PROTOSTAR_STABILITY_Q_CRITICAL = 1;
+export const PROTOSTAR_STABILITY_BETA_CRITICAL = 3;
+export const PROTOSTAR_STABILITY_MIN_DENSITY = 0.05;
+export const PROTOSTAR_STABILITY_LOG_RANGE = 1;
+export const PROTOSTAR_STABILITY_OPACITY = 0.55;
+export const PROTOSTAR_STABILITY_PARTIAL = 0.45;        // the fragmentation map's tint where only one criterion holds, times OPACITY
+export const PROTOSTAR_STABILITY_CAP = 2 ** 100;        // about 1.3e30, exact in float32
 export const PROTOSTAR_RESTITUTION = 0.5;          // walls
 export const PROTOSTAR_MAX_SPEED = 2;              // L/s
 // Adaptive time step (protostar/timeStep.ts, the `adaptiveTimeStep` flag): the number of substeps of a frame follows the criterion

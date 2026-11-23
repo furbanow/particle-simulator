@@ -191,7 +191,7 @@ describe('panel tabs', () => {
         expect(Object.fromEntries(flags)).toEqual({
             count: true, alphaVir: true, betaRot: true, profile: true, turbulence: true, gravity: false, softening: false, radiation: false,
             kappa: false, minTemperature: false, fusionRate: false, heFusionRate: false, feedback: false,
-            diagnostics: false, adaptiveTimeStep: false, jeansFloor: false,
+            diagnostics: false, adaptiveTimeStep: false, jeansFloor: false, stabilityMap: false,
         });
     });
 });

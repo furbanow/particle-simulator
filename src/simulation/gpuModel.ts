@@ -3,6 +3,7 @@ import type { Uniform } from '../gl/common';
 import type { ParamValue, ParamValues, ParticleType } from './algorithm';
 import type { DrawingField } from './drawing/DrawingField';
 import type { DensityField } from './densityField';
+import type { StabilityMapMode } from './protostar/stability';
 
 /** Per-type uniforms shared by the simulation, particle and nebula materials. */
 export interface SpeciesUniforms {
@@ -134,8 +135,22 @@ export interface GpuModel {
     stat(key: string): number | null;
     /** Live particle count per type, when types change during the simulation (else null). */
     liveTypeCounts?(): readonly number[] | null;
+    /** The map to draw over the animation now (the protostar's stability map), drawn on demand; null when none is shown. */
+    overlay?(): GridOverlay | null;
 
     dispose(): void;
+}
+
+/**
+ * A map of a model's square grid, drawn over the animation by the render layer (render/stabilityLayer.ts). The grid's cell (i, j)
+ * covers the world square [i, i + 1] x [j, j + 1] times extent / its resolution, from the world origin (y up).
+ */
+export interface GridOverlay {
+    /** RGBA float texture of the grid: (Q, beta, rho / rho0, kappa^2) for the stability map (protostar/stability.ts). */
+    readonly texture: THREE.Texture;
+    /** World px covered by a side of the grid. */
+    readonly extent: number;
+    readonly mode: Exclude<StabilityMapMode, 'off'>;
 }
 
 export type GpuModelFactory = (context: GpuModelContext) => GpuModel;

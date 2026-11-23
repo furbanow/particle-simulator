@@ -20,6 +20,7 @@ import {
     linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type ParamDef, type ParticleType,
 } from '../algorithm';
 import { DENSITY_PROFILES } from './disc';
+import { STABILITY_MAP_MODES } from './stability';
 import { TURBULENCE_KINDS } from './initialConditions';
 import { reactionTransitions, type FusionReaction } from './reactions';
 
@@ -41,6 +42,7 @@ export const PROTOSTAR_PARAM = {
     diagnostics: 'diagnostics',
     adaptiveTimeStep: 'adaptiveTimeStep',
     jeansFloor: 'jeansFloor',
+    stabilityMap: 'stabilityMap',
 } as const;
 
 export const PROTOSTAR_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -134,6 +136,9 @@ const params: readonly ParamDef[] = [
         doc: t('algo.protostar.param.adaptiveTimeStep.doc'), default: false },
     { kind: 'boolean', key: PROTOSTAR_PARAM.jeansFloor, tab: 'features', label: t('algo.protostar.param.jeansFloor.label'),
         doc: t('algo.protostar.param.jeansFloor.doc'), default: false },
+    { kind: 'choice', key: PROTOSTAR_PARAM.stabilityMap, tab: 'features', label: t('algo.protostar.param.stabilityMap.label'), default: 'off',
+        options: STABILITY_MAP_MODES.map(value => ({ value, label: t(`algo.protostar.option.stabilityMap.${value}`) })),
+        doc: t('algo.protostar.param.stabilityMap.doc') },
 ];
 
 const element = (symbol: string) => {
