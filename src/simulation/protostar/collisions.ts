@@ -18,10 +18,14 @@
 // weigh the same, so this is equipartition per parcel, and the temperature of a cell, mu_mean / mu_H times its dispersion, is the
 // temperature of the mixture in equilibrium (A1); what is lost is the sedimentation of the heavier ions.
 //
-// Where the collision happens in the scheme: at the start of substep n + 1 the state textures hold x(n+1) and v(n) (velocity Verlet
-// on lagged storage, leapfrog.ts), exactly the state after the drift of substep n. The model deposits that state with the other grids
-// (beforeSubstep) and the velocity pass turns v(n) before its kicks; the position pass turns it the same way for the drift. A
-// collision "after Verlet" in the same pass, with no pass of its own over the particle textures.
+// Where the collision happens in the scheme: at the start of the substep that sees the positions x(n) the state textures hold x(n)
+// and v(n-1) (velocity Verlet on lagged storage, leapfrog.ts): the state after the drift of the step that ended, with the velocity
+// one substep behind. The collision must turn the velocities of one instant: the deposit (drawn after the substep's gravity grid)
+// sums v(n) = v(n-1) + (a(n-1) + a(n)) dt / 2, the velocity at x(n), and the velocity pass turns that same v(n) before the drift;
+// the position pass turns it the same way. A collision "after Verlet" in the same passes, with no pass of its own over the particle
+// textures. (Turning v(n-1) instead, and kicking it afterwards, would break the conservation: the kick of a particle is correlated
+// with its velocity within the cell, through the position it reached, and the rotation breaks that correlation: the lab measured
+// K + U of a conservative cloud falling by 13 times |E0| over 100 orbits that way, against -0.17 % without the collisions.)
 //
 // The cell's random numbers: a PCG hash of the cell's index and of the substep's seed (cellRandom(), the twin of collisionRandom() in
 // protostar-common.glsl), so the deposit, the velocity pass and the position pass agree on what every cell does without storing it.

@@ -56,22 +56,26 @@ void main() {
     vec2 a = forceAt(pos.xy);
     vec2 kick = (1.0 - accelState.z) * 0.5 * (accelState.xy + a) * dtPrev;
 
-    // Collision of the gas (C1, twin collisions.ts): the state read here, x(t) and v(t - dtPrev), is the one after the drift of the
-    // step that ended, and the collision deposit of this substep summed exactly these particles. The cell of the shifted grid turns
-    // the velocities relative to its mean by +-the angle (with probability 1 - exp(-nu dtPrev): dtPrev is the time since the last
-    // collision), which keeps its momentum and energy. The position pass turns the velocity the same way for the drift.
+    vec2 kicked = vel.xy + kick;
+
+    // Collision of the gas (C1, twin collisions.ts), at the instant of the positions: kicked is v(t), synchronous with x(t), and the
+    // collision deposit of this substep summed exactly these velocities. The cell of the shifted grid turns the velocities relative
+    // to its mean by +-the angle (with probability 1 - exp(-nu dtPrev): dtPrev is the time since the last collision), which keeps its
+    // momentum and energy. The position pass turns the velocity the same way for the drift.
     bool collides = collisionsOn > 0.5;
     Collision cell = Collision(vec2(0.0), 0.0, 0.0);
-    if (collides) cell = collisionAt(pos.xy, dtPrev);
-    vec2 kicked = (collides ? collide(vel.xy, cell) : vel.xy) + kick;
+    if (collides) {
+        cell = collisionAt(pos.xy, dtPrev);
+        kicked = collide(kicked, cell);
+    }
     vec2 next = pos.xy + kicked * dt + 0.5 * a * dt * dt;
     vec2 v = kicked;
     // What the cooling, the Jeans floor and the heating scale the velocities about, and the dispersion they scale. Without the
-    // collisions, the mean velocity and the dispersion of the 3x3 neighborhood. With them, those of the particle's collision cell
-    // before the kicks (the kick is added back), which makes every scaling keep the cell's momentum exactly and change its energy
-    // by exactly what the law says; the laws themselves still read the neighborhood's temperature.
+    // collisions, the mean velocity and the dispersion of the 3x3 neighborhood. With them, those of the particle's collision cell,
+    // which makes every scaling keep the cell's momentum exactly and change its energy by exactly what the law says; the laws
+    // themselves still read the neighborhood's temperature.
     Gas gas = gasAt(pos.xy);
-    vec2 center = collides ? cell.u + kick : gas.v;
+    vec2 center = collides ? cell.u : gas.v;
     float dispersion = collides ? cell.t : gas.t;
 
     // Radiative cooling of a thin disc (A6, twin and derivation: cooling.ts): a column of surface density Sigma radiates through the

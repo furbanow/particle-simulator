@@ -171,6 +171,7 @@ export class ProtostarModel implements GpuModel {
             GLOW_HEATING_REF: glslFloat(PROTOSTAR_GLOW_HEATING_REF), GLOW_MAX: glslFloat(PROTOSTAR_GLOW_MAX),
         });
         this.positionShader = withProtostarCommon(positionFrag, { GAS_THERMO: 1 });
+        this.grids.shareStepLength(this.dtPrev);
         this.velocityUniforms = { ...common, ...this.own, dtPrev: this.dtPrev };
         this.positionUniforms = { ...common, dtPrev: this.dtPrev };
         this.variables = [{
@@ -397,7 +398,7 @@ export class ProtostarModel implements GpuModel {
             this.stashedFrame = this.frame;
         }
         grids.setScales(scales);
-        grids.update(context.positionTexture(), context.velocityTexture(), dt);
+        grids.update(context.positionTexture(), context.velocityTexture(), dt, context.variableTexture(ACCEL));
         this.gridsDrawn = true;
         this.stabilityStale = true;
         this.gravityDensity = this.gravity(length) * rho0;

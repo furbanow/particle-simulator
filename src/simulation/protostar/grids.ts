@@ -283,7 +283,8 @@ class CollisionDeposit {
  *  4. heat: fusion heating per unit mass of each 3x3 neighborhood, and the molecular weight's factor for the velocity pass;
  *  5. coarse + gravity: softened gravity and its Plummer potential at the cell centers, summed cell
  *     to cell on two levels (the force in x and y, the potential in z);
- *  6. with the collisions of the gas (C1), the collision deposit on the shifted grid (CollisionDeposit).
+ *  6. with the collisions of the gas (C1), the collision deposit on the shifted grid (CollisionDeposit), of the velocities kicked to
+ *     the instant of the positions with the force of step 5.
  * The particle passes sample gas, heat and gravity through the common uniforms. reduceStats()
  * reduces the grids to REDUCTION_TEXELS texels (max density, temperature there, fusions / s, the
  * densest cell, the extreme speeds and accelerations, the center of mass, the energies: see
@@ -315,6 +316,8 @@ export class ProtostarGrids {
     private readonly potential2: GridPass;
     /** The collision deposit, built when the collisions are first switched on. */
     private collisionDeposit: CollisionDeposit | null = null;
+    /** The model's previous substep length (s), shared by reference with its particle passes: the collision deposit's kick. */
+    private stepLength: Uniform<number> = { value: 0 };
     private readonly u = {
         texturePosition: { value: null as THREE.Texture | null },
         textureVelocity: { value: null as THREE.Texture | null },
@@ -326,6 +329,8 @@ export class ProtostarGrids {
         speciesDepositMass: { value: new Array<number>(MAX_SPECIES).fill(1) },
         speciesInverseMu: { value: new Array<number>(MAX_SPECIES).fill(0) },
         speciesFuel: { value: Array.from({ length: MAX_SPECIES }, () => new THREE.Vector2()) },
+        /** The particles' acceleration of the previous substep (the model's textureAccel): the collision deposit's kick. */
+        textureAccel: { value: null as THREE.Texture | null },
         temperatureWeight: { value: 1 },
         molecularWeight: { value: 1 },
         /** The noise shape of the deposit's kernel (PROTOSTAR_NOISE_N_SHAPE, or _TSC): the gas pass's effective number of particles. */
@@ -475,10 +480,15 @@ export class ProtostarGrids {
      */
     setCollisions(on: boolean): void {
         if (on && !this.collisionDeposit) {
-            this.collisionDeposit = new CollisionDeposit(this.depositUniforms, this.geometry, this.blendType);
+            this.collisionDeposit = new CollisionDeposit({ ...this.depositUniforms, dtPrev: this.stepLength }, this.geometry, this.blendType);
             this.common.gridCollision.value = this.collisionDeposit.target.texture;
         }
         this.common.collisionsOn.value = on ? 1 : 0;
+    }
+
+    /** The uniform holding the previous substep's length that the particle passes read (dtPrev), shared by the collision deposit. */
+    shareStepLength(dtPrev: Uniform<number>): void {
+        this.stepLength = dtPrev;
     }
 
     /** Dev-only, read-only: the values the deposit shader runs with, to compute the deposit again on the CPU. */
@@ -518,19 +528,22 @@ export class ProtostarGrids {
         this.molecularWeightEnabled = true;
     }
 
-    /** Renders every grid from the particle state, `dt` seconds after the previous ones. */
-    update(positions: THREE.Texture, velocities: THREE.Texture, dt: number): void {
+    /**
+     * Renders every grid from the particle state, `dt` seconds after the previous ones; `accelerations` (the previous substep's, for the
+     * collision deposit's kick) only matters with the collisions on.
+     */
+    update(positions: THREE.Texture, velocities: THREE.Texture, dt: number, accelerations: THREE.Texture | null = null): void {
         const { renderer } = this;
         this.u.temperatureWeight.value = this.temperatureHistory ? smoothingWeight(dt, this.temperatureTau) : 1;
         this.temperatureHistory = true;
         this.u.texturePosition.value = positions;
         this.u.textureVelocity.value = velocities;
+        this.u.textureAccel.value = accelerations;
         const clearAlpha = renderer.getClearAlpha();
         renderer.setClearAlpha(0);                      // the deposits use alpha: start from 0
         const moments = this.compositionEnabled ? this.moments : this.momentsWithoutComposition();
         this.momentsTexture.value = moments.target.texture;
         moments.render(renderer);
-        if (this.common.collisionsOn.value > 0) this.collisionDeposit?.render(renderer);
         this.gasCurrent = 1 - this.gasCurrent;
         const gas = this.gasPasses[this.gasCurrent];
         gas.render(renderer);
@@ -543,6 +556,8 @@ export class ProtostarGrids {
         const gravity = this.potentialEnabled ? this.gravity : this.gravityWithoutPotential();
         this.common.gridForce.value = gravity.target.texture;
         gravity.render(renderer);
+        // After the gravity: the collision deposit kicks every velocity to the instant of the positions with this substep's force.
+        if (this.common.collisionsOn.value > 0) this.collisionDeposit?.render(renderer);
         renderer.setClearAlpha(clearAlpha);
         renderer.setRenderTarget(null);
     }

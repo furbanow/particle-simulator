@@ -25,8 +25,9 @@ void main() {
     vec4 accelState = texture2D(textureAccel, uv);
     vec2 a = forceAt(pos.xy);
     vec2 kick = (1.0 - accelState.z) * 0.5 * (accelState.xy + a) * dtPrev;
-    // The collision of the gas (C1), as the velocity pass turns the velocity before its kicks.
-    vec2 kicked = (collisionsOn > 0.5 ? collide(vel, collisionAt(pos.xy, dtPrev)) : vel) + kick;
+    vec2 kicked = vel + kick;
+    // The collision of the gas (C1), as the velocity pass turns v(t).
+    if (collisionsOn > 0.5) kicked = collide(kicked, collisionAt(pos.xy, dtPrev));
     vec2 next = pos.xy + kicked * dt + 0.5 * a * dt * dt;
 
     // The whole parcel fuses with probability 1 - exp(-rate dt), the share of the fuel that fuses in a step: the expected mass that
