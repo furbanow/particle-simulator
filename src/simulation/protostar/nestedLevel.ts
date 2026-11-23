@@ -2,7 +2,7 @@
 // chain of the same resolution, NESTED_RATIO times finer, over the box; the passes that join it to the main grid; its reductions.
 import * as THREE from 'three';
 import {
-    PROTOSTAR_COARSE_FACTOR, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_NESTED_MARGIN_CELLS, PROTOSTAR_STATS_REDUCE_RES,
+    PROTOSTAR_COARSE_FACTOR, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_NESTED_BAND_CELLS, PROTOSTAR_NESTED_MARGIN_CELLS, PROTOSTAR_STATS_REDUCE_RES,
 } from '../../config';
 import type { Uniform } from '../../gl/common';
 import { GridPass, gridTarget } from '../../gl/gridPass';
@@ -51,6 +51,8 @@ export interface NestedScales {
  */
 export class NestedLevel {
     readonly chain: GridChain;
+    /** Dev-only (the lab): the fade band in main cells instead of PROTOSTAR_NESTED_BAND_CELLS; null in the application. */
+    debugBandCells: number | null = null;
     /** The fine level's own common uniforms (its cell and origin; nestedOn 0: its deposits read its own gas as the "main" one). */
     private readonly fineCommon: ProtostarCommonUniforms;
     private readonly own = {
@@ -140,6 +142,7 @@ export class NestedLevel {
         const region = readRegion({ x: origin.x * mainCell, y: origin.y * mainCell }, fineCell, PROTOSTAR_GRID_RES, PROTOSTAR_NESTED_MARGIN_CELLS);
         common.nestedLo.value.set(region.lo.x, region.lo.y);
         common.nestedHi.value.set(region.hi.x, region.hi.y);
+        common.nestedBand.value = (this.debugBandCells ?? PROTOSTAR_NESTED_BAND_CELLS) * mainCell;
         this.own.nestedBox.value.set(origin.x, origin.y);
         const size = boxCells({ gridRes: PROTOSTAR_GRID_RES, ratio });
         // a_main(inside) is read bilinearly at the fine centers: the box's main cells and one around them.

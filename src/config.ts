@@ -236,6 +236,8 @@ export const PROTOSTAR_NESTED_ON_READINGS = 3;
 export const PROTOSTAR_NESTED_STILL_CELLS = 2;
 export const PROTOSTAR_NESTED_INNER = 0.5;
 export const PROTOSTAR_NESTED_MARGIN_CELLS = 2;
+// The force fades from the main grid's to the fine level's over NESTED_BAND_CELLS main cells inside the read region (no jump at the edge).
+export const PROTOSTAR_NESTED_BAND_CELLS = 1;
 export const PROTOSTAR_COLLISION_ANGLE = Math.PI / 2;
 export const PROTOSTAR_COLLISION_RATE = 1000;           // per s, at rho0 and the dispersion T0
 export const PROTOSTAR_COLLISION_MIN_PARTICLES = 2;

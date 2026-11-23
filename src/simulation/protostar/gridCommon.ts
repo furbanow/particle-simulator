@@ -67,6 +67,8 @@ export interface ProtostarCommonUniforms extends DrawingUniforms {
     /** Where the particles read the fine level, px (readRegion() of nestedBox.ts). */
     nestedLo: Uniform<THREE.Vector2>;
     nestedHi: Uniform<THREE.Vector2>;
+    /** px: the band inside the read region over which the force fades from the main grid's to the fine level's (0: none). */
+    nestedBand: Uniform<number>;
     /** The fine level's fields: the whole force there (protostar-nested-combine.frag), its gas, heating, thermo and fuel grids. */
     gridForceFine: Uniform<THREE.Texture | null>;
     gridGasFine: Uniform<THREE.Texture | null>;
@@ -106,7 +108,7 @@ export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonU
         gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null }, gridThermo: { value: null }, gridFuel: { value: null },
         gridCell: { value: 1 }, gridOrigin: { value: new THREE.Vector2() },
         nestedOn: { value: 0 }, nestedCell: { value: 1 }, nestedOrigin: { value: new THREE.Vector2() },
-        nestedLo: { value: new THREE.Vector2() }, nestedHi: { value: new THREE.Vector2() },
+        nestedLo: { value: new THREE.Vector2() }, nestedHi: { value: new THREE.Vector2() }, nestedBand: { value: 0 },
         gridForceFine: { value: null }, gridGasFine: { value: null }, gridHeatFine: { value: null }, gridThermoFine: { value: null },
         gridFuelFine: { value: null },
         tscForce: { value: 0 }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },

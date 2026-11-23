@@ -20,6 +20,7 @@ uniform float nestedCell;               // the fine cell, px
 uniform vec2 nestedOrigin;              // the fine grid's lower left corner, px
 uniform vec2 nestedLo;                  // where the particles read the fine level, px: the box less a margin (readRegion() in nestedBox.ts)
 uniform vec2 nestedHi;
+uniform float nestedBand;               // px: the force fades from the main grid's to the fine level's over this band inside the read region
 uniform sampler2D gridForceFine;        // the fine level's fields, laid out as the main ones
 uniform sampler2D gridGasFine;
 uniform sampler2D gridHeatFine;
@@ -88,7 +89,17 @@ vec2 forceFrom(sampler2D field, vec2 x, float cell, vec2 origin) {
 
 /** The force at x of the level that x reads (the main grid, or the fine one of the nested box), plus the drawings'. */
 vec2 forceAt(vec2 x) {
-    vec2 a = inNested(x) ? forceFrom(gridForceFine, x, nestedCell, nestedOrigin) : forceFrom(gridForce, x, gridCell, gridOrigin);
+    vec2 a;
+    if (inNested(x)) {
+        a = forceFrom(gridForceFine, x, nestedCell, nestedOrigin);
+        // Near the edge of the read region the two levels' forces differ (the fine softening is shorter): fade from one to the other, so
+        // that a particle crossing the edge sees no jump (a jump does work on it at every crossing).
+        vec2 d = min(x - nestedLo, nestedHi - x);
+        float w = nestedBand > 0.0 ? clamp(min(d.x, d.y) / nestedBand, 0.0, 1.0) : 1.0;
+        if (w < 1.0) a = mix(forceFrom(gridForce, x, gridCell, gridOrigin), a, w);
+    } else {
+        a = forceFrom(gridForce, x, gridCell, gridOrigin);
+    }
     return a + drawingAccel(x);
 }
 

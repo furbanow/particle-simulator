@@ -517,7 +517,7 @@ const cost: Scenario = {
  * then the sum of the forces on all the particles (zero if every pair pulls both ways alike) over the sum of their sizes, split between the
  * particles that read the fine level and the others; at divisors 1 and 2 of the softening, and at 2 with the step halved (debugSubsteps).
  */
-const NET_FORCE_FRAMES = 300;
+const NET_FORCE_FRAMES = 3000;
 
 const netForce: Scenario = {
     id: 'protostar.nested.net-force',
@@ -530,10 +530,10 @@ const netForce: Scenario = {
         const out: Record<string, JsonValue> = {};
         const notes: string[] = [];
         for (const c of [
-            { name: 'off', on: false, divisor: null, substeps: null },
-            { name: 'eps', on: true, divisor: 1, substeps: null },
-            { name: 'eps/2', on: true, divisor: 2, substeps: null },
-            { name: 'eps/2-half-step', on: true, divisor: 2, substeps: 4 },
+            { name: 'off', on: false, divisor: null, substeps: null, band: null },
+            { name: 'eps/2-no-band', on: true, divisor: 2, substeps: null, band: 0 },
+            { name: 'eps/2', on: true, divisor: 2, substeps: null, band: null },
+            { name: 'eps/2-band-3', on: true, divisor: 2, substeps: null, band: 3 },
         ]) {
             const model = protostarModel(context);
             await restart(context, { count: NESTED_CONSERVATION_PARTICLES, overrides: { ...CONSERVATIVE_OVERRIDES }, params: { [PROTOSTAR_PARAM.nestedGrid]: c.on } });
@@ -541,6 +541,8 @@ const netForce: Scenario = {
             model.debugNestedSofteningDivisor = c.divisor;
             model.debugSubsteps = c.substeps;
             model.debugForceNestedBox(c.on ? centre : null);
+            const level = model.debugGrids.debugNestedLevel;
+            if (level) level.debugBandCells = c.band;
             const energies: number[] = [];
             await runFrames(context, NET_FORCE_FRAMES, {
                 endFrame: true,
@@ -572,6 +574,7 @@ const netForce: Scenario = {
             model.debugForceNestedBox(null);
             model.debugNestedSofteningDivisor = null;
             model.debugSubsteps = null;
+            if (level) level.debugBandCells = null;
             model.velocityUniforms.restitution.value = PROTOSTAR_RESTITUTION_APP;
         }
         return { status: 'pass', metrics: out, details: notes.join('; ') };
