@@ -278,12 +278,12 @@ const conservation: Scenario = {
         const cell = LAB_CELL;
         const size = context.simulation.screenSize.value;
         const centre = boxOrigin({ x: size.x / 2, y: size.y / 2 }, cell, { gridRes: PROTOSTAR_GRID_RES, ratio: PROTOSTAR_NESTED_RATIO });
-        // fixed-eps: the fine level at the main softening, which tells the junction's share of a drift from the time step's in a denser core.
+        // fixed-eps/2: the fine level at half the main softening (the choice the user dropped), for the record.
         const cases = [
             { name: 'off', on: false, move: false, divisor: null },
             { name: 'fixed', on: true, move: false, divisor: null },
             { name: 'moving', on: true, move: true, divisor: null },
-            { name: 'fixed-eps', on: true, move: false, divisor: 1 },
+            { name: 'fixed-eps/2', on: true, move: false, divisor: 2 },
         ];
         const out: Record<string, JsonValue> = {};
         const notes: string[] = [];
@@ -513,9 +513,11 @@ const cost: Scenario = {
 // ---- protostar.nested.net-force ----
 
 /**
- * Where the momentum goes: the conservative default cloud run NET_FORCE_FRAMES frames with the box held at its center (and the flag off),
- * then the sum of the forces on all the particles (zero if every pair pulls both ways alike) over the sum of their sizes, split between the
- * particles that read the fine level and the others; at divisors 1 and 2 of the softening, and at 2 with the step halved (debugSubsteps).
+ * Where the energy and the momentum go: the conservative default cloud run NET_FORCE_FRAMES frames with the box held at its center (and the
+ * flag off), K + U from the first to the last reading, then the sum of the forces on all the particles (zero if every pair pulls both ways
+ * alike) over the sum of their sizes, split between the particles that read the fine level and the others; at the application's softening,
+ * at eps/2 with no fade at the edge, the default fade and a 3-cell one, and at eps/2 with a quarter of the step (debugSubsteps): the drift of
+ * eps/2 does not depend on the step nor much on the fade (it is the law of a pair changing as a particle crosses the edge).
  */
 const NET_FORCE_FRAMES = 3000;
 
@@ -531,12 +533,11 @@ const netForce: Scenario = {
         const notes: string[] = [];
         for (const c of [
             { name: 'off', on: false, divisor: null, substeps: null, band: null },
+            { name: 'eps', on: true, divisor: null, substeps: null, band: null },
             { name: 'eps/2-no-band', on: true, divisor: 2, substeps: null, band: 0 },
             { name: 'eps/2', on: true, divisor: 2, substeps: null, band: null },
             { name: 'eps/2-band-3', on: true, divisor: 2, substeps: null, band: 3 },
-            { name: 'eps/2-step/2', on: true, divisor: 2, substeps: 4, band: null },
             { name: 'eps/2-step/4', on: true, divisor: 2, substeps: 8, band: null },
-            { name: 'eps', on: true, divisor: 1, substeps: null, band: null },
         ]) {
             const model = protostarModel(context);
             await restart(context, { count: NESTED_CONSERVATION_PARTICLES, overrides: { ...CONSERVATIVE_OVERRIDES }, params: { [PROTOSTAR_PARAM.nestedGrid]: c.on } });
