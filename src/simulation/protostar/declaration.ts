@@ -46,6 +46,7 @@ export const PROTOSTAR_PARAM = {
     tscDeposit: 'tscDeposit',
     collisions: 'collisions',
     adaptiveThickness: 'adaptiveThickness',
+    nestedGrid: 'nestedGrid',
 } as const;
 
 export const PROTOSTAR_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -148,6 +149,8 @@ const params: readonly ParamDef[] = [
         doc: t('algo.protostar.param.collisions.doc'), default: false },
     { kind: 'boolean', key: PROTOSTAR_PARAM.adaptiveThickness, tab: 'features', label: t('algo.protostar.param.adaptiveThickness.label'),
         doc: t('algo.protostar.param.adaptiveThickness.doc'), default: false },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.nestedGrid, tab: 'features', label: t('algo.protostar.param.nestedGrid.label'),
+        doc: t('algo.protostar.param.nestedGrid.doc'), default: false },
 ];
 
 const element = (symbol: string) => {

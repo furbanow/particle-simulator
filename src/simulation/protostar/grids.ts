@@ -16,19 +16,23 @@ import { GridChain, type GridChainPassName, type GridChainScales } from './gridC
 import { createCommonUniforms, withProtostarCommon, type ProtostarCommonUniforms } from './gridCommon';
 import { smoothingWeight } from './noiseBias';
 import { REDUCTION_NO_THICKNESS, REDUCTION_TEXEL, REDUCTION_TEXELS } from './reduction';
+import { NestedLevel, type NestedScales } from './nestedLevel';
 
 export { PROTOSTAR_DEFINES, createCommonUniforms, withProtostarCommon, type ProtostarCommonUniforms } from './gridCommon';
 
 const REDUCE_BLOCK = PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES;
 
 const STAGE = { first: 0, second: 1 } as const;
-const reduceDefines = (stage: number, block: number) => withDefines(reduceFrag, {
+// NESTED_LEVEL: the first stages over the fine level of the nested grid (C2); NESTED_TEXELS: the second stage with its three texels.
+const reduceDefines = (stage: number, block: number, nested: { NESTED_LEVEL: 1 } | { NESTED_TEXELS: 1 } | object = {}) => withDefines(reduceFrag, {
     REDUCE_STAGE: stage, REDUCE_FIRST: STAGE.first, REDUCE_SECOND: STAGE.second, BLOCK: block,
     TEXEL_CORE: REDUCTION_TEXEL.core, TEXEL_EXTREMES: REDUCTION_TEXEL.extremes,
     TEXEL_ENERGY: REDUCTION_TEXEL.energy, TEXEL_MOMENTS: REDUCTION_TEXEL.moments, NO_THICKNESS: glslFloat(REDUCTION_NO_THICKNESS),
+    TEXEL_NESTED_CORE: REDUCTION_TEXEL.nestedCore, TEXEL_NESTED_EXTREMES: REDUCTION_TEXEL.nestedExtremes,
+    TEXEL_NESTED_ENERGY: REDUCTION_TEXEL.nestedEnergy, ...nested,
 });
-const potentialDefines = (stage: number, block: number) => withDefines(potentialFrag, {
-    POTENTIAL_STAGE: stage, POTENTIAL_FIRST: STAGE.first, POTENTIAL_SECOND: STAGE.second, BLOCK: block,
+const potentialDefines = (stage: number, block: number, nested: { NESTED_LEVEL: 1 } | object = {}) => withDefines(potentialFrag, {
+    POTENTIAL_STAGE: stage, POTENTIAL_FIRST: STAGE.first, POTENTIAL_SECOND: STAGE.second, BLOCK: block, ...nested,
 });
 
 let halfFloatDepositForced = false;
@@ -74,6 +78,24 @@ export interface ProtostarGridTargets {
     readonly potential: THREE.WebGLRenderTarget;
     /** The collision deposit (C1, see ProtostarCommonUniforms.gridCollision), null before the collisions were first switched on. */
     readonly collision: THREE.WebGLRenderTarget | null;
+    /** The fine level of the nested grid (C2), null before the flag was first switched on. */
+    readonly nested: NestedTargets | null;
+}
+
+/** The render targets of the nested grid's fine level (C2), laid out as the main grid's. */
+export interface NestedTargets {
+    moments: THREE.WebGLRenderTarget;
+    gas: THREE.WebGLRenderTarget;
+    power: THREE.WebGLRenderTarget;
+    heat: THREE.WebGLRenderTarget;
+    /** The fine level's own gravity of the mass inside the box. */
+    gravity: THREE.WebGLRenderTarget;
+    /** The mass inside gathered on the main cells (m, h^2). */
+    gather: THREE.WebGLRenderTarget;
+    /** a_main(inside) on the main cells around the box. */
+    insideGravity: THREE.WebGLRenderTarget;
+    /** The force the particles inside read: (ax, ay, delta phi, phi) at the fine cells. */
+    combine: THREE.WebGLRenderTarget;
 }
 
 /** The grid passes of one substep, in the order update() draws them (the collision deposit only with the collisions on). */
@@ -193,6 +215,17 @@ export class ProtostarGrids {
     private readonly potential2: GridPass;
     /** The collision deposit, built when the collisions are first switched on. */
     private collisionDeposit: CollisionDeposit | null = null;
+    /** The fine level of the nested grid (C2), built when the flag is first switched on. */
+    private nested: NestedLevel | null = null;
+    private nestedEnabled = false;
+    private nestedPlaced = false;
+    /** The box set by setNestedBox() (main cells), applied by every update() (the grids drawn before stay those of the old box). */
+    private nestedBox: { x: number; y: number } | null = null;
+    private nestedHistory = false;                     // the fine level's averaged temperature belongs to this box
+    /** The box was on for the grids drawn last (and for those before: the potential kept by stashPotential()). */
+    private readonly nestedActive = { value: 0 };
+    private readonly nestedActiveBefore = { value: 0 };
+    private tsc = false;
     /** The model's previous substep length (s), shared by reference with its particle passes: the collision deposit's kick. */
     private stepLength: Uniform<number> = { value: 0 };
     private readonly u = {
@@ -285,22 +318,79 @@ export class ProtostarGrids {
             gridGas: common.gridGas, gridThermo: common.gridThermo, gridMoments: chain.momentsTexture,
             gridComposition: { value: chain.compositionTexture }, gridForce: common.gridForce,
             gridPower: { value: chain.powerTexture }, gridCell: common.gridCell, fusionTRef: common.fusionTRef,
-            gridSource: chain.sourceTexture, gravityPerDeposit: u.gravityPerDeposit,
-        }, gridTarget(PROTOSTAR_STATS_REDUCE_RES, THREE.FloatType, REDUCTION_TEXELS));
+            gridSource: chain.sourceTexture, gravityPerDeposit: u.gravityPerDeposit, gridOrigin: common.gridOrigin,
+        }, gridTarget(PROTOSTAR_STATS_REDUCE_RES, THREE.FloatType, 4));
         const stages = this.reduce1.target.textures;
-        this.reduce2 = new GridPass(reduceDefines(STAGE.second, PROTOSTAR_STATS_REDUCE_RES), {
+        this.reduce2 = new GridPass(reduceDefines(STAGE.second, PROTOSTAR_STATS_REDUCE_RES, { NESTED_TEXELS: 1 }), {
             stageCore: { value: stages[REDUCTION_TEXEL.core] }, stageExtremes: { value: stages[REDUCTION_TEXEL.extremes] },
             stageEnergy: { value: stages[REDUCTION_TEXEL.energy] }, stageMoments: { value: stages[REDUCTION_TEXEL.moments] },
             potentialBefore: { value: this.potential2.target.texture },
+            nestedCore: this.nestedStage.core, nestedExtremes: this.nestedStage.extremes, nestedEnergy: this.nestedStage.energy,
+            nestedPotentialBefore: this.nestedStage.potential, nestedActive: this.nestedActive, nestedActiveBefore: this.nestedActiveBefore,
         }, gridTarget(REDUCTION_TEXELS, THREE.FloatType, 1, 1));
     }
 
     /** Dev-only, read-only: the render targets of every pass, to read the grids back. */
     get targets(): ProtostarGridTargets {
+        const { nested } = this;
         return {
             ...this.chain.targets, reduce1: this.reduce1.target, reduce2: this.reduce2.target,
             potential: this.potential2.target, collision: this.collisionDeposit?.target ?? null,
+            nested: nested ? { ...nested.chain.targets, ...nested.joinTargets } : null,
         };
+    }
+
+    /** The fine level's first stage of the reduction and its potential, read by reduce2 (null textures until it exists). */
+    private readonly nestedStage = {
+        core: { value: null as THREE.Texture | null }, extremes: { value: null as THREE.Texture | null },
+        energy: { value: null as THREE.Texture | null }, potential: { value: null as THREE.Texture | null },
+    };
+
+    /**
+     * Switches the nested grid (C2) on or off: on, its fine level is built (first time) and drawn while a box is placed (setNestedBox()); off,
+     * nothing of it runs and the particles read the main grid only.
+     */
+    setNestedGrid(on: boolean): void {
+        if (on && !this.nested) {
+            this.nested = new NestedLevel({
+                renderer: this.renderer, geometry: this.geometry, depositUniforms: this.depositUniforms, blendType: this.blendType,
+                scales: this.u, common: this.common, mainSource: this.chain.sourceTexture,
+            }, {
+                reduce: reduceDefines(STAGE.first, REDUCE_BLOCK, { NESTED_LEVEL: 1 }),
+                potential1: potentialDefines(STAGE.first, REDUCE_BLOCK, { NESTED_LEVEL: 1 }),
+                potential2: potentialDefines(STAGE.second, PROTOSTAR_STATS_REDUCE_RES),
+            });
+            this.nested.setTsc(this.tsc);
+            const stages = this.nested.reduce1.target.textures;
+            this.nestedStage.core.value = stages[REDUCTION_TEXEL.core];
+            this.nestedStage.extremes.value = stages[REDUCTION_TEXEL.extremes];
+            this.nestedStage.energy.value = stages[REDUCTION_TEXEL.energy];
+            this.nestedStage.potential.value = this.nested.potential2.target.texture;
+        }
+        this.nestedEnabled = on;
+        this.updateNestedOn();
+    }
+
+    /** Places the nested box at `origin` (its lower left main cell), or takes it off with null. */
+    setNestedBox(origin: { x: number; y: number } | null): void {
+        this.nestedBox = origin ? { ...origin } : null;
+        this.nestedPlaced = origin !== null;
+        this.nestedHistory = false;
+        this.updateNestedOn();
+    }
+
+    /** Whether the particles read the fine level from the next update(): the flag on and a box placed. */
+    get nestedOn(): boolean {
+        return this.common.nestedOn.value > 0;
+    }
+
+    private updateNestedOn(): void {
+        this.common.nestedOn.value = this.nestedEnabled && this.nestedPlaced && this.nested ? 1 : 0;
+    }
+
+    /** The fine level's scales (set every substep while the box is on). */
+    setNestedScales(scales: NestedScales): void {
+        this.nested?.setScales(scales);
     }
 
     /**
@@ -360,7 +450,9 @@ export class ProtostarGrids {
     setTscDeposit(tsc: boolean): void {
         this.common.tscForce.value = tsc ? 1 : 0;
         this.u.noiseShape.value = tsc ? PROTOSTAR_NOISE_N_SHAPE_TSC : PROTOSTAR_NOISE_N_SHAPE;
+        this.tsc = tsc;
         this.chain.setTsc(tsc);
+        this.nested?.setTsc(tsc);
     }
 
     /**
@@ -416,6 +508,7 @@ export class ProtostarGrids {
      */
     startRun(): void {
         this.temperatureHistory = false;
+        this.nestedHistory = false;
         this.temperatureTau = PROTOSTAR_TEMPERATURE_TAU;
         this.common.noiseCorrection.value = 1;
         this.common.collisionRate.value = PROTOSTAR_COLLISION_RATE;
@@ -435,7 +528,22 @@ export class ProtostarGrids {
         this.u.textureAccel.value = accelerations;
         const clearAlpha = renderer.getClearAlpha();
         renderer.setClearAlpha(0);                      // the deposits use alpha: start from 0
-        this.chain.render();
+        // With the nested grid (C2), both levels' gas before either level's fusion power (which reads the level each particle is in),
+        // and the join after both gravities.
+        const nested = this.nestedOn ? this.nested : null;
+        if (nested) {
+            if (this.nestedBox) nested.place(this.nestedBox, this.common.gridCell.value);
+            nested.setTemperatureWeight(this.nestedHistory ? this.u.temperatureWeight.value : 1);
+            this.nestedHistory = true;
+        }
+        this.chain.renderGas();
+        nested?.renderGas();
+        this.chain.renderRest();
+        if (nested) {
+            nested.renderRest();
+            nested.join();
+        }
+        this.nestedActive.value = nested ? 1 : 0;
         // After the gravity: the collision deposit kicks every velocity to the instant of the positions with this substep's force.
         if (this.common.collisionsOn.value > 0) this.collisionDeposit?.render(renderer);
         renderer.setClearAlpha(clearAlpha);
@@ -481,6 +589,7 @@ export class ProtostarGrids {
      * the potential that stashPotential() kept.
      */
     reduceStats(): void {
+        if (this.nestedActive.value > 0) this.nested?.reduce();
         this.reduce1.render(this.renderer);
         this.reduce2.render(this.renderer);
         this.renderer.setRenderTarget(null);
@@ -496,6 +605,8 @@ export class ProtostarGrids {
     stashPotential(): void {
         this.potential1.render(this.renderer);
         this.potential2.render(this.renderer);
+        this.nestedActiveBefore.value = this.nestedActive.value;
+        if (this.nestedActive.value > 0) this.nested?.stashPotential();
         this.renderer.setRenderTarget(null);
     }
 
@@ -503,5 +614,6 @@ export class ProtostarGrids {
         this.chain.dispose();
         for (const pass of [this.reduce1, this.reduce2, this.potential1, this.potential2]) pass.dispose();
         this.collisionDeposit?.dispose();
+        this.nested?.dispose();
     }
 }

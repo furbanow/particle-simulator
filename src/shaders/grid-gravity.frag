@@ -1,7 +1,7 @@
 // Softened gravity at each fine cell center: a = G sum m_j (r_j - r) / (|r_j - r|^2 + eps^2)^(3/2).
 // Two levels: fine cells inside the coarse cells within NEAR_RADIUS of the cell's own coarse cell
 // one by one, the other coarse cells as one mass at their center of mass.
-// Defines: GRID_RES, COARSE_RES, COARSE_FACTOR, NEAR_RADIUS. Optional: GRAVITY_POTENTIAL, GRAVITY_SOURCE.
+// Defines: GRID_RES, COARSE_RES, COARSE_FACTOR, NEAR_RADIUS. Optional: GRAVITY_POTENTIAL, GRAVITY_SOURCE, GRAVITY_REGION.
 //
 // GRAVITY_SOURCE (the protostar's, A11): the masses and the thicknesses come from the gas pass's source grid (m, h^2) and the coarse
 // grid's w (the monopole's mean h^2), and a pair is softened by eps_ij^2 = (h_i^2 + h_j^2) / 2 (twin: softenedGravityAt() in
@@ -25,8 +25,18 @@ uniform float gravityPerDeposit;        // G_eff x mass of one deposit unit
 
 const int NEAR_SPAN = (2 * NEAR_RADIUS + 1) * COARSE_FACTOR;
 
+#ifdef GRAVITY_REGION
+uniform vec4 gravityRegion;             // (lo, hi) cells: the cells to compute, 0 elsewhere (the nested grid's a_main(inside), C2)
+#endif
+
 void main() {
     ivec2 cell = ivec2(gl_FragCoord.xy);
+#ifdef GRAVITY_REGION
+    if (any(lessThan(vec2(cell), gravityRegion.xy)) || any(greaterThan(vec2(cell), gravityRegion.zw))) {
+        gl_FragColor = vec4(0.0);
+        return;
+    }
+#endif
     vec2 x = (vec2(cell) + 0.5) * gridCell;
     ivec2 own = cell / COARSE_FACTOR;
     vec2 acc = vec2(0.0);

@@ -16,13 +16,14 @@ import { COLLISION_GRID_RES, COLLISION_SEED_SALT } from './collisions';
 
 /**
  * Defines of every shader including protostar-common.glsl. GAS_THERMO is 0 here: the shaders that compute a fusion
- * rate (the power deposit, the position pass) set it to 1 and gasAt() then reads the temperature that feeds the rate.
+ * rate (the power deposit, the position pass) set it to 1 and gasAt() then reads the temperature that feeds the rate; they set GAS_HEAT
+ * to 0, as they do not read the heating (two samplers fewer: the nested grid's fine fields would otherwise take the position pass to 16).
  */
 export const PROTOSTAR_DEFINES = {
     MAX_SPECIES, GRID_RES: PROTOSTAR_GRID_RES, FUSION_RATE_MAX: glslFloat(PROTOSTAR_FUSION_RATE_MAX),
     NOISE_N_MIN: glslFloat(PROTOSTAR_NOISE_N_MIN),
     NOISE_SHIFT_MAX: glslFloat(PROTOSTAR_NOISE_SHIFT_MAX), NOISE_EXACT_MARGIN: glslFloat(PROTOSTAR_NOISE_EXACT_MARGIN),
-    INVERSE_MU_REF: glslFloat(PROTOSTAR_REFERENCE_INVERSE_MU), GAS_THERMO: 0, DEPOSIT_TSC: 0,
+    INVERSE_MU_REF: glslFloat(PROTOSTAR_REFERENCE_INVERSE_MU), GAS_THERMO: 0, GAS_HEAT: 1, DEPOSIT_TSC: 0,
     COLLISION_RES: COLLISION_GRID_RES, COLLISION_MIN_PARTICLES: PROTOSTAR_COLLISION_MIN_PARTICLES,
     COLLISION_COS: glslFloat(Math.cos(PROTOSTAR_COLLISION_ANGLE)), COLLISION_SIN: glslFloat(Math.sin(PROTOSTAR_COLLISION_ANGLE)),
     COLLISION_SALT: `${COLLISION_SEED_SALT}u`,
@@ -57,6 +58,21 @@ export interface ProtostarCommonUniforms extends DrawingUniforms {
     gridCell: Uniform<number>;
     /** The grid's lower left corner, px: (0, 0) for the main grid; a nested grid (C2) has its own. */
     gridOrigin: Uniform<THREE.Vector2>;
+    /** 1 while the particles inside the nested box read its fine level (C2: the `nestedGrid` flag and a box placed); 0: the main grid only. */
+    nestedOn: Uniform<number>;
+    /** The fine cell, px. */
+    nestedCell: Uniform<number>;
+    /** The fine grid's lower left corner, px. */
+    nestedOrigin: Uniform<THREE.Vector2>;
+    /** Where the particles read the fine level, px (readRegion() of nestedBox.ts). */
+    nestedLo: Uniform<THREE.Vector2>;
+    nestedHi: Uniform<THREE.Vector2>;
+    /** The fine level's fields: the whole force there (protostar-nested-combine.frag), its gas, heating, thermo and fuel grids. */
+    gridForceFine: Uniform<THREE.Texture | null>;
+    gridGasFine: Uniform<THREE.Texture | null>;
+    gridHeatFine: Uniform<THREE.Texture | null>;
+    gridThermoFine: Uniform<THREE.Texture | null>;
+    gridFuelFine: Uniform<THREE.Texture | null>;
     /** 1: forceAt() reads the gravity grid with the TSC weights, matched to the TSC deposit (no self-force); 0: bilinearly, matched to cloud-in-cell. */
     tscForce: Uniform<number>;
     fusionTRef: Uniform<number>;
@@ -88,7 +104,12 @@ export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonU
     return {
         ...drawing,
         gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null }, gridThermo: { value: null }, gridFuel: { value: null },
-        gridCell: { value: 1 }, gridOrigin: { value: new THREE.Vector2() }, tscForce: { value: 0 }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },
+        gridCell: { value: 1 }, gridOrigin: { value: new THREE.Vector2() },
+        nestedOn: { value: 0 }, nestedCell: { value: 1 }, nestedOrigin: { value: new THREE.Vector2() },
+        nestedLo: { value: new THREE.Vector2() }, nestedHi: { value: new THREE.Vector2() },
+        gridForceFine: { value: null }, gridGasFine: { value: null }, gridHeatFine: { value: null }, gridThermoFine: { value: null },
+        gridFuelFine: { value: null },
+        tscForce: { value: 0 }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },
         reactionTo: perType(-1), reactionRate: perType(0),
         reactionPower: perType(0), reactionBarrier: perType(0), reactionBarrierPower: perType(1), reactionFuel: perType(-1),
         reactionReference: perType(1), reactionDensityExponent: perType(1),
@@ -125,7 +146,7 @@ export class DepositPass {
         this.materials[index] ??= new THREE.ShaderMaterial({
             uniforms: this.uniforms,
             vertexShader: withProtostarCommon(depositVert, {
-                DEPOSIT_KIND: this.kind, ...DEPOSIT_KIND_DEFINES, ...kernel, GAS_THERMO: this.kind === DEPOSIT_KIND.power ? 1 : 0,
+                DEPOSIT_KIND: this.kind, ...DEPOSIT_KIND_DEFINES, ...kernel, GAS_THERMO: this.kind === DEPOSIT_KIND.power ? 1 : 0, GAS_HEAT: 0,
             }),
             fragmentShader: withDefines(`${kernelGlsl}\n${depositFrag}`, { DEPOSIT_KIND: this.kind, ...DEPOSIT_KIND_DEFINES, ...kernel }),
             ...additiveBlending,

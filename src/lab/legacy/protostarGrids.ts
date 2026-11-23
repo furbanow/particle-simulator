@@ -24,7 +24,10 @@ import collisionFrag from '../../shaders/protostar-collision.frag?raw';
 import { COLLISION_GRID_RES, COLLISION_SEED_SALT } from '../../simulation/protostar/collisions';
 import reduceFrag from '../../shaders/protostar-reduce.frag?raw';
 import { smoothingWeight } from '../../simulation/protostar/noiseBias';
-import { REDUCTION_NO_THICKNESS, REDUCTION_TEXEL, REDUCTION_TEXELS } from '../../simulation/protostar/reduction';
+import { REDUCTION_NO_THICKNESS, REDUCTION_TEXEL } from '../../simulation/protostar/reduction';
+
+/** The reduction's texels before the nested grid (C2) added its own. */
+const REDUCTION_TEXELS = 4;
 
 const COARSE_RES = PROTOSTAR_GRID_RES / PROTOSTAR_COARSE_FACTOR;
 const REDUCE_BLOCK = PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES;
@@ -37,7 +40,7 @@ export const PROTOSTAR_DEFINES = {
     MAX_SPECIES, GRID_RES: PROTOSTAR_GRID_RES, FUSION_RATE_MAX: glslFloat(PROTOSTAR_FUSION_RATE_MAX),
     NOISE_N_MIN: glslFloat(PROTOSTAR_NOISE_N_MIN),
     NOISE_SHIFT_MAX: glslFloat(PROTOSTAR_NOISE_SHIFT_MAX), NOISE_EXACT_MARGIN: glslFloat(PROTOSTAR_NOISE_EXACT_MARGIN),
-    INVERSE_MU_REF: glslFloat(PROTOSTAR_REFERENCE_INVERSE_MU), GAS_THERMO: 0, DEPOSIT_TSC: 0,
+    INVERSE_MU_REF: glslFloat(PROTOSTAR_REFERENCE_INVERSE_MU), GAS_THERMO: 0, GAS_HEAT: 1, DEPOSIT_TSC: 0,
     COLLISION_RES: COLLISION_GRID_RES, COLLISION_MIN_PARTICLES: PROTOSTAR_COLLISION_MIN_PARTICLES,
     COLLISION_COS: glslFloat(Math.cos(PROTOSTAR_COLLISION_ANGLE)), COLLISION_SIN: glslFloat(Math.sin(PROTOSTAR_COLLISION_ANGLE)),
     COLLISION_SALT: `${COLLISION_SEED_SALT}u`,
@@ -94,6 +97,11 @@ export interface ProtostarCommonUniforms extends DrawingUniforms {
     gridCell: Uniform<number>;
     /** 1: forceAt() reads the gravity grid with the TSC weights, matched to the TSC deposit (no self-force); 0: bilinearly, matched to cloud-in-cell. */
     tscForce: Uniform<number>;
+    gridForceFine: Uniform<THREE.Texture | null>;
+    gridGasFine: Uniform<THREE.Texture | null>;
+    gridHeatFine: Uniform<THREE.Texture | null>;
+    gridThermoFine: Uniform<THREE.Texture | null>;
+    gridFuelFine: Uniform<THREE.Texture | null>;
     fusionTRef: Uniform<number>;
     noiseCorrection: Uniform<number>;
     seed: Uniform<number>;
@@ -123,7 +131,10 @@ export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonU
     return {
         ...drawing,
         gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null }, gridThermo: { value: null }, gridFuel: { value: null },
-        gridCell: { value: 1 }, tscForce: { value: 0 }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },
+        gridCell: { value: 1 }, tscForce: { value: 0 },
+        // The shared GLSL declares the nested grid's samplers since C2: bound (to nothing) so that none stays on unit 0.
+        gridForceFine: { value: null }, gridGasFine: { value: null }, gridHeatFine: { value: null }, gridThermoFine: { value: null },
+        gridFuelFine: { value: null }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },
         reactionTo: perType(-1), reactionRate: perType(0),
         reactionPower: perType(0), reactionBarrier: perType(0), reactionBarrierPower: perType(1), reactionFuel: perType(-1),
         reactionReference: perType(1), reactionDensityExponent: perType(1),

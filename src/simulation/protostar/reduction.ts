@@ -9,6 +9,13 @@
 //   texel 1  EXTREMES  (x, y of the densest cell in px, speed bound in px/s, acceleration bound in px/s^2)
 //   texel 2  ENERGY    (sum m |v/L|^2, U of the grids just drawn, smallest softening px, U one substep earlier)
 //   texel 3  MOMENTS   (sum M x, sum M y, sum m v_x / L, sum m v_y / L)
+//   texel 4  NESTED_CORE      (max rho / rho0 of the fine level, T / T0 there, mass inside the box, 1 while the box is on)
+//   texel 5  NESTED_EXTREMES  (x, y of the fine level's densest cell px, its speed bound, its acceleration bound: the whole force)
+//   texel 6  NESTED_ENERGY    (delta U of the grids just drawn, the fine level's smallest softening px, delta U one substep earlier, 0)
+//
+// The last three are the nested grid's (C2, nestedBox.ts), all zero while the box is off. Inside the box the particles feel the fine level:
+// the potential energy gains delta U = 1/2 sum m (phi_fine - phi_main) over the mass inside, with its self-interaction at the fine softening
+// instead of the main one, and the maxima of the stats and of the adaptive step are the larger of the two levels'.
 //
 // All the sums are over the 128 x 128 cells of the grids, in deposit units (the mean particle
 // mass is 1) with the cloud-in-cell weights, so the particle sums are exact up to the footprints
@@ -35,8 +42,8 @@
 
 import type { Vec2 } from '../../util/math';
 
-export const REDUCTION_TEXEL = { core: 0, extremes: 1, energy: 2, moments: 3 } as const;
-export const REDUCTION_TEXELS = 4;
+export const REDUCTION_TEXEL = { core: 0, extremes: 1, energy: 2, moments: 3, nestedCore: 4, nestedExtremes: 5, nestedEnergy: 6 } as const;
+export const REDUCTION_TEXELS = 7;
 export const REDUCTION_FLOATS = REDUCTION_TEXELS * 4;
 /** The smallest softening the reduction writes when no cell holds mass (exact in float32; NO_THICKNESS of protostar-reduce.frag). */
 export const REDUCTION_NO_THICKNESS = 2 ** 100;
@@ -70,8 +77,25 @@ export interface EnergyReading {
     potentialNow: number;
 }
 
+/** The fine level of the nested grid (C2) in a reduction, while its box is on. */
+export interface NestedReduction {
+    /** The fine level's peak density, rho0. */
+    peakDensity: number;
+    /** Its temperature, T0. */
+    peakTemperature: number;
+    /** Center of its densest cell, px. */
+    peak: Vec2;
+    /** The mass deposited on the fine level (inside the box), simulation units. */
+    mass: number;
+    maxSpeed: number;
+    /** The largest whole force over its cells holding mass, px/s^2. */
+    maxAcceleration: number;
+    /** Its softening, px. */
+    softening: number;
+}
+
 export interface Reduction {
-    /** Peak gas density, in the initial mean density rho0. */
+    /** Peak gas density, in the initial mean density rho0 (the larger of the two levels' with the nested grid on). */
     peakDensity: number;
     /** Temperature of the densest cell, in T0. */
     peakTemperature: number;
@@ -92,6 +116,12 @@ export interface Reduction {
     /** The smallest softening of a cell holding mass, px (the fixed epsilon, or the thinnest layer with A11); null when nothing is deposited. */
     minSoftening: number | null;
     energy: EnergyReading;
+    /** The main grid's own peak density, rho0 (the nested box's switch compares it from one reading to the next). */
+    mainPeakDensity: number;
+    /** The main grid's densest cell, px. */
+    mainPeak: Vec2;
+    /** The fine level of the nested grid (C2), null while its box is off. */
+    nested: NestedReduction | null;
 }
 
 /** Plummer self-interaction of one deposit: -G m^2 / epsilon, per unit of m^2 (deposit units, before the 1/2). */
@@ -123,21 +153,35 @@ export function unpackReduction(texels: ArrayLike<number>, scales: ReductionScal
     const { massPerDeposit: massUnit, depositVelScale: velocityScale } = scales;
     const depositMass = at(core, 3);
     const minSoftening = at(energy, 2);
+    const { nestedCore, nestedExtremes, nestedEnergy } = REDUCTION_TEXEL;
+    const nested: NestedReduction | null = at(nestedCore, 3) > 0.5 ? {
+        peakDensity: at(nestedCore, 0), peakTemperature: at(nestedCore, 1), mass: at(nestedCore, 2) * massUnit,
+        peak: { x: at(nestedExtremes, 0), y: at(nestedExtremes, 1) }, maxSpeed: at(nestedExtremes, 2), maxAcceleration: at(nestedExtremes, 3),
+        softening: at(nestedEnergy, 1),
+    } : null;
+    // The fine level is the finer view of the core: it gives the peak when it holds the denser cell, and its maxima count.
+    const fineFirst = nested !== null && nested.peakDensity > at(core, 0);
+    const mainPeak = { x: at(extremes, 0), y: at(extremes, 1) };
+    const mainSoftening = depositMass > 0 && minSoftening < REDUCTION_NO_THICKNESS ? minSoftening : null;
+    const gain = nested ? at(nestedEnergy, 0) : 0, gainBefore = nested ? at(nestedEnergy, 2) : 0;
     return {
-        peakDensity: at(core, 0),
-        peakTemperature: at(core, 1),
+        peakDensity: fineFirst ? nested.peakDensity : at(core, 0),
+        peakTemperature: fineFirst ? nested.peakTemperature : at(core, 1),
         fusionRate: at(core, 2),
         mass: depositMass * massUnit,
-        peak: { x: at(extremes, 0), y: at(extremes, 1) },
-        maxSpeed: at(extremes, 2),
-        maxAcceleration: at(extremes, 3),
+        peak: fineFirst ? { ...nested.peak } : mainPeak,
+        maxSpeed: Math.max(at(extremes, 2), nested?.maxSpeed ?? 0),
+        maxAcceleration: Math.max(at(extremes, 3), nested?.maxAcceleration ?? 0),
         centerOfMass: depositMass > 0 ? { x: at(moments, 0) / depositMass, y: at(moments, 1) / depositMass } : null,
         momentum: { x: at(moments, 2) / velocityScale * massUnit, y: at(moments, 3) / velocityScale * massUnit },
-        minSoftening: depositMass > 0 && minSoftening < REDUCTION_NO_THICKNESS ? minSoftening : null,
+        minSoftening: nested && mainSoftening !== null ? Math.min(mainSoftening, nested.softening) : mainSoftening,
         energy: {
             kinetic: 0.5 * at(energy, 0) / (velocityScale * velocityScale) * massUnit,
-            potential: synchronized ? at(energy, 3) * massUnit : null,
-            potentialNow: at(energy, 1) * massUnit,
+            potential: synchronized ? (at(energy, 3) + gainBefore) * massUnit : null,
+            potentialNow: (at(energy, 1) + gain) * massUnit,
         },
+        mainPeakDensity: at(core, 0),
+        mainPeak,
+        nested,
     };
 }

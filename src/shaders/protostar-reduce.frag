@@ -7,6 +7,10 @@
 // pixel, selected by gl_FragCoord.x: TEXEL_CORE, TEXEL_EXTREMES, TEXEL_ENERGY, TEXEL_MOMENTS.
 // Defines: REDUCE_STAGE, REDUCE_FIRST, REDUCE_SECOND, BLOCK, TEXEL_*.
 //
+// The nested grid (C2): REDUCE_FIRST with NESTED_LEVEL reduces the fine level alike (gridForce is then the combined force, whose z is
+// delta phi: the potential sums 1/2 m delta phi, and the self-interaction of the mass inside moves from the main softening to the fine
+// one); REDUCE_SECOND with NESTED_TEXELS adds three texels from that reduction (TEXEL_NESTED_*, zero while the box is off).
+//
 // The densest cell is the first one, in reading order, with a strictly greater density (as the
 // stats always did), so ties keep the earliest and the position goes with the density.
 
@@ -25,7 +29,11 @@ uniform sampler2D gridPower;            // fusions per s in y
 uniform sampler2D gridSource;           // (m, h^2, 0, 0): the softening^2 of each cell (A11; eps^2 with the fixed softening)
 uniform float gravityPerDeposit;        // G_eff x mass of one deposit unit
 uniform float gridCell;                 // px
+uniform vec2 gridOrigin;                // px: the grid's lower left corner
 uniform float fusionTRef;
+#ifdef NESTED_LEVEL
+uniform float mainSoftening2;           // the main grid's eps^2, px^2: the self-interaction the main grid gave the mass inside
+#endif
 
 layout(location = 1) out highp vec4 outExtremes;
 layout(location = 2) out highp vec4 outEnergy;
@@ -44,7 +52,7 @@ void main() {
             vec4 gas = texelFetch(gridGas, c, 0);
             vec4 s = texelFetch(gridMoments, c, 0);
             vec4 force = texelFetch(gridForce, c, 0);
-            vec2 center = (vec2(c) + 0.5) * gridCell;
+            vec2 center = gridOrigin + (vec2(c) + 0.5) * gridCell;
             rate += texelFetch(gridPower, c, 0).y;
             if (gas.x > peakDensity) {
                 peakDensity = gas.x;
@@ -63,7 +71,11 @@ void main() {
             momentum += s.yz;
             doubleKinetic += s.w;
             // 1/2 M phi less the self-interaction of the particles of the cell, -G m^2 / h each (see reduction.ts).
-            potential += 0.5 * s.x * force.z + selfTerm(texelFetch(gridComposition, c, 0).z, h2, gravityPerDeposit);
+            float massSquared = texelFetch(gridComposition, c, 0).z;
+            potential += 0.5 * s.x * force.z + selfTerm(massSquared, h2, gravityPerDeposit);
+#ifdef NESTED_LEVEL
+            potential -= selfTerm(massSquared, mainSoftening2, gravityPerDeposit);
+#endif
         }
     }
     gl_FragColor = vec4(peakDensity, peakTemperature, rate, mass);
@@ -77,6 +89,14 @@ uniform sampler2D stageExtremes;
 uniform sampler2D stageEnergy;
 uniform sampler2D stageMoments;
 uniform sampler2D potentialBefore;      // 1x1: the potential energy of the previous substep's grids (x)
+#ifdef NESTED_TEXELS
+uniform sampler2D nestedCore;           // the fine level's first stage (NESTED_LEVEL)
+uniform sampler2D nestedExtremes;
+uniform sampler2D nestedEnergy;
+uniform sampler2D nestedPotentialBefore;    // 1x1: the fine level's potential gain of the previous substep's grids
+uniform float nestedActive;             // 1: the box was on for the grids reduced now
+uniform float nestedActiveBefore;       // 1: it was on for the previous substep's grids
+#endif
 
 void main() {
     int texel = int(gl_FragCoord.x);
@@ -110,11 +130,41 @@ void main() {
             }
         }
         result.w = texelFetch(potentialBefore, ivec2(0), 0).x;
-    } else {
+    } else if (texel == TEXEL_MOMENTS) {
         for (int j = 0; j < BLOCK; j++) {
             for (int i = 0; i < BLOCK; i++) result += texelFetch(stageMoments, ivec2(i, j), 0);
         }
     }
+#ifdef NESTED_TEXELS
+    else if (nestedActive > 0.5) {
+        // The fine level, laid out as reduction.ts says: (peak rho, T there, mass inside, 1), (peak x, y, speed bound, acceleration bound),
+        // (delta U now, smallest softening, delta U one substep earlier, 0).
+        float peakDensity = 0.0;
+        float minSoftening = 0.0;
+        for (int j = 0; j < BLOCK; j++) {
+            for (int i = 0; i < BLOCK; i++) {
+                vec4 core = texelFetch(nestedCore, ivec2(i, j), 0);
+                vec4 extremes = texelFetch(nestedExtremes, ivec2(i, j), 0);
+                vec4 energy = texelFetch(nestedEnergy, ivec2(i, j), 0);
+                if (texel == TEXEL_NESTED_CORE) {
+                    if (core.x > result.x) result.xy = core.xy;
+                    result.z += core.w;
+                } else if (texel == TEXEL_NESTED_EXTREMES) {
+                    if (core.x > peakDensity) {
+                        peakDensity = core.x;
+                        result.xy = extremes.xy;
+                    }
+                    result.zw = max(result.zw, extremes.zw);
+                } else {
+                    result.x += energy.y;
+                    minSoftening = i == 0 && j == 0 ? energy.z : min(minSoftening, energy.z);
+                }
+            }
+        }
+        if (texel == TEXEL_NESTED_CORE) result.w = 1.0;
+        else if (texel == TEXEL_NESTED_ENERGY) result.yz = vec2(minSoftening, nestedActiveBefore * texelFetch(nestedPotentialBefore, ivec2(0), 0).x);
+    }
+#endif
     gl_FragColor = result;
 }
 #endif

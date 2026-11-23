@@ -29,6 +29,9 @@ void main() {
     vValue2 = vec4(0.0);
     gl_PointSize = DEPOSIT_POINT_SIZE;
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);             // outside the clip volume: dropped
+    // Off the grid by more than the kernel's reach (a nested grid, C2, covers the core only): nothing to add.
+    vec2 p = (posData.xy - gridOrigin) / gridCell;
+    if (any(lessThan(p, vec2(-2.0))) || any(greaterThan(p, vec2(float(GRID_RES) + 2.0)))) return;
     int k = clamp(int(posData.z + 0.5), 0, MAX_SPECIES - 1);
     float m = speciesDepositMass[k] * depositMassScale;
 #if DEPOSIT_KIND == DEPOSIT_POWER
@@ -42,7 +45,6 @@ void main() {
     vValue2 = vec4(m * speciesInverseMu[k], m * speciesFuel[k].x, m * m, m * speciesFuel[k].y);
 #endif
 #endif
-    vec2 p = (posData.xy - gridOrigin) / gridCell;
     vCell = p;
     vec2 c = depositCenter(p);
     gl_Position = vec4(c / float(GRID_RES) * 2.0 - 1.0, 0.0, 1.0);

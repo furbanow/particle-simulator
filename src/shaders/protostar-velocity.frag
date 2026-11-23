@@ -97,7 +97,7 @@ void main() {
 
     // Jeans floor (A13, the `jeansFloor` flag): the Jeans length of the sheet, dispersion / (2 G Sigma), is kept at N_J cells or more by
     // raising the dispersion to t_J = 2 N_J dx G Sigma, by scaling as the heating does (a cold cell, with nothing to scale, by a kick).
-    float jeans = jeansPerDensity * gas.rho;
+    float jeans = jeansPerDensity * gas.rho * gas.cellRatio;      // 2 N_J dx G Sigma with the cell dx of the level read (C2)
     if (jeans > dispersion) {
         if (dispersion > heatingTFloor) {
             v = center + (v - center) * sqrt(jeans / dispersion);

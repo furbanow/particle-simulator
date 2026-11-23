@@ -172,6 +172,15 @@ export class GridChain {
      * The caller sets the clear alpha to 0 (the deposits use alpha) and the render target back.
      */
     render(): void {
+        this.renderGas();
+        this.renderRest();
+    }
+
+    /**
+     * The first half of render(): the moments and the gas, published. The nested grid (C2) draws both levels' gas before either level's
+     * fusion power, which reads the gas of the level each particle is in.
+     */
+    renderGas(): void {
         const { renderer } = this;
         const moments = this.compositionEnabled ? this.moments : this.momentsWithoutComposition();
         this.momentsTexture.value = moments.target.texture;
@@ -183,6 +192,11 @@ export class GridChain {
         this.common.gridThermo.value = gas.target.textures[1];
         this.common.gridFuel.value = gas.target.textures[2];
         this.sourceTexture.value = gas.target.textures[3];
+    }
+
+    /** The second half of render(): the fusion power, the heating and the gravity, published. */
+    renderRest(): void {
+        const { renderer } = this;
         this.power.render(renderer);
         this.heat.render(renderer);
         this.coarse.render(renderer);

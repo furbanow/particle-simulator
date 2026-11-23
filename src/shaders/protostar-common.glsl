@@ -1,7 +1,12 @@
 // Shared by the protostar shaders: sampling of the grids at a particle, fusion rate, random numbers, collisions of the gas.
-// Defines: MAX_SPECIES, GRID_RES, FUSION_RATE_MAX, NOISE_N_MIN, NOISE_SHIFT_MAX, and GAS_THERMO (0 or 1: whether gasAt() reads the
-// temperature that feeds the fusion rate; only the shaders that compute a rate need it). Included after deposit-kernel.glsl (tscWeight)
-// and drawing.glsl (drawingAccel).
+// Defines: MAX_SPECIES, GRID_RES, FUSION_RATE_MAX, NOISE_N_MIN, NOISE_SHIFT_MAX, GAS_THERMO (0 or 1: whether gasAt() reads the
+// temperature that feeds the fusion rate; only the shaders that compute a rate need it) and GAS_HEAT (0 or 1: whether it reads the heating
+// and the molecular weight's factor; the shaders that only compute a rate do not, which spares two samplers). Included after
+// deposit-kernel.glsl (tscWeight) and drawing.glsl (drawingAccel).
+//
+// The nested grid (C2, nestedBox.ts): while nestedOn is 1, a particle inside [nestedLo, nestedHi] reads the force and the gas of the fine
+// level (its own samplers, cells of nestedCell px from nestedOrigin) instead of the main grid's. The fine force grid holds the whole force
+// there, a_fine(inside) + a_main(all) - a_main(inside) (protostar-nested-combine.frag).
 uniform sampler2D gridForce;            // gravitational acceleration at the cell centers (px/s^2)
 uniform float tscForce;                 // 1: forceAt() reads gridForce with the TSC weights (the tscDeposit switch)
 uniform sampler2D gridGas;              // (rho / rho0, dispersion px^2/s^2, mean vx, mean vy) of the 3x3 neighborhood
@@ -10,6 +15,16 @@ uniform sampler2D gridThermo;           // (T averaged over time px^2/s^2, effec
 uniform sampler2D gridFuel;             // (X, Y, 0, 0): the mass fractions of the fuel of the first two reactions (hydrogen, helium) in the 3x3 neighborhood
 uniform float gridCell;                 // cell size, px
 uniform vec2 gridOrigin;                // the grid's lower left corner, px: (0, 0) for the main grid (a nested grid, C2, is elsewhere)
+uniform float nestedOn;                 // 1: the particles inside the nested box read the fine level (C2); 0: the main grid only
+uniform float nestedCell;               // the fine cell, px
+uniform vec2 nestedOrigin;              // the fine grid's lower left corner, px
+uniform vec2 nestedLo;                  // where the particles read the fine level, px: the box less a margin (readRegion() in nestedBox.ts)
+uniform vec2 nestedHi;
+uniform sampler2D gridForceFine;        // the fine level's fields, laid out as the main ones
+uniform sampler2D gridGasFine;
+uniform sampler2D gridHeatFine;
+uniform sampler2D gridThermoFine;
+uniform sampler2D gridFuelFine;
 uniform float fusionTRef;               // T0, px^2/s^2
 uniform float noiseCorrection;          // 1: the fusion rate is divided by the bias that the noise of T causes; 0: it is not (lab)
 uniform float seed;                     // changes every substep
@@ -23,9 +38,14 @@ uniform float reactionReference[MAX_SPECIES];   // temperature of the law, in T0
 uniform float reactionDensityExponent[MAX_SPECIES];
 uniform float reactionEnergy[MAX_SPECIES];
 
-/** The four cells around x (cell centers) and their bilinear weights. */
-void gridCorners(vec2 x, out ivec2 c[4], out float w[4]) {
-    vec2 p = x / gridCell - 0.5;
+/** Whether x reads the fine level of the nested grid (C2). */
+bool inNested(vec2 x) {
+    return nestedOn > 0.5 && all(greaterThanEqual(x, nestedLo)) && all(lessThanEqual(x, nestedHi));
+}
+
+/** The four cells around x (cell centers) of a grid of `cell` px from `origin`, and their bilinear weights. */
+void gridCorners(vec2 x, float cell, vec2 origin, out ivec2 c[4], out float w[4]) {
+    vec2 p = (x - origin) / cell - 0.5;
     vec2 i = floor(p);
     vec2 f = p - i;
     ivec2 i0 = ivec2(i);
@@ -46,23 +66,29 @@ void gridCorners(vec2 x, out ivec2 c[4], out float w[4]) {
  * between cells that is odd in their offset, make a particle's force on itself vanish (Hockney & Eastwood); TSC deposited and read
  * bilinearly gives a particle up to 2 % of the pull it exerts at 1.5 cells on itself (lab: protostar.tsc.aliasing).
  */
-vec2 forceAt(vec2 x) {
+vec2 forceFrom(sampler2D field, vec2 x, float cell, vec2 origin) {
     vec2 a = vec2(0.0);
     if (tscForce > 0.5) {
-        vec2 p = x / gridCell;
+        vec2 p = (x - origin) / cell;
         ivec2 first = ivec2(floor(p)) - 1;
         ivec2 hi = ivec2(GRID_RES - 1);
         for (int dy = 0; dy < 3; dy++) {
             for (int dx = 0; dx < 3; dx++) {
                 ivec2 c = first + ivec2(dx, dy);
-                a += tscWeight(vec2(c) + 0.5 - p) * texelFetch(gridForce, clamp(c, ivec2(0), hi), 0).xy;
+                a += tscWeight(vec2(c) + 0.5 - p) * texelFetch(field, clamp(c, ivec2(0), hi), 0).xy;
             }
         }
     } else {
         ivec2 c[4]; float w[4];
-        gridCorners(x, c, w);
-        for (int k = 0; k < 4; k++) a += w[k] * texelFetch(gridForce, c[k], 0).xy;
+        gridCorners(x, cell, origin, c, w);
+        for (int k = 0; k < 4; k++) a += w[k] * texelFetch(field, c[k], 0).xy;
     }
+    return a;
+}
+
+/** The force at x of the level that x reads (the main grid, or the fine one of the nested box), plus the drawings'. */
+vec2 forceAt(vec2 x) {
+    vec2 a = inNested(x) ? forceFrom(gridForceFine, x, nestedCell, nestedOrigin) : forceFrom(gridForce, x, gridCell, gridOrigin);
     return a + drawingAccel(x);
 }
 
@@ -82,28 +108,31 @@ struct Gas {
     float particles;    // effective number of particles behind the temperature (GAS_THERMO)
     vec2 fuel;      // mass fractions (X, Y) of the fuel of the first two reactions: hydrogen and helium (GAS_THERMO)
     float thin;     // h_ref / h: the volume density of the fusion law over the surface density (A11; exactly 1 with the fixed softening) (GAS_THERMO)
+    float cellRatio;    // the cell of the level read over the main grid's: 1, or 1 / NESTED_RATIO in the nested box (the Jeans floor's length)
 };
 
-/** Gas state at x: density interpolated bilinearly, the other fields with mass weights. */
-Gas gasAt(vec2 x) {
+/** Gas state at x of one level (its samplers, cells of `cell` px from `origin`): density interpolated bilinearly, the other fields with mass weights. */
+Gas gasFrom(sampler2D gasGrid, sampler2D heatGrid, sampler2D thermoGrid, sampler2D fuelGrid, vec2 x, float cell, vec2 origin) {
     ivec2 c[4]; float w[4];
-    gridCorners(x, c, w);
-    Gas g = Gas(0.0, 0.0, vec2(0.0), 0.0, 0.0, 0.0, 0.0, vec2(0.0), 0.0);
+    gridCorners(x, cell, origin, c, w);
+    Gas g = Gas(0.0, 0.0, vec2(0.0), 0.0, 0.0, 0.0, 0.0, vec2(0.0), 0.0, cell / gridCell);
     for (int k = 0; k < 4; k++) {
-        vec4 s = texelFetch(gridGas, c[k], 0);
-        vec4 heat = texelFetch(gridHeat, c[k], 0);
+        vec4 s = texelFetch(gasGrid, c[k], 0);
         float m = w[k] * s.x;
         g.rho += m;
         g.t += m * s.y;
         g.v += m * s.zw;
+#if GAS_HEAT
+        vec4 heat = texelFetch(heatGrid, c[k], 0);
         g.heat += m * heat.x;
         g.mu += m * heat.y;
+#endif
 #if GAS_THERMO
-        vec4 thermo = texelFetch(gridThermo, c[k], 0);
+        vec4 thermo = texelFetch(thermoGrid, c[k], 0);
         g.tRate += m * thermo.x;
         g.particles += m * thermo.y;
         g.thin += m * thermo.w;
-        g.fuel += m * texelFetch(gridFuel, c[k], 0).xy;
+        g.fuel += m * texelFetch(fuelGrid, c[k], 0).xy;
 #endif
     }
     if (g.rho > 0.0) {
@@ -117,6 +146,12 @@ Gas gasAt(vec2 x) {
         g.thin /= g.rho;
     }
     return g;
+}
+
+/** Gas state at x, from the level x reads (the main grid, or the fine one of the nested box). */
+Gas gasAt(vec2 x) {
+    if (inNested(x)) return gasFrom(gridGasFine, gridHeatFine, gridThermoFine, gridFuelFine, x, nestedCell, nestedOrigin);
+    return gasFrom(gridGas, gridHeat, gridThermo, gridFuel, x, gridCell, gridOrigin);
 }
 
 /** ln(1 + x) for x > -1 without the cancellation of log(1 + x) when |x| is small (twin: log1p() in noiseBias.ts). */

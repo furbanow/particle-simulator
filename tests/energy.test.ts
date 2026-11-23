@@ -119,9 +119,9 @@ describe('the multichannel reduction', () => {
         return out;
     }
 
-    it('lays out four texels of four floats, each in its own place', () => {
-        expect(REDUCTION_TEXELS).toBe(4);
-        expect(REDUCTION_FLOATS).toBe(16);
+    it('lays out seven texels of four floats (the last three the nested grid\'s), each in its own place', () => {
+        expect(REDUCTION_TEXELS).toBe(7);
+        expect(REDUCTION_FLOATS).toBe(28);
         expect(new Set(Object.values(REDUCTION_TEXEL)).size).toBe(REDUCTION_TEXELS);
         expect(Math.max(...Object.values(REDUCTION_TEXEL))).toBe(REDUCTION_TEXELS - 1);
     });
@@ -181,5 +181,30 @@ describe('the multichannel reduction', () => {
         expect(unpackReduction(texels({ core: [0, 0, 0, 10], energy: [0, 0, 7.5, 0] }), scales, true).minSoftening).toBe(7.5);
         expect(unpackReduction(texels({ core: [0, 0, 0, 10], energy: [0, 0, REDUCTION_NO_THICKNESS, 0] }), scales, true).minSoftening).toBeNull();
         expect(unpackReduction(texels({ energy: [0, 0, 7.5, 0] }), scales, true).minSoftening).toBeNull();
+    });
+
+    it('has no nested level while the box is off, whatever the other texels hold', () => {
+        const reduction = unpackReduction(texels({ core: [5, 1, 0, 10], nestedCore: [50, 3, 4, 0], nestedEnergy: [-9, 1, -9, 0] }), scales, true);
+        expect(reduction.nested).toBeNull();
+        expect(reduction.peakDensity).toBe(5);
+        expect(reduction.energy.potentialNow).toBe(0);
+    });
+
+    it('takes the fine level\'s peak, maxima, softening and potential gain while the box is on', () => {
+        const reduction = unpackReduction(texels({
+            core: [20, 1, 0, 10], extremes: [100, 100, 30, 400], energy: [0, -280, 12, -260],
+            nestedCore: [300, 4, 6, 1], nestedExtremes: [101.5, 99.25, 25, 900], nestedEnergy: [-40, 4, -30, 0],
+        }), scales, true);
+        expect(reduction.nested?.mass).toBeCloseTo(6 * 0.05, 12);
+        expect(reduction.peakDensity).toBe(300);
+        expect(reduction.peakTemperature).toBe(4);
+        expect(reduction.peak).toEqual({ x: 101.5, y: 99.25 });
+        expect(reduction.mainPeakDensity).toBe(20);
+        expect(reduction.mainPeak).toEqual({ x: 100, y: 100 });
+        expect(reduction.maxSpeed).toBe(30);
+        expect(reduction.maxAcceleration).toBe(900);
+        expect(reduction.minSoftening).toBe(4);
+        expect(reduction.energy.potentialNow).toBeCloseTo(-320 * 0.05, 12);
+        expect(reduction.energy.potential).toBeCloseTo(-290 * 0.05, 12);
     });
 });

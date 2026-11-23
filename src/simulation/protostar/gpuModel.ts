@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import {
     MAX_SPECIES, PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_ENERGY_FIRST_FRAME, PROTOSTAR_FUSION_C2,
     PROTOSTAR_FUSION_T_REF, PROTOSTAR_GLOW_FUSION, PROTOSTAR_GLOW_HEATING_REF, PROTOSTAR_GLOW_MAX, PROTOSTAR_GLOW_T_RANGE,
-    PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_HEATING_T_FLOOR, PROTOSTAR_JEANS_CELLS, PROTOSTAR_MAX_SPEED,
+    PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_NESTED_INNER, PROTOSTAR_NESTED_OFF_DENSITY,
+    PROTOSTAR_NESTED_ON_DENSITY, PROTOSTAR_NESTED_ON_READINGS, PROTOSTAR_NESTED_RATIO, PROTOSTAR_NESTED_SOFTENING_DIVISOR,
+    PROTOSTAR_NESTED_STILL_CELLS, PROTOSTAR_HEATING_T_FLOOR, PROTOSTAR_JEANS_CELLS, PROTOSTAR_MAX_SPEED,
     PROTOSTAR_MAX_SUBSTEP_RATIO, PROTOSTAR_MAX_SUBSTEPS, PROTOSTAR_MIN_SUBSTEP_RATIO, PROTOSTAR_RATE_SMOOTHING, PROTOSTAR_RESTITUTION, PROTOSTAR_STATS_INTERVAL, PROTOSTAR_STEP_COURANT,
     PROTOSTAR_STEP_MAX_READINGS, PROTOSTAR_STEP_OMEGA, PROTOSTAR_STEP_READ_INTERVAL, PROTOSTAR_STEP_RELEASE, PROTOSTAR_THICKNESS_CEILING,
     PROTOSTAR_THICKNESS_FLOOR_CELLS, PROTOSTAR_THICKNESS_Q_FACTOR, PROTOSTAR_THICKNESS_REFERENCE, TOTAL_MASS,
@@ -19,6 +21,7 @@ import { inverseMolecularWeights } from './composition';
 import { ProtostarGrids, withProtostarCommon, type GridScales, type ProtostarGridTargets } from './grids';
 import { fillCloud, type CloudSummary } from './initialConditions';
 import { reactionArrays } from './reactions';
+import { NestedBoxController } from './nestedBox';
 import { isStabilityMapMode, type StabilityMapMode } from './stability';
 import { StabilityPass } from './stabilityPass';
 import { TypeCountReduction } from './typeReduction';
@@ -114,6 +117,14 @@ export class ProtostarModel implements GpuModel {
     private adaptiveStep = false;
     private jeansFloor = false;
     private adaptiveThickness = false;
+    private nestedGrid = false;
+    /** Where the nested grid's box goes (C2), from the stats' readings. */
+    private readonly nestedBox = new NestedBoxController({
+        gridRes: PROTOSTAR_GRID_RES, ratio: PROTOSTAR_NESTED_RATIO, onDensity: PROTOSTAR_NESTED_ON_DENSITY, offDensity: PROTOSTAR_NESTED_OFF_DENSITY,
+        readings: PROTOSTAR_NESTED_ON_READINGS, stillCells: PROTOSTAR_NESTED_STILL_CELLS, inner: PROTOSTAR_NESTED_INNER,
+    });
+    /** Dev-only (the lab): a box (main cells) held whatever the readings, or null to let the readings place it. */
+    private nestedForced: { x: number; y: number } | null = null;
     private stabilityMode: StabilityMapMode = 'off';
     private stability: StabilityPass | null = null;    // built when the map is first shown
     private stabilityStale = true;                     // the grids changed since the map was drawn
@@ -174,7 +185,7 @@ export class ProtostarModel implements GpuModel {
             GLOW_TEMPERATURE: glslFloat(PROTOSTAR_GLOW_TEMPERATURE), GLOW_FUSION: glslFloat(PROTOSTAR_GLOW_FUSION),
             GLOW_HEATING_REF: glslFloat(PROTOSTAR_GLOW_HEATING_REF), GLOW_MAX: glslFloat(PROTOSTAR_GLOW_MAX),
         });
-        this.positionShader = withProtostarCommon(positionFrag, { GAS_THERMO: 1 });
+        this.positionShader = withProtostarCommon(positionFrag, { GAS_THERMO: 1, GAS_HEAT: 0 });
         this.grids.shareStepLength(this.dtPrev);
         this.velocityUniforms = { ...common, ...this.own, dtPrev: this.dtPrev };
         this.positionUniforms = { ...common, dtPrev: this.dtPrev };
@@ -222,6 +233,7 @@ export class ProtostarModel implements GpuModel {
         if (key === P.adaptiveThickness) this.adaptiveThickness = value === true;
         if (key === P.tscDeposit) this.grids.setTscDeposit(value === true);
         if (key === P.collisions) this.grids.setCollisions(value === true);
+        if (key === P.nestedGrid) this.setNestedGrid(value === true);
         if (key === P.diagnostics) this.setDiagnostics(value === true);
         if (key === P.adaptiveTimeStep) this.setAdaptiveStep(value === true);
         if (key === P.stabilityMap) {
@@ -229,6 +241,28 @@ export class ProtostarModel implements GpuModel {
             this.stabilityStale = true;
         }
         if (REACTION_PARAMS.has(key)) this.updateReactions();
+    }
+
+    private setNestedGrid(on: boolean): void {
+        this.nestedGrid = on;
+        this.grids.setNestedGrid(on);
+        if (!on) this.nestedBox.reset();
+        this.grids.setNestedBox(on ? this.nestedForced ?? this.nestedBox.box : null);
+    }
+
+    /**
+     * Dev-only (the lab): holds the nested box at `origin` (its lower left main cell) whatever the readings, or gives it back to them with
+     * null. Only acts while the flag is on. A restart keeps it.
+     */
+    debugForceNestedBox(origin: { x: number; y: number } | null): void {
+        this.nestedForced = origin ? { ...origin } : null;
+        this.nestedBox.reset();
+        if (this.nestedGrid) this.grids.setNestedBox(this.nestedForced);
+    }
+
+    /** Dev-only, read-only: the nested box's lower left main cell, null while off. */
+    get debugNestedBox(): { x: number; y: number } | null {
+        return this.nestedGrid ? this.nestedForced ?? this.nestedBox.box : null;
     }
 
     private setDiagnostics(on: boolean): void {
@@ -315,6 +349,8 @@ export class ProtostarModel implements GpuModel {
         this.clearEnergy();
         this.stabilityStale = true;
         this.typeCounts = null;
+        this.nestedBox.reset();
+        this.grids.setNestedBox(this.nestedGrid ? this.nestedForced : null);
         this.own.maxSpeed.value = PROTOSTAR_MAX_SPEED * length;
         this.grids.common.fusionTRef.value = PROTOSTAR_FUSION_T_REF * length * length;
         this.own.heatingTFloor.value = PROTOSTAR_HEATING_T_FLOOR * PROTOSTAR_FUSION_T_REF * length * length;
@@ -366,8 +402,11 @@ export class ProtostarModel implements GpuModel {
         const reading = this.latestReduction;
         const size = this.context.screenSize.value;
         const tuned = this.debugCriterion;
-        // The length of the criterion: the fixed softening, or the thinnest layer of the latest reduction (A11).
-        const softening = this.adaptiveThickness ? reading?.minSoftening ?? 0 : this.softening(this.scales.length);
+        // The length of the criterion: the fixed softening, or the thinnest layer of the latest reduction (A11); the nested grid's finer
+        // softening while its box is on (C2).
+        const fixed = this.softening(this.scales.length);
+        const softening = this.adaptiveThickness ? reading?.minSoftening ?? 0
+            : reading?.nested ? Math.min(fixed, fixed / PROTOSTAR_NESTED_SOFTENING_DIVISOR) : fixed;
         const criterion = {
             cell: Math.max(size.x, size.y, 1) / PROTOSTAR_GRID_RES, softening,
             courant: tuned?.courant ?? PROTOSTAR_STEP_COURANT, omega: tuned?.omega ?? PROTOSTAR_STEP_OMEGA,
@@ -424,6 +463,14 @@ export class ProtostarModel implements GpuModel {
             this.stashedFrame = this.frame;
         }
         grids.setScales(scales);
+        // The nested grid's fine level (C2): its cells are PROTOSTAR_NESTED_RATIO times smaller, its softening is the main one over the divisor.
+        if (grids.nestedOn) {
+            const fineCell = cell / PROTOSTAR_NESTED_RATIO;
+            grids.setNestedScales({
+                densityPerDeposit: meanMass / (9 * fineCell * fineCell * rho0),
+                softening: scales.softening / PROTOSTAR_NESTED_SOFTENING_DIVISOR,
+            });
+        }
         this.gridScales = scales;
         grids.update(context.positionTexture(), context.velocityTexture(), dt, context.variableTexture(ACCEL));
         this.gridsDrawn = true;
@@ -480,6 +527,13 @@ export class ProtostarModel implements GpuModel {
     private takeReading(texels: Float32Array, statsDue: boolean, scales: ReductionScales | null, synchronized: boolean): void {
         const reduction = unpackReduction(texels, scales ?? NO_SCALES, synchronized);
         this.latestReduction = reduction;
+        if (statsDue && this.nestedGrid && !this.nestedForced) {
+            const cell = this.grids.common.gridCell.value;
+            const changed = this.nestedBox.update({
+                mainPeakDensity: reduction.mainPeakDensity, mainPeak: reduction.mainPeak, finePeak: reduction.nested?.peak ?? null,
+            }, cell);
+            if (changed) this.grids.setNestedBox(this.nestedBox.box);
+        }
         if (statsDue) {
             this.coreDensity = reduction.peakDensity;
             this.coreTemperature = reduction.peakTemperature;
