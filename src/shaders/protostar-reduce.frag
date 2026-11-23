@@ -4,7 +4,7 @@
 // REDUCE_FIRST reads BLOCK x BLOCK cells of the grids per output texel and writes four
 // attachments (core, extremes, energy, moments), each holding the block's partial result.
 // REDUCE_SECOND reads BLOCK x BLOCK texels of those four and writes one texel per output
-// pixel, selected by gl_FragCoord.x: TEXEL_CORE, TEXEL_EXTREMES, TEXEL_ENERGY, TEXEL_MOMENTS.
+// pixel, selected by gl_FragCoord.x: TEXEL_CORE, TEXEL_EXTREMES, TEXEL_ENERGY, TEXEL_MOMENTS, TEXEL_THICKNESS.
 // Defines: REDUCE_STAGE, REDUCE_FIRST, REDUCE_SECOND, BLOCK, TEXEL_*.
 //
 // The densest cell is the first one, in reading order, with a strictly greater density (as the
@@ -76,7 +76,8 @@ uniform sampler2D stageCore;
 uniform sampler2D stageExtremes;
 uniform sampler2D stageEnergy;
 uniform sampler2D stageMoments;
-uniform sampler2D potentialBefore;      // 1x1: the potential energy of the previous substep's grids (x)
+uniform sampler2D potentialBefore;      // 1x1: the potential energy of the previous substep's grids (x) and the thickness's work then (y)
+uniform sampler2D thicknessWork;        // 1x1: the work of the adaptive thickness so far (x)
 
 void main() {
     int texel = int(gl_FragCoord.x);
@@ -110,10 +111,12 @@ void main() {
             }
         }
         result.w = texelFetch(potentialBefore, ivec2(0), 0).x;
-    } else {
+    } else if (texel == TEXEL_MOMENTS) {
         for (int j = 0; j < BLOCK; j++) {
             for (int i = 0; i < BLOCK; i++) result += texelFetch(stageMoments, ivec2(i, j), 0);
         }
+    } else {
+        result = vec4(texelFetch(thicknessWork, ivec2(0), 0).x, texelFetch(potentialBefore, ivec2(0), 0).y, 0.0, 0.0);
     }
     gl_FragColor = result;
 }

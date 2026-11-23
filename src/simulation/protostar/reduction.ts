@@ -9,6 +9,10 @@
 //   texel 1  EXTREMES  (x, y of the densest cell in px, speed bound in px/s, acceleration bound in px/s^2)
 //   texel 2  ENERGY    (sum m |v/L|^2, U of the grids just drawn, smallest softening px, U one substep earlier)
 //   texel 3  MOMENTS   (sum M x, sum M y, sum m v_x / L, sum m v_y / L)
+//   texel 4  THICKNESS (W of the grids just drawn, W one substep earlier, 0, 0): the work of the adaptive thickness (A11)
+//
+// The first stage writes the first four (four attachments, the least WebGL2 guarantees); the second stage reads the work from its
+// accumulator (protostar-thickness-work.frag) and from the potential pass (the value kept with the previous substep's potential).
 //
 // All the sums are over the 128 x 128 cells of the grids, in deposit units (the mean particle
 // mass is 1) with the cloud-in-cell weights, so the particle sums are exact up to the footprints
@@ -28,6 +32,10 @@
 //    reproduce a particle's position exactly, so these are the particles' own sums, not a grid
 //    approximation (apart from the clipped footprints).
 //  - kinetic energy: 1/2 sum m v^2 of the velocity texture as it is when the grids are drawn.
+//  - work of the thickness (A11): with a softening per cell that changes in time, U changes at fixed positions by
+//    (G / 4) sum_i m_i S_i d(h_i^2) (S_i = sum_j m_j / (r_ij^2 + eps_ij^2)^(3/2)), which no force does; W sums it over the run, so that
+//    K + U - W is what the dynamics keeps (0 with the fixed softening). The self-interaction's own change, -(G / 4) sum m^2 dh^2 / h^3, is
+//    left out: 6e-5 of U at 400 000 particles.
 //  - potential energy: U = 1/2 sum M phi with the Plummer potential of the gravity grid, minus the
 //    interaction of every particle with itself, taken off on the GPU cell by cell (see unpackReduction).
 //  - smallest softening: the least softening (px) of a cell holding mass, the fixed epsilon or, with the adaptive thickness (A11),
@@ -35,8 +43,10 @@
 
 import type { Vec2 } from '../../util/math';
 
-export const REDUCTION_TEXEL = { core: 0, extremes: 1, energy: 2, moments: 3 } as const;
-export const REDUCTION_TEXELS = 4;
+export const REDUCTION_TEXEL = { core: 0, extremes: 1, energy: 2, moments: 3, thickness: 4 } as const;
+export const REDUCTION_TEXELS = 5;
+/** The attachments of the first stage: the first four texels (the thickness's work is not reduced from the grids). */
+export const REDUCTION_STAGE_ATTACHMENTS = 4;
 export const REDUCTION_FLOATS = REDUCTION_TEXELS * 4;
 /** The smallest softening the reduction writes when no cell holds mass (exact in float32; NO_THICKNESS of protostar-reduce.frag). */
 export const REDUCTION_NO_THICKNESS = 2 ** 100;
@@ -68,6 +78,12 @@ export interface EnergyReading {
      * dt |dU/dt|, which is the lag this reading avoids; kept to measure that lag.
      */
     potentialNow: number;
+    /**
+     * The work of the adaptive thickness (A11) up to the positions of `potential` (null with it), and up to those of `potentialNow`:
+     * K + U - W is what the dynamics conserves. 0 with the fixed softening.
+     */
+    thicknessWork: number | null;
+    thicknessWorkNow: number;
 }
 
 export interface Reduction {
@@ -119,7 +135,7 @@ export const selfPotentialPerMassSquared = (gravityPerDeposit: number, softening
  */
 export function unpackReduction(texels: ArrayLike<number>, scales: ReductionScales, synchronized: boolean): Reduction {
     const at = (texel: number, channel: number): number => texels[texel * 4 + channel];
-    const { core, extremes, energy, moments } = REDUCTION_TEXEL;
+    const { core, extremes, energy, moments, thickness } = REDUCTION_TEXEL;
     const { massPerDeposit: massUnit, depositVelScale: velocityScale } = scales;
     const depositMass = at(core, 3);
     const minSoftening = at(energy, 2);
@@ -138,6 +154,8 @@ export function unpackReduction(texels: ArrayLike<number>, scales: ReductionScal
             kinetic: 0.5 * at(energy, 0) / (velocityScale * velocityScale) * massUnit,
             potential: synchronized ? at(energy, 3) * massUnit : null,
             potentialNow: at(energy, 1) * massUnit,
+            thicknessWork: synchronized ? at(thickness, 1) * massUnit : null,
+            thicknessWorkNow: at(thickness, 0) * massUnit,
         },
     };
 }

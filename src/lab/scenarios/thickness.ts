@@ -78,8 +78,13 @@ const parity: Scenario = {
         model.beforeSubstep(0);
         const gravity = await readTarget(renderer, protostarGrids(context).gravity);
         const fixed = await readTarget(renderer, grids.debugRenderFixedGravity());
-        let differing = 0;
-        for (let k = 0; k < gravity.length; k++) if (!Object.is(gravity[k], fixed[k])) differing++;
+        // The force and the potential (x, y, z); w is the protostar's own (the stiffness the work of the thickness needs).
+        let differing = 0, compared = 0;
+        for (let k = 0; k < gravity.length; k++) {
+            if (k % 4 === 3) continue;
+            compared++;
+            if (!Object.is(gravity[k], fixed[k])) differing++;
+        }
 
         // (2) On: the thickness of every cell and the gravity at a lattice of cells against the twins.
         model.setParam(PROTOSTAR_PARAM.adaptiveThickness, true);
@@ -118,12 +123,12 @@ const parity: Scenario = {
         return {
             status: ok ? 'pass' : 'fail',
             metrics: {
-                flagOffDifferingFloats: differing, floats: gravity.length,
+                flagOffDifferingFloats: differing, floats: compared,
                 thicknessRelativeError: sig(hError), fusionFactorRelativeError: sig(factorError),
                 thicknessRangePx: [sig(hMin), sig(hMax)], boundsPx: [sig(scales.bounds.floor), sig(scales.bounds.ceiling)],
                 gravityVsTwin: { ax: sig(fieldError[0]), ay: sig(fieldError[1]), phi: sig(fieldError[2]) },
             },
-            details: `off: ${differing} of ${gravity.length} floats differ from the fixed softening's pass; on: h to the twin ${hError.toExponential(1)}, `
+            details: `off: ${differing} of ${compared} floats differ from the fixed softening's pass; on: h to the twin ${hError.toExponential(1)}, `
                 + `fusion factor ${factorError.toExponential(1)}, gravity ${Math.max(...fieldError).toExponential(1)} (h from ${hMin.toFixed(1)} to ${hMax.toFixed(1)} px)`,
         };
     },

@@ -410,7 +410,7 @@ async function driftRunUnchecked(context: LabContext, spec: DriftSpec): Promise<
         const reduction = model.reduction;
         const e = model.energy;
         if (!reduction || !e) return;
-        const unsynchronized = reduction.energy.kinetic + reduction.energy.potentialNow;
+        const unsynchronized = reduction.energy.kinetic + reduction.energy.potentialNow - reduction.energy.thicknessWorkNow;
         first.unsynchronized ??= unsynchronized;
         first.energy ??= { kinetic: e.kinetic, potential: e.potential, total: e.total, virial: e.virial };
         series.frames.push(frames);
