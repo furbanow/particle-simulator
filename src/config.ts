@@ -223,12 +223,13 @@ export const PROTOSTAR_THICKNESS_Q_FACTOR = 0.8 + 0.7;
 // Nested grid (C2, protostar/nestedBox.ts, the `nestedGrid` flag, docs/spikes/c2-nested-grid.md): a second grid of GRID_RES cells
 // NESTED_RATIO times finer, aligned on the cells of the main grid, over the core. Inside it the particles read its gas and its gravity,
 // a = a_fine(inside) + a_main(all) - a_main(inside); its softening is the main one over NESTED_SOFTENING_DIVISOR (not over NESTED_RATIO: at
-// the current time step the resolved core would be unstable, the user's choice). The box is placed once a core dominates: the main grid's
+// the current time step the resolved core would be unstable; the user's choice after protostar.nested.cloud: eps/2 makes the core 3 times
+// denser with omega dt 0.5, eps/3 4.5 times with 0.8, eps alone 1.1 times with 0.22). The box is placed once a core dominates: the main grid's
 // peak at NESTED_ON_DENSITY rho0 or more and within NESTED_STILL_CELLS main cells of the previous reading, NESTED_ON_READINGS readings in a
 // row; it moves (recentred) when the peak leaves the middle NESTED_INNER of the box, and goes off when the main peak stays below
 // NESTED_OFF_DENSITY for NESTED_ON_READINGS readings. The particles read the fine grid NESTED_MARGIN_CELLS fine cells inside its edges.
 export const PROTOSTAR_NESTED_RATIO = 8;
-export const PROTOSTAR_NESTED_SOFTENING_DIVISOR = 3;
+export const PROTOSTAR_NESTED_SOFTENING_DIVISOR = 2;
 export const PROTOSTAR_NESTED_ON_DENSITY = 8;
 export const PROTOSTAR_NESTED_OFF_DENSITY = 4;
 export const PROTOSTAR_NESTED_ON_READINGS = 3;

@@ -278,10 +278,12 @@ const conservation: Scenario = {
         const cell = LAB_CELL;
         const size = context.simulation.screenSize.value;
         const centre = boxOrigin({ x: size.x / 2, y: size.y / 2 }, cell, { gridRes: PROTOSTAR_GRID_RES, ratio: PROTOSTAR_NESTED_RATIO });
+        // fixed-eps: the fine level at the main softening, which tells the junction's share of a drift from the time step's in a denser core.
         const cases = [
-            { name: 'off', on: false, move: false },
-            { name: 'fixed', on: true, move: false },
-            { name: 'moving', on: true, move: true },
+            { name: 'off', on: false, move: false, divisor: null },
+            { name: 'fixed', on: true, move: false, divisor: null },
+            { name: 'moving', on: true, move: true, divisor: null },
+            { name: 'fixed-eps', on: true, move: false, divisor: 1 },
         ];
         const out: Record<string, JsonValue> = {};
         const notes: string[] = [];
@@ -290,7 +292,10 @@ const conservation: Scenario = {
             const run = await driftRun(context, {
                 name: c.name, params: { [PROTOSTAR_PARAM.nestedGrid]: c.on }, particles: NESTED_CONSERVATION_PARTICLES,
                 orbits: NESTED_CONSERVATION_ORBITS, maxFrames: Number.MAX_SAFE_INTEGER, budgetMs: NESTED_CONSERVATION_BUDGET_MS, restitution: ELASTIC_WALLS,
-                afterRestart: model => model.debugForceNestedBox(c.on ? centre : null),
+                afterRestart: model => {
+                    model.debugNestedSofteningDivisor = c.divisor;
+                    model.debugForceNestedBox(c.on ? centre : null);
+                },
                 onFrame: (frame, model) => {
                     if (c.move && frame % NESTED_MOVE_FRAMES === 0) {
                         const step = (frame / NESTED_MOVE_FRAMES) % 2 === 1 ? NESTED_MOVE_CELLS : 0;
@@ -304,6 +309,7 @@ const conservation: Scenario = {
                 },
             });
             protostarModel(context).debugForceNestedBox(null);
+            protostarModel(context).debugNestedSofteningDivisor = null;
             out[c.name] = { ...runMetrics(run), momentumOverMassRmsSpeed: { max: round(Math.max(0, ...momentum)), final: round(momentum[momentum.length - 1] ?? NaN) } };
             notes.push(`${driftSummary(run)}, |P| / (M v_rms) up to ${Math.max(0, ...momentum).toExponential(2)}`);
         }
