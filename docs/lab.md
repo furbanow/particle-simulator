@@ -136,6 +136,12 @@ the one a visitor gets; the recorded GTX 1060 numbers used `gl` on Linux.
 | `cost.protostar.second-deposit` | Simulation ms/frame at 400 000 particles with and without the composition on the moments pass, the two alternated chunk after chunk in one run, and the grid passes alone on a frozen early (frame 55) and late (about frame 970) cloud; the frame numbers are in the metrics. One run is not a measurement: repeat it (see the spike). |
 | `cost.protostar.diagnostics` | Simulation ms/frame at 400 000 particles with the gravity pass without its potential channel (as before the energy diagnostics), with it and the flag off, and with the flag on (the default), alternated chunk after chunk in all six orders; the gravity and the other grid passes alone on a frozen early and late cloud; and the cost of one call of the reduction and of the potential stash. The data that decides the default of `diagnostics`. |
 
+| `protostar.collisions.parity` | The collisions of the gas (C1): one substep of a moving thermal gas in the collisional limit (every cell collides), the GPU velocities against the CPU twin (`collisionStep()` of `collisions.ts`) within 10⁻⁴ σ, momentum and energy within 10⁻⁵ ([spikes/c1-mpc-collisions.md](spikes/c1-mpc-collisions.md)). |
+| `protostar.collisions.conservation` | The same gas over 30 substeps in the collisional limit, at the application's rate, without collisions, and (recorded, not judged) with the grids in half floats: total momentum and kinetic energy. |
+| `protostar.collisions.sod` | Sod's shock tube across the area (density 8 : 1, pressure 10 : 1, 600 000 particles, 2 s): the column profiles against the exact Riemann solution (`riemann.ts`) for γ = 1.4, 5/3, 2, 2.5, 3; passes when γ = 2 fits best in the collisional limit. |
+| `protostar.collisions.sound-speed` | A standing sound wave (4 wavelengths across the width) fitted by a damped cosine (`oscillation.ts`): c_s against √(γP/ρ) = √2 σ; passes within 10 % of γ = 2 in the collisional limit. |
+| `protostar.collisions.equipartition` | Hydrogen and helium parcels of dispersions 4 : 1 mixed, at 50 000 and 400 000 particles: the ratio of the dispersions against time and its e-folding time in substeps. |
+
 The recorded numbers are in [lab-baseline.md](lab-baseline.md).
 
 ## Adding a scenario
@@ -215,6 +221,10 @@ The tools a scenario gets (`src/lab/driver.ts`, `readback.ts`):
 
 ## Caveats
 
+- **Editing the sources during a run restarts it.** Vite reloads the lab page on any change of a module it serves, and the page starts
+  its scenarios over (the log shows `running N scenario(s)` a second time). For a long run, serve a frozen copy of the code from
+  a worktree on another port (`git worktree add --detach <dir> <commit>`, a `node_modules` symlink, `npx vite --port 5199` in it)
+  and give the runner `--url http://localhost:5199/particle-simulator/lab.html`.
 - **Software renderers.** Under SwiftShader or llvmpipe (`software: true`) the timings mean
   nothing: the performance probe runs a couple of frames to exercise its code, reports `skip` and
   `valid: false`, and the baseline shrinks to 20 000 particles and 200 frames. Budgets are only
