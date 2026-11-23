@@ -1,7 +1,18 @@
-# Spike C2: a nested grid on the protostar's core (phase P9), gate
+# Spike C2: a nested grid on the protostar's core (phase P9)
 
 Proposal C2 of the professor's document: a second 128² grid, eight times finer, centred on the density peak the reduction gives,
-a = a_coarse(all) − a_coarse(inside) + a_fine(inside). This page holds the gate's measurements; the design awaits the user's decision.
+a = a_coarse(all) − a_coarse(inside) + a_fine(inside). This page holds the gate's measurements, the user's decisions, the implementation
+and its lab results.
+
+## Decisions (the user, 2026-11-23)
+
+1. **Gravity and gas** are fine inside the box (density, temperature, fuel, heating, fusion law), not the gravity alone: without the fine
+   gas the fusion stays capped by the main grid.
+2. **A limited fine softening** instead of a mandatory adaptive step or block time steps. First ε/3; after `protostar.nested.cloud`
+   showed omega dt 0.8 with it (0.24 off), **ε/2** (omega dt 0.5, the core 3 times denser) rather than ε/3 (0.8, 4.5 times) or ε (0.22,
+   1.1 times).
+3. **The box once a core dominates**, with hysteresis (not from the first reading: the peak jumps between clumps until ~20 s).
+4. **Flag `nestedGrid`, off by default**, defaults not recalibrated.
 
 ## Step 1: the grid chain (done, no change of behavior)
 

@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import {
     PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_NESTED_RATIO, PROTOSTAR_NESTED_SOFTENING_DIVISOR,
-    PROTOSTAR_STATS_INTERVAL, PROTOSTAR_T0_KELVIN, TOTAL_MASS,
+    PROTOSTAR_RESTITUTION as PROTOSTAR_RESTITUTION_APP, PROTOSTAR_STATS_INTERVAL, PROTOSTAR_T0_KELVIN, TOTAL_MASS,
 } from '../../config';
 import { PROTOSTAR_PARAM } from '../../simulation/protostar/declaration';
 import { GRID_CHAIN_PASSES, type GridChain, type GridChainPassName } from '../../simulation/protostar/gridChain';
@@ -509,4 +509,73 @@ const cost: Scenario = {
     },
 };
 
-export const nestedGridScenarios: readonly Scenario[] = [nested, pointMass, conservation, cloud, cost];
+
+// ---- protostar.nested.net-force ----
+
+/**
+ * Where the momentum goes: the conservative default cloud run NET_FORCE_FRAMES frames with the box held at its center (and the flag off),
+ * then the sum of the forces on all the particles (zero if every pair pulls both ways alike) over the sum of their sizes, split between the
+ * particles that read the fine level and the others; at divisors 1 and 2 of the softening, and at 2 with the step halved (debugSubsteps).
+ */
+const NET_FORCE_FRAMES = 300;
+
+const netForce: Scenario = {
+    id: 'protostar.nested.net-force',
+    title: 'Nested grid (C2): the net force on the conservative cloud (the momentum leak), the box at the center, by softening and step',
+    tags: ['protostar', 'nested-grid', 'momentum', 'slow'],
+    async run(context): Promise<ScenarioOutcome> {
+        const { renderer, simulation } = context;
+        const size = simulation.screenSize.value;
+        const centre = boxOrigin({ x: size.x / 2, y: size.y / 2 }, LAB_CELL, { gridRes: PROTOSTAR_GRID_RES, ratio: PROTOSTAR_NESTED_RATIO });
+        const out: Record<string, JsonValue> = {};
+        const notes: string[] = [];
+        for (const c of [
+            { name: 'off', on: false, divisor: null, substeps: null },
+            { name: 'eps', on: true, divisor: 1, substeps: null },
+            { name: 'eps/2', on: true, divisor: 2, substeps: null },
+            { name: 'eps/2-half-step', on: true, divisor: 2, substeps: 4 },
+        ]) {
+            const model = protostarModel(context);
+            await restart(context, { count: NESTED_CONSERVATION_PARTICLES, overrides: { ...CONSERVATIVE_OVERRIDES }, params: { [PROTOSTAR_PARAM.nestedGrid]: c.on } });
+            model.velocityUniforms.restitution.value = ELASTIC_WALLS;
+            model.debugNestedSofteningDivisor = c.divisor;
+            model.debugSubsteps = c.substeps;
+            model.debugForceNestedBox(c.on ? centre : null);
+            const energies: number[] = [];
+            await runFrames(context, NET_FORCE_FRAMES, {
+                endFrame: true,
+                async onFrame(frame) {
+                    if (frame % 30 !== 0) return;
+                    await model.debugReading;
+                    const e = model.reduction?.energy;
+                    if (e) energies.push(e.kinetic + e.potentialNow);
+                },
+            });
+            const count = simulation.activeCount;
+            const accel = await readPositions(renderer, simulation.debugPipeline.debugVariableTarget(ACCEL), count);
+            const positions = await readPositions(renderer, simulation.debugPipeline.debugPositionTarget, count);
+            const lo = model.debugGrids.common.nestedLo.value, hi = model.debugGrids.common.nestedHi.value;
+            const sum = { in: [0, 0], out: [0, 0] }, size2 = { in: 0, out: 0 };
+            for (let i = 0; i < count; i++) {
+                const ax = accel[i * 4], ay = accel[i * 4 + 1];
+                const x = positions[i * 4], y = positions[i * 4 + 1];
+                const inside = c.on && x >= lo.x && x <= hi.x && y >= lo.y && y <= hi.y ? 'in' : 'out';
+                sum[inside][0] += ax; sum[inside][1] += ay; size2[inside] += Math.hypot(ax, ay);
+            }
+            const total = Math.hypot(sum.in[0] + sum.out[0], sum.in[1] + sum.out[1]) / (size2.in + size2.out);
+            const drift = energies.length > 1 ? (energies[energies.length - 1] - energies[0]) / Math.abs(energies[0]) : NaN;
+            out[c.name] = { netOverSum: round(total), inside: [round(sum.in[0] / (size2.in || 1)), round(sum.in[1] / (size2.in || 1))],
+                outside: [round(sum.out[0] / (size2.out || 1)), round(sum.out[1] / (size2.out || 1))], insideShareOfForce: round(size2.in / (size2.in + size2.out)),
+                energyDrift: round(drift), peakDensity: round(model.reduction?.peakDensity ?? NaN) };
+            notes.push(`${c.name}: net force ${total.toExponential(2)} of the sum, inside ${(Math.hypot(sum.in[0], sum.in[1]) / (size2.in + size2.out)).toExponential(2)}, `
+                + `outside ${(Math.hypot(sum.out[0], sum.out[1]) / (size2.in + size2.out)).toExponential(2)}; K + U ${(100 * drift).toFixed(2)} % in ${NET_FORCE_FRAMES} frames; peak ${model.reduction?.peakDensity.toFixed(0)} rho0`);
+            model.debugForceNestedBox(null);
+            model.debugNestedSofteningDivisor = null;
+            model.debugSubsteps = null;
+            model.velocityUniforms.restitution.value = PROTOSTAR_RESTITUTION_APP;
+        }
+        return { status: 'pass', metrics: out, details: notes.join('; ') };
+    },
+};
+
+export const nestedGridScenarios: readonly Scenario[] = [nested, pointMass, conservation, cloud, cost, netForce];
