@@ -162,6 +162,10 @@ export interface ProtostarGridTargets {
     readonly collision: THREE.WebGLRenderTarget | null;
 }
 
+/** The grid passes of one substep, in the order update() draws them (the collision deposit only with the collisions on). */
+export const PROTOSTAR_GRID_PASSES = ['moments', 'gas', 'power', 'heat', 'coarse', 'gravity', 'collision'] as const;
+export type ProtostarGridPassName = (typeof PROTOSTAR_GRID_PASSES)[number];
+
 /** What the deposit shader reads, as plain numbers (see ProtostarGrids.debugDepositInputs). */
 export interface DepositInputs {
     gridResolution: number;
@@ -560,6 +564,31 @@ export class ProtostarGrids {
         if (this.common.collisionsOn.value > 0) this.collisionDeposit?.render(renderer);
         renderer.setClearAlpha(clearAlpha);
         renderer.setRenderTarget(null);
+    }
+
+    /**
+     * Dev-only (the lab's cost of the passes): renders the grid pass `name` again from the inputs of the last update(), into the target
+     * it wrote then (the same result: every pass reads only the particles and the grids before it). Returns that target. The collision
+     * deposit needs the collisions on. Not used by the app.
+     */
+    debugRenderPass(name: ProtostarGridPassName): THREE.WebGLRenderTarget {
+        const { renderer } = this;
+        const clearAlpha = renderer.getClearAlpha();
+        renderer.setClearAlpha(0);
+        const pass = {
+            moments: this.compositionEnabled ? this.moments : this.momentsWithoutComposition(),
+            gas: this.gasPasses[this.gasCurrent],
+            power: this.power,
+            heat: this.heat,
+            coarse: this.coarse,
+            gravity: this.potentialEnabled ? this.gravity : this.gravityWithoutPotential(),
+            collision: this.collisionDeposit,
+        }[name];
+        if (!pass) throw new Error(`The grid pass ${name} is not built`);
+        pass.render(renderer);
+        renderer.setClearAlpha(clearAlpha);
+        renderer.setRenderTarget(null);
+        return pass.target;
     }
 
     /** The gravity pass: acceleration in x and y, and with `potential` the Plummer potential in z (grid-gravity.frag). */

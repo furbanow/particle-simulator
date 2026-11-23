@@ -735,3 +735,31 @@ export const EQUIPARTITION_COUNTS = [50_000, 400_000] as const;
 export const EQUIPARTITION_RATIO = 4;
 export const EQUIPARTITION_FRAMES = 300;
 export const EQUIPARTITION_READ_EVERY = 5;
+
+// ---- Single particle pass (phase P8: B3, docs/spikes/b3-single-pass.md) ----
+/**
+ * cost.protostar.passes: each pass of a substep timed alone on a frozen state of the default cloud, at PASS_COST_COUNTS particles, after the
+ * frames of each of PASS_COST_WINDOWS (the cloud before its collapse, then its collapsed core), with each setting of PASS_COST_FLAGS.
+ * A pass is rendered PASS_COST_REPEATS times between two synchronizations (the synchronization alone is timed and taken off), the passes
+ * in turn within a round, PASS_COST_ROUNDS rounds; the median is kept. PASS_COST_FRAME_CHUNKS chunks of PASS_COST_FRAME_CHUNK frames time
+ * the whole simulation frame of the same window (flags off), to compare with the sum of the passes.
+ */
+export const PASS_COST_COUNTS = [400_000, 1_000_000] as const;
+export const PASS_COST_WINDOWS = [{ name: 'early', frames: 55 }, { name: 'late', frames: 1000 }] as const;
+export const PASS_COST_FLAGS = [
+    { name: 'off', tscDeposit: false, collisions: false },
+    { name: 'tsc', tscDeposit: true, collisions: false },
+    { name: 'collisions', tscDeposit: false, collisions: true },
+    { name: 'tsc+collisions', tscDeposit: true, collisions: true },
+] as const;
+export const PASS_COST_REPEATS = 100;
+export const PASS_COST_ROUNDS = 7;
+export const PASS_COST_FRAME_CHUNK = 10;
+export const PASS_COST_FRAME_CHUNKS = 3;
+/**
+ * spike.b3.mrt: a TEX_SIZE^2 target of three unblended attachments, float and half float, stepped MRT_SPIKE_STEPS times in ping-pong
+ * (each step reads the three textures of the other target and writes all three), then read back through copies and checked texel by
+ * texel against the expected values; MRT_SPIKE_REPEATS renders time a three-attachment write against a one-attachment one.
+ */
+export const MRT_SPIKE_STEPS = 5;
+export const MRT_SPIKE_REPEATS = 100;

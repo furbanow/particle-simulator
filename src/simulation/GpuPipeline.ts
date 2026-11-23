@@ -168,6 +168,40 @@ export class GpuPipeline {
     }
 
     /**
+     * Dev-only (the lab's cost of the passes): renders the particle pass `name` ('velocity', 'position' or an extra variable's name)
+     * from the current state into its other target, as the next substep would, without swapping: the state does not advance, so the
+     * pass can be timed again and again on one state. With `rows`, only the first `rows` rows of the texture are drawn (a scissor: what
+     * a pass restricted to the active particles would cost). Returns the target written. Not used by the app.
+     */
+    debugRenderParticlePass(name: string, rows: number | null = null): THREE.WebGLRenderTarget {
+        const variable = this.particleVariable(name);
+        const state = [this.posVar, this.velVar, ...this.extraVars];
+        const uniforms = variable.material.uniforms;
+        for (const input of state) {
+            if (uniforms[input.name]) uniforms[input.name].value = this.gpu.getCurrentRenderTarget(input).texture;
+        }
+        const output = this.gpu.getAlternateRenderTarget(variable);
+        if (rows !== null) {
+            output.scissor.set(0, 0, TEX_SIZE, rows);
+            output.scissorTest = true;
+        }
+        this.gpu.doRenderTarget(variable.material, output);
+        output.scissorTest = false;
+        return output;
+    }
+
+    /** Dev-only, read-only: the material of the particle pass `name` (see debugRenderParticlePass), for the lab page. Not used by the app. */
+    debugParticleMaterial(name: string): THREE.ShaderMaterial {
+        return this.particleVariable(name).material;
+    }
+
+    private particleVariable(name: string): Variable {
+        const variable = name === 'velocity' ? this.velVar : name === 'position' ? this.posVar : this.extraVars.find(v => v.name === name);
+        if (!variable) throw new Error(`Unknown particle pass: ${name}`);
+        return variable;
+    }
+
+    /**
      * Dev-only: overwrites the particles' state (the first `count` texels of each, RGBA per texel: positions x, y, type
      * rank, w; velocities vx, vy, z, w) for the lab's scenarios that need a cloud of their own. A restart must have
      * made the particle count, the types and the per-type uniforms first. Not used by the app.
