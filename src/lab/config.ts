@@ -874,6 +874,8 @@ export const NESTED_MOMENTUM_EVERY = 50;
  */
 export const NESTED_CLOUD_FRAMES = 1200;
 export const NESTED_CLOUD_RATIOS = [2, 4, 8] as const;
+/** protostar.nested.cloud: the softening divisors tried at the application's ratio besides the application's (the time step's trade-off). */
+export const NESTED_CLOUD_DIVISORS = [1, 2] as const;
 export const NESTED_CLOUD_READ_EVERY = 50;
 export const NESTED_JEANS_CELLS = 4;
 export const NESTED_FRAGMENT_DENSITY = 5;

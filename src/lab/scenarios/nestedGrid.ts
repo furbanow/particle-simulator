@@ -18,7 +18,7 @@ import { forceNestedRatio, PROTOSTAR_GRID_PASSES } from '../../simulation/protos
 import { boxCells, boxOrigin } from '../../simulation/protostar/nestedBox';
 import {
     CONSERVATIVE_OVERRIDES, ELASTIC_WALLS, NESTED_BLOB_OFFSET, NESTED_BLOB_PARTICLES, NESTED_CLOUD_FRAMES, NESTED_CLOUD_RATIOS,
-    NESTED_CLOUD_READ_EVERY, NESTED_CONSERVATION_BUDGET_MS, NESTED_CONSERVATION_ORBITS, NESTED_CONSERVATION_PARTICLES, NESTED_COST_COUNTS,
+    NESTED_CLOUD_DIVISORS, NESTED_CLOUD_READ_EVERY, NESTED_CONSERVATION_BUDGET_MS, NESTED_CONSERVATION_ORBITS, NESTED_CONSERVATION_PARTICLES, NESTED_COST_COUNTS,
     NESTED_COST_FRAME, NESTED_COST_FRAMES, NESTED_FORCE_TOLERANCE, NESTED_FRAGMENT_DENSITY, NESTED_JEANS_CELLS, NESTED_JUDGED_RADII,
     NESTED_MOMENTUM_EVERY, NESTED_MOVE_CELLS, NESTED_MOVE_FRAMES, NESTED_OUTSIDE_CELLS, NESTED_RATIO, NESTED_RING_ANGLES, NESTED_RING_RADII,
     NESTED_SPIKE_COUNTS, NESTED_SPIKE_LAST_FRAME, NESTED_SPIKE_WINDOWS, OMEGA_DT_LIMIT, PASS_COST_REPEATS, PASS_COST_ROUNDS,
@@ -343,15 +343,16 @@ function countFragments(gas: Float32Array, res: number): number {
     return n;
 }
 
-async function cloudRun(context: LabContext, ratio: number | null): Promise<{ readings: CloudReading[]; boxFrame: number | null }> {
+async function cloudRun(context: LabContext, ratio: number | null, divisor: number | null = null): Promise<{ readings: CloudReading[]; boxFrame: number | null }> {
     const { renderer, simulation } = context;
     if (ratio !== null && ratio !== PROTOSTAR_NESTED_RATIO) {
         forceNestedRatio(ratio);
         rebuildPipeline(context);
     }
     try {
-        await restart(context, { count: context.options.baselineParticles, params: { [PROTOSTAR_PARAM.nestedGrid]: ratio !== null } });
         const model = protostarModel(context);
+        model.debugNestedSofteningDivisor = divisor;
+        await restart(context, { count: context.options.baselineParticles, params: { [PROTOSTAR_PARAM.nestedGrid]: ratio !== null } });
         const size = simulation.screenSize.value;
         const cell = Math.max(size.x, size.y) / PROTOSTAR_GRID_RES;
         const length = Math.min(size.x, size.y);
@@ -395,6 +396,7 @@ async function cloudRun(context: LabContext, ratio: number | null): Promise<{ re
         });
         return { readings, boxFrame };
     } finally {
+        protostarModel(context).debugNestedSofteningDivisor = null;
         if (ratio !== null && ratio !== PROTOSTAR_NESTED_RATIO) {
             forceNestedRatio(null);
             rebuildPipeline(context);
@@ -411,9 +413,13 @@ const cloud: Scenario = {
         const out: Record<string, JsonValue> = {};
         const notes: string[] = [];
         let omegaMax = 0;
-        for (const ratio of [null, ...NESTED_CLOUD_RATIOS]) {
-            const { readings, boxFrame } = await cloudRun(context, ratio);
-            const name = ratio === null ? 'off' : `ratio${ratio}`;
+        const runs: { ratio: number | null; divisor: number | null }[] = [
+            ...[null, ...NESTED_CLOUD_RATIOS].map(ratio => ({ ratio, divisor: null })),
+            ...NESTED_CLOUD_DIVISORS.map(divisor => ({ ratio: PROTOSTAR_NESTED_RATIO, divisor })),
+        ];
+        for (const { ratio, divisor } of runs) {
+            const { readings, boxFrame } = await cloudRun(context, ratio, divisor);
+            const name = ratio === null ? 'off' : divisor === null ? `ratio${ratio}` : `ratio${ratio}-eps/${divisor}`;
             const withBox = readings.filter(r => r.box);
             const peak = readings.reduce((best, r) => (r.peakDensity > best.peakDensity ? r : best), readings[0]);
             const last = readings[readings.length - 1];

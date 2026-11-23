@@ -120,6 +120,8 @@ export class ProtostarModel implements GpuModel {
     private nestedGrid = false;
     /** Where the nested grid's box goes (C2), from the stats' readings. */
     private readonly nestedBox: NestedBoxController;
+    /** Dev-only (the lab): the nested grid's softening divisor instead of PROTOSTAR_NESTED_SOFTENING_DIVISOR; null in the application. */
+    debugNestedSofteningDivisor: number | null = null;
     /** Dev-only (the lab): a box (main cells) held whatever the readings, or null to let the readings place it. */
     private nestedForced: { x: number; y: number } | null = null;
     private stabilityMode: StabilityMapMode = 'off';
@@ -242,6 +244,10 @@ export class ProtostarModel implements GpuModel {
             this.stabilityStale = true;
         }
         if (REACTION_PARAMS.has(key)) this.updateReactions();
+    }
+
+    private get nestedSofteningDivisor(): number {
+        return this.debugNestedSofteningDivisor ?? PROTOSTAR_NESTED_SOFTENING_DIVISOR;
     }
 
     private setNestedGrid(on: boolean): void {
@@ -407,7 +413,7 @@ export class ProtostarModel implements GpuModel {
         // softening while its box is on (C2).
         const fixed = this.softening(this.scales.length);
         const softening = this.adaptiveThickness ? reading?.minSoftening ?? 0
-            : reading?.nested ? Math.min(fixed, fixed / PROTOSTAR_NESTED_SOFTENING_DIVISOR) : fixed;
+            : reading?.nested ? Math.min(fixed, fixed / this.nestedSofteningDivisor) : fixed;
         const criterion = {
             cell: Math.max(size.x, size.y, 1) / PROTOSTAR_GRID_RES, softening,
             courant: tuned?.courant ?? PROTOSTAR_STEP_COURANT, omega: tuned?.omega ?? PROTOSTAR_STEP_OMEGA,
@@ -469,7 +475,7 @@ export class ProtostarModel implements GpuModel {
             const fineCell = cell / grids.nestedRatio;
             grids.setNestedScales({
                 densityPerDeposit: meanMass / (9 * fineCell * fineCell * rho0),
-                softening: scales.softening / PROTOSTAR_NESTED_SOFTENING_DIVISOR,
+                softening: scales.softening / this.nestedSofteningDivisor,
             });
         }
         this.gridScales = scales;
