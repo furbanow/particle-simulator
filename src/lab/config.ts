@@ -645,3 +645,19 @@ export const JEANS_GRAVITY = PROTOSTAR_GRAVITY_SLIDER.default;
 export const JEANS_TOLERANCE = 3e-4;
 export const JEANS_CLOUD_FRAMES = 600;
 export const JEANS_CLOUD_MIN_DENSITY = 1;
+
+// ---- Stability map (phase P1b: A12) ----
+/**
+ * protostar.stability-map: the default cloud of STABILITY_PARTICLES at t = 0, its map on the GPU against the TypeScript twin on the grids read
+ * back (the 99th percentile of the relative difference of Q and of beta within STABILITY_PARITY_TOLERANCE, the cells' classes the same in all
+ * but STABILITY_CLASS_MISMATCH of them), and the medians of the map over rings of half-width STABILITY_RING_WIDTH R at STABILITY_RADII R against
+ * Q measured on the particles (toomre.ts). protostar.stability-evolution: the same cloud run for STABILITY_EVOLUTION_SECONDS, its map read every
+ * STABILITY_EVOLUTION_EVERY s.
+ */
+export const STABILITY_PARTICLES = 400000;
+export const STABILITY_PARITY_TOLERANCE = 1e-3;
+export const STABILITY_CLASS_MISMATCH = 1e-3;
+export const STABILITY_RADII = [0.1, 0.2, 0.25, 0.5, 0.75, 0.9] as const;
+export const STABILITY_RING_WIDTH = 0.05;
+export const STABILITY_EVOLUTION_SECONDS = 30;
+export const STABILITY_EVOLUTION_EVERY = 1.5;

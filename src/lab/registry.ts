@@ -29,6 +29,7 @@ import { perfProtostarScenarios } from './scenarios/perfProtostar';
 import { secondDeposit, secondDepositLoad } from './scenarios/secondDeposit';
 import { secondDepositCost } from './scenarios/secondDepositCost';
 import { selftest } from './scenarios/selftest';
+import { stabilityScenarios } from './scenarios/stabilityMap';
 import type { Scenario } from './types';
 
 export const SCENARIOS: readonly Scenario[] = [
@@ -73,4 +74,5 @@ export const SCENARIOS: readonly Scenario[] = [
     secondDepositCost,
     diagnosticsCost,
     ...adaptiveStepScenarios,
+    ...stabilityScenarios,
 ];
