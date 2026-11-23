@@ -832,3 +832,12 @@ export const GRID_CHAIN_PARITY_FLAGS = [
     { name: 'tsc+collisions', tscDeposit: true, collisions: true, adaptiveThickness: false },
     { name: 'thickness', tscDeposit: false, collisions: false, adaptiveThickness: true },
 ] as const;
+/**
+ * spike.c2.nested (the gate of C2): the default cloud at NESTED_SPIKE_COUNTS particles, its densest cell read every frame of the stats up to
+ * NESTED_SPIKE_LAST_FRAME (the track a nested grid would follow), and at NESTED_SPIKE_WINDOWS a prototype chain NESTED_RATIO times finer
+ * centred on it: the mass it holds and the cost of its passes against the main grid's (timed like cost.protostar.passes).
+ */
+export const NESTED_SPIKE_COUNTS = [400_000, 1_000_000] as const;
+export const NESTED_SPIKE_WINDOWS = [{ name: 'early', frames: 90 }, { name: 'late', frames: 1030 }] as const;
+export const NESTED_SPIKE_LAST_FRAME = 1200;
+export const NESTED_RATIO = 8;

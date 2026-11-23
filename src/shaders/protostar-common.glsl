@@ -9,6 +9,7 @@ uniform sampler2D gridHeat;             // (fusion heating per unit mass T0 per 
 uniform sampler2D gridThermo;           // (T averaged over time px^2/s^2, effective number of particles, mu / mu_H, h_ref / h) of the 3x3 neighborhood
 uniform sampler2D gridFuel;             // (X, Y, 0, 0): the mass fractions of the fuel of the first two reactions (hydrogen, helium) in the 3x3 neighborhood
 uniform float gridCell;                 // cell size, px
+uniform vec2 gridOrigin;                // the grid's lower left corner, px: (0, 0) for the main grid (a nested grid, C2, is elsewhere)
 uniform float fusionTRef;               // T0, px^2/s^2
 uniform float noiseCorrection;          // 1: the fusion rate is divided by the bias that the noise of T causes; 0: it is not (lab)
 uniform float seed;                     // changes every substep

@@ -55,6 +55,8 @@ export interface ProtostarCommonUniforms extends DrawingUniforms {
     gridThermo: Uniform<THREE.Texture | null>;
     gridFuel: Uniform<THREE.Texture | null>;
     gridCell: Uniform<number>;
+    /** The grid's lower left corner, px: (0, 0) for the main grid; a nested grid (C2) has its own. */
+    gridOrigin: Uniform<THREE.Vector2>;
     /** 1: forceAt() reads the gravity grid with the TSC weights, matched to the TSC deposit (no self-force); 0: bilinearly, matched to cloud-in-cell. */
     tscForce: Uniform<number>;
     fusionTRef: Uniform<number>;
@@ -86,7 +88,7 @@ export function createCommonUniforms(drawing: DrawingUniforms): ProtostarCommonU
     return {
         ...drawing,
         gridForce: { value: null }, gridGas: { value: null }, gridHeat: { value: null }, gridThermo: { value: null }, gridFuel: { value: null },
-        gridCell: { value: 1 }, tscForce: { value: 0 }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },
+        gridCell: { value: 1 }, gridOrigin: { value: new THREE.Vector2() }, tscForce: { value: 0 }, fusionTRef: { value: 1 }, noiseCorrection: { value: 1 }, seed: { value: 0 },
         reactionTo: perType(-1), reactionRate: perType(0),
         reactionPower: perType(0), reactionBarrier: perType(0), reactionBarrierPower: perType(1), reactionFuel: perType(-1),
         reactionReference: perType(1), reactionDensityExponent: perType(1),

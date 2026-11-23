@@ -42,7 +42,7 @@ void main() {
     vValue2 = vec4(m * speciesInverseMu[k], m * speciesFuel[k].x, m * m, m * speciesFuel[k].y);
 #endif
 #endif
-    vec2 p = posData.xy / gridCell;
+    vec2 p = (posData.xy - gridOrigin) / gridCell;
     vCell = p;
     vec2 c = depositCenter(p);
     gl_Position = vec4(c / float(GRID_RES) * 2.0 - 1.0, 0.0, 1.0);

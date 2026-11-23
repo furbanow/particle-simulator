@@ -33,6 +33,7 @@ import { selftest } from './scenarios/selftest';
 import { singlePassScenarios } from './scenarios/singlePass';
 import { stabilityScenarios } from './scenarios/stabilityMap';
 import { gridChainScenarios } from './scenarios/gridChain';
+import { nestedGridScenarios } from './scenarios/nestedGrid';
 import { thicknessScenarios } from './scenarios/thickness';
 import { tscDepositScenarios } from './scenarios/tscDeposit';
 import type { Scenario } from './types';
@@ -82,6 +83,7 @@ export const SCENARIOS: readonly Scenario[] = [
     ...stabilityScenarios,
     ...thicknessScenarios,
     ...gridChainScenarios,
+    ...nestedGridScenarios,
     ...tscDepositScenarios,
     ...collisionScenarios,
     ...singlePassScenarios,

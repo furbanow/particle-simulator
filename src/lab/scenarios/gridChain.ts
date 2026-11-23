@@ -18,7 +18,7 @@ import type { JsonValue, LabContext, Scenario, ScenarioOutcome } from '../types'
 type AnyGrids = ProtostarGrids | LegacyProtostarGrids;
 
 /** Copies the values of the model's common uniforms (not the textures, which each set of grids publishes itself) into `to`. */
-function copyCommon(from: ProtostarCommonUniforms, to: ProtostarCommonUniforms): void {
+function copyCommon(from: ProtostarCommonUniforms, to: object): void {
     const source = from as unknown as Record<string, THREE.IUniform>;
     const target = to as unknown as Record<string, THREE.IUniform>;
     for (const [key, uniform] of Object.entries(source)) {

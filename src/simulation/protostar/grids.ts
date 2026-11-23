@@ -12,7 +12,7 @@ import collisionVert from '../../shaders/protostar-collision.vert?raw';
 import collisionFrag from '../../shaders/protostar-collision.frag?raw';
 import { COLLISION_GRID_RES } from './collisions';
 import reduceFrag from '../../shaders/protostar-reduce.frag?raw';
-import { GridChain, type GridChainPassName } from './gridChain';
+import { GridChain, type GridChainPassName, type GridChainScales } from './gridChain';
 import { createCommonUniforms, withProtostarCommon, type ProtostarCommonUniforms } from './gridCommon';
 import { smoothingWeight } from './noiseBias';
 import { REDUCTION_NO_THICKNESS, REDUCTION_TEXEL, REDUCTION_TEXELS } from './reduction';
@@ -301,6 +301,24 @@ export class ProtostarGrids {
             ...this.chain.targets, reduce1: this.reduce1.target, reduce2: this.reduce2.target,
             potential: this.potential2.target, collision: this.collisionDeposit?.target ?? null,
         };
+    }
+
+    /**
+     * Dev-only (the spike of C2): a second grid chain of the same resolution whose cells are `ratio` times finer, its lower left corner at
+     * `origin` (px), reading the same particles and scales (its fields are not to scale: only its cost and its deposit are meaningful).
+     * It publishes its fields to uniforms of its own. The caller disposes it.
+     */
+    debugBuildNestedChain(ratio: number, origin: THREE.Vector2): GridChain {
+        const fine = { gridCell: { value: this.common.gridCell.value / ratio }, gridOrigin: { value: origin.clone() } };
+        const common: ProtostarCommonUniforms = {
+            ...this.common, ...fine,
+            gridGas: { value: null }, gridThermo: { value: null }, gridFuel: { value: null }, gridHeat: { value: null }, gridForce: { value: null },
+        };
+        const scales: GridChainScales = this.u;
+        return new GridChain({
+            renderer: this.renderer, geometry: this.geometry, depositUniforms: { ...this.depositUniforms, ...fine },
+            blendType: this.blendType, resolution: PROTOSTAR_GRID_RES, scales, common,
+        });
     }
 
     /** Dev-only: what the grids were built with (the particles' geometry), so that the lab can build others alike. */
