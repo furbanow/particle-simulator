@@ -21,12 +21,12 @@ cells: the densities are all about 2 ρ0 after the first collapse); afterwards i
 **A prototype chain 8 times finer** (128² cells of cell/8, centred on the peak: 16 × 16 cells of the main grid), each pass rendered alone
 (ms per substep):
 
-| Case | mass inside | fine moments | fine power | fine gas+heat+coarse | fine gravity | fine chain | main moments | main gravity |
+| Case | mass inside | fine moments | fine power | fine gas + heat + coarse | fine gravity | fine chain | main moments | main gravity |
 |---|---|---|---|---|---|---|---|---|
-| 400k, frame 90 | 42 % | 0.17 | | | 0.05 | 0.34 | 1.00 | 0.049 |
-| 400k, frame 1030 | 88 % | 0.82 | | | 0.048 | 1.00 | 1.24 | 0.051 |
-| 1M, frame 90 | 40 % | 0.57 | | | 0.044 | 0.94 | 2.54 | 0.051 |
-| 1M, frame 1030 | 88 % | 1.84 | | | 0.05 | 2.19 | 4.64 | 0.041 |
+| 400k, frame 90 | 42 % | 0.17 | 0.11 | 0.01 | 0.050 | 0.34 | 1.00 | 0.049 |
+| 400k, frame 1030 | 88 % | 0.82 | 0.13 | 0.00 | 0.048 | 1.00 | 1.24 | 0.051 |
+| 1M, frame 90 | 40 % | 0.57 | 0.31 | 0.02 | 0.044 | 0.94 | 2.54 | 0.051 |
+| 1M, frame 1030 | 88 % | 1.84 | 0.30 | 0.01 | 0.050 | 2.19 | 4.64 | 0.041 |
 
 The fine gravity costs what the main one does (0.05 ms: it does not depend on N); the cost is the second deposit (17 to 66 % of the main
 one), as P8 predicted. Reproduction: `--query "scenarios=spike.c2.nested"` (32 s).
