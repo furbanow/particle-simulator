@@ -534,6 +534,9 @@ const netForce: Scenario = {
             { name: 'eps/2-no-band', on: true, divisor: 2, substeps: null, band: 0 },
             { name: 'eps/2', on: true, divisor: 2, substeps: null, band: null },
             { name: 'eps/2-band-3', on: true, divisor: 2, substeps: null, band: 3 },
+            { name: 'eps/2-step/2', on: true, divisor: 2, substeps: 4, band: null },
+            { name: 'eps/2-step/4', on: true, divisor: 2, substeps: 8, band: null },
+            { name: 'eps', on: true, divisor: 1, substeps: null, band: null },
         ]) {
             const model = protostarModel(context);
             await restart(context, { count: NESTED_CONSERVATION_PARTICLES, overrides: { ...CONSERVATIVE_OVERRIDES }, params: { [PROTOSTAR_PARAM.nestedGrid]: c.on } });
