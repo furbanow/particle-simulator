@@ -818,8 +818,8 @@ default count stays min(400 000, cap).
   to 0.069 for the fixed step). Not looked into: the asynchronous reads of the maxima land at other frames on this machine, and the bound
   carries the margin for the lag measured on the 1060. A matter for B5's constants (the flag is off by default).
 
-The ignition ratio is unchanged (4.43 at 0.5 per second and 60 rho0), and so is the conservative energy drift (-0.16 % over 100 orbits,
-+0.24 % on circular orbits).
+The ignition ratio reads 4.43 at 0.5 per second and 60 rho0 (a formula of the current defaults, the same on any GPU; the 5.41 above was
+recorded before P4 lowered lambda_0), and the conservative energy drift is the 1060's (-0.16 % over 100 orbits, +0.24 % on circular orbits).
 
 ## After phase C1: the collisions of the gas (RTX 5070)
 
