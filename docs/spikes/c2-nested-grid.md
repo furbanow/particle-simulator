@@ -9,10 +9,56 @@ and its lab results.
 1. **Gravity and gas** are fine inside the box (density, temperature, fuel, heating, fusion law), not the gravity alone: without the fine
    gas the fusion stays capped by the main grid.
 2. **A limited fine softening** instead of a mandatory adaptive step or block time steps. First ε/3; after `protostar.nested.cloud`
-   showed omega dt 0.8 with it (0.24 off), **ε/2** (omega dt 0.5, the core 3 times denser) rather than ε/3 (0.8, 4.5 times) or ε (0.22,
-   1.1 times).
+   showed omega dt 0.8 with it (0.24 off), ε/2 (omega dt 0.5, the core 3 times denser). Then `protostar.nested.conservation` showed that
+   any softening shorter than the main one heats the cloud (below), and the user chose **the main softening ε on the fine level**: the
+   gas, the temperature and the fusion are fine, the gravity is the same law sampled on finer cells.
 3. **The box once a core dominates**, with hysteresis (not from the first reading: the peak jumps between clumps until ~20 s).
 4. **Flag `nestedGrid`, off by default**, defaults not recalibrated.
+
+## Implementation
+
+- `nestedBox.ts` (pure, `tests/nestedBox.test.ts`): the controller of the box (on once the main grid's peak is at 8 ρ0 or more and within 2
+  main cells of the previous reading for 3 stats readings; recentred when the fine peak leaves the middle half; off under 4 ρ0 for 3
+  readings), its origin on the main cells, the read region (the box less 2 fine cells), and the twins of the gather weight and of the
+  bilinear read of the combine pass.
+- `nestedLevel.ts`: the fine `GridChain` (its own cell, origin, density scale, softening and temperature weight; it publishes its gas,
+  thermo, fuel and heat straight to the `grid*Fine` uniforms the particle passes hold), the join (`protostar-nested-gather.frag`: the fine
+  mass onto the main cells with the cloud-in-cell tent; the main coarse and gravity passes of it over the box and one cell around it,
+  `GRAVITY_REGION`; `protostar-nested-combine.frag`: a_fine + B[a_main(all) − a_main(inside)] and Δφ = φ_fine − B[φ_main(inside)]), and
+  the fine level's first stages of the reduction and of the potential (`NESTED_LEVEL`).
+- `ProtostarGrids.update()`: main gas, fine gas, main power (its rates read the level each particle is in), fine power, heat and gravity,
+  join. The reduction's second stage writes three nested texels (`reduction.ts`, tested). `protostar-common.glsl`: `forceAt()` and `gasAt()`
+  read the fine level inside the read region (`forceFrom()`, `gasFrom()` take the level's samplers), with a fade of the force over one main
+  cell inside it; `GAS_HEAT` spares the heat samplers of the passes that only compute a rate (position pass 14 samplers of 16 with the
+  fine ones, velocity pass 12). The deposits skip the particles off their grid. The Jeans floor uses the cell of the level read.
+- Dev-only: `forceNestedRatio()`, `debugNestedSofteningDivisor`, `debugForceNestedBox()`, `debugNestedBox`, `NestedLevel.debugBandCells`.
+- The frozen copy of the old grids (`src/lab/legacy/`) and `protostar.grid-chain.parity` are removed now that C2 is settled (the parity
+  held to 0 floats over the whole implementation; its first case failed once in a while on the first run of a page, on the code before
+  C2 too).
+
+## Results (RTX 5070, whole lab on the frozen head)
+
+- **Point mass across the edge** (`protostar.nested.point-mass`): inside the box the law within 0.75 % and the anisotropy 0.18 % from 0.5
+  to 7 main cells (at ε/3: 1.75 % and 0.34 %); a point 3 cells outside the box: its pull on the probes inside changes by 0.01 % rms
+  against the flag off; no self-force.
+- **Conservation, 100 orbits of the conservative cloud** (`protostar.nested.conservation`, 100 000 particles): flag off −0.16 % (max 0.80 %),
+  |P| / (M v_rms) up to 7.9e-3; box fixed at the center +0.81 % (max 1.67 %), 4.0e-2; box moved every 50 frames +1.60 %, 3.6e-2; at ε/2
+  +43 to +54 % and 0.17. **Why ε/2 heats** (`protostar.nested.net-force`, 3 000 frames): K + U +12.8 % at ε/2 against +0.47 % at ε and
+  +0.11 % off, the same at a quarter of the step (+13.0 %: not the integrator), barely less with a fade of the force at the edge (+14.5 %
+  without it, +11.6 % with 3 cells): the law of a pair changes (ε/2 inside, ε outside) whenever a particle crosses the box's edge, and the
+  conservative cloud crosses it all the time (the box is 16 main cells, the cloud 72). A conservative junction (a softening varying
+  smoothly between the levels, with the grad terms A11 lacks too) is not done.
+- **The default cloud** (`protostar.nested.cloud`, 400 000 particles, 34 s): the box switches on at 17.6 s (21.8 s at ratio 4), once the star
+  has formed, and never moved off. Final peak / core T / burning T: off 193 ρ0 / 113 MK / 52 MK; ratio 2: 207 / 101.5 / 47.8; ratio 4:
+  208 / 96.4 / 49.0; ratio 8: 204 / 92.1 / 48.9. The **burning temperature no longer depends on the cell** (48 to 49 MK at ratios 2 to 8);
+  the densest cell's temperature falls with the cell (a smaller cell holds the ash at the very center). omega dt up to 0.21 to 0.23 (0.24
+  off). With the dropped softenings: ε/2 up to 550 to 1 700 ρ0 (two runs) and omega dt 0.52 to 0.68; ε/3 860 ρ0 and 0.62 to 0.80. The
+  Jeans length is under 4 cells for 73 to 85 % of the mass late in the run at every ratio (the core is a star, not a fragmenting cloud);
+  one fragment in the fine box once the core holds.
+- **Cost** (`cost.protostar.nested`, frame 1030, box on): the fine level and the join 0.65 ms per substep at 400 000 (main grid 1.98 ms),
+  1.98 ms at 1 000 000 (3.54 ms); whole frame +33 % (8.45 against 6.33 ms) at 400 000, +22 % (16.06 against 13.12 ms) at 1 000 000. Nothing
+  runs while the flag is off or the box is not placed.
+- **B2 (FFT)** stays unjustified: the gravity passes of both levels are 0.05 ms each; the cost is the second deposit.
 
 ## Step 1: the grid chain (done, no change of behavior)
 
@@ -42,10 +88,9 @@ cells: the densities are all about 2 ρ0 after the first collapse); afterwards i
 The fine gravity costs what the main one does (0.05 ms: it does not depend on N); the cost is the second deposit (17 to 66 % of the main
 one), as P8 predicted. Reproduction: `--query "scenarios=spike.c2.nested"` (32 s).
 
-## Design notes for the next session (NOT decided by the user)
+## Design notes written at the gate (settled above)
 
-These are the points the gate has to settle; they were drafted at the end of a session and **not yet presented in a simple form nor
-decided**. Present them to the user as plain choices, one at a time, with a recommendation each.
+Kept as they were drafted before the decisions.
 
 - **Where the box goes.** The peak jumps between clumps until the star forms (~20 s): a box that follows it from the start would jump
   around. Lead: activate the nested level only once a core dominates (peak ≥ ~20 ρ0 over 3 readings), align the box on main cells

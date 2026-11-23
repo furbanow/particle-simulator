@@ -822,17 +822,6 @@ export const THICKNESS_MOMENTUM_WALL_MARGIN = 2;
 
 // ---- The grid chain and the nested grid (phase P9: C2, docs/spikes/c2-nested-grid.md) ----
 /**
- * protostar.grid-chain.parity: the refactored grids against the frozen copy of the old ones, built afresh in the same run from the default
- * cloud after GRID_CHAIN_PARITY_FRAMES frames, for each setting of GRID_CHAIN_PARITY_FLAGS.
- */
-export const GRID_CHAIN_PARITY_PARTICLES = 200_000;
-export const GRID_CHAIN_PARITY_FRAMES = 60;
-export const GRID_CHAIN_PARITY_FLAGS = [
-    { name: 'off', tscDeposit: false, collisions: false, adaptiveThickness: false },
-    { name: 'tsc+collisions', tscDeposit: true, collisions: true, adaptiveThickness: false },
-    { name: 'thickness', tscDeposit: false, collisions: false, adaptiveThickness: true },
-] as const;
-/**
  * spike.c2.nested (the gate of C2): the default cloud at NESTED_SPIKE_COUNTS particles, its densest cell read every frame of the stats up to
  * NESTED_SPIKE_LAST_FRAME (the track a nested grid would follow), and at NESTED_SPIKE_WINDOWS a prototype chain NESTED_RATIO times finer
  * centred on it: the mass it holds and the cost of its passes against the main grid's (timed like cost.protostar.passes).

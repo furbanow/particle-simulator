@@ -894,3 +894,30 @@ while on Direct3D 11). The default cloud (flag off) is the reference's within th
 first collapse; −0.15 % off), the default cloud's first burst burns 12 % of the hydrogen (33.5 % off) and its core ends at 291 rho0 and
 204 MK, mostly carbon; `cost.protostar.passes` (setting `thickness`) +0.015 to +0.11 ms per substep, within the noise;
 `perf.protostarPhases` 3.49 / 5.20 ms at 400 000 (early / late; 3.42 / 5.97 off), 6.50 / 10.38 at 1 000 000 (6.78 / 11.1 off).
+
+## After phase C2: the nested grid (RTX 5070)
+
+Phase C2 ([spike](spikes/c2-nested-grid.md)) adds the `nestedGrid` flag, **off** by default: a fine level 8 times finer over the core
+(gas, temperature, heating and fusion on its cells; the gravity at the same softening ε, the user's choice), placed once a core dominates.
+With the flag off nothing of it runs: the grid chain's parity held to 0 floats through the implementation, and the default cloud below is
+the A11 reference's to the last digit.
+
+**The whole lab** on the head of `feat/nested-grid` (frozen worktree, `--timeout 3600`): 103 scenarios in 47 minutes, 101 pass, 1 skip (the
+tuning scenario without variants), 1 fail: the adaptive step's omega dt bound (0.225 > 0.15), the known failure of the RTX 5070 reference.
+(`protostar.grid-chain.parity`, which passed in this run, was removed afterwards with the frozen copy of the old grids.)
+
+| t (s) | core T (MK) | peak density (rho0) | H, He, C |
+|---|---|---|---|
+| 2.27 | 10.7 | 6.2 | 399 967, 33, 0 |
+| 4.25 | 5.8 | 2.2 | 265 535, 119 698, 14 767 |
+| 14.5 | 19.4 | 10.4 | 263 235, 121 998, 14 767 |
+| 20.4 | 51.3 | 20.0 | 161 913, 223 108, 14 979 |
+| 25.5 | 128.4 | 104.9 | 54 542, 107 144, 238 314 |
+| 34 | 113.2 | 192.8 | 35 756, 116 706, 247 538 |
+
+**With the flag on**: the box switches on at 17.6 s; at 34 s the peak is 204 rho0 (193 off), the densest cell 92 MK (113 off) and the
+burning gas 48.9 MK (52.0 off), the burning temperature the same at the ratios 2, 4 and 8 (47.8 to 49.0 MK); omega dt up to 0.21 (0.24
+off). Conservative cloud over 100 orbits: +0.81 % with the box fixed, +1.60 % with it moving (−0.16 % off); |P| / (M v_rms) up to 4e-2
+(8e-3 off). Point mass: the law within 0.75 %, anisotropy 0.18 %, the pull across the edge changed by 0.01 % rms. Cost with the box on:
++33 % per frame at 400 000 (8.45 against 6.33 ms), +22 % at 1 000 000 (16.06 against 13.12 ms). The dropped ε/2: +43 to +54 % of |E0|
+over 100 orbits whatever the step, the core 550 to 1 700 rho0, omega dt 0.5 to 0.7.
