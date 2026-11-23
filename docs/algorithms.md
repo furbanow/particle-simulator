@@ -269,6 +269,18 @@ T is the temperature (the thermometer's: the radiation goes as T⁴), while the 
 
 Behind the `jeansFloor` switch (Features tab, off by default; proposal A13). On a grid of cell Δx a thin sheet's Jeans length λ_J = c_s²/(GΣ) must span at least N_J = 4 cells (Truelove et al. 1997), or the gas fragments at the scale of the grid. With t = 2c_s², the dispersion of each neighborhood is kept at t_J = 2 N_J Δx G Σ or more, by scaling the deviations from the local mean by √(t_J/t) after the cooling (a cold neighborhood, with nothing to scale, gets the missing dispersion as a kick). It is an artificial pressure: it adds energy where the grid no longer resolves the collapse. In the default cloud it rarely acts (the measured dispersion of a 3 × 3 neighborhood includes the infall and the shear): the smallest Jeans length over the cells above 1 ρ₀ goes from 2.1 to 3.5 cells and the worst share of their mass under 4 cells from 24 % to 10 %; the history is the same. The floor is applied by particle from the interpolated neighborhood, the census by cell after the particles moved, hence a minimum a little under 4.
 
+### Stability map
+
+Behind the `stabilityMap` choice (Features tab, off by default; proposal A12): Toomre's Q and the cooling parameter β = t_cool·Ω of every cell of the gas grid, drawn over the animation. One 128² pass (`protostar-stability.frag`, twin `stability.ts`) reads the gas pass (Σ, the dispersion t and the mean velocity u of each 3 × 3 neighborhood) and the molecular weight's factor:
+
+- Ω = (dx u_y − dy u_x)/r² about the center of mass of the latest reduction; the vorticity ζ = ∂_x u_y − ∂_y u_x by central differences (one-sided next to an empty cell); κ² = 2Ωζ (0 where the angular momentum falls outwards);
+- Q = σκ/(3.36 GΣ), the stellar criterion of `toomre.ts`, with σ² = t/2;
+- β = |Ω|·t_cool with Gammie's t_cool = E/|dE/dt| = 1/|d ln T/dt| of the thin-disc law ([Cooling](#cooling)); unbounded at or below T_min.
+
+A disc fragments where Q < 1 and β < 3 (Gammie 2001). The layer (`render/stabilityLayer.ts`) is drawn after the post-processing, with the visual zoom: *Fragmentation* tints red the cells where both hold, orange where only Q < 1, blue where only β < 3; *Toomre Q* and *Cooling β* tint red below the threshold and blue above, over one decade. Cells under 0.05 ρ₀ are left out; the colours of the four nearest cells are blended. The pass runs only while the map is shown, once per frame whose grids changed.
+
+What it shows on the default cloud (lab `protostar.stability-map` and `protostar.stability-evolution`, 400,000 particles): at t = 0 the map's Q is 0.19 at 0.1 R, 0.20 to 0.22 from 0.2 to 0.5 R, 0.25 at 0.75 R and 0.32 at 0.9 R, within 1 to 8 % of Q measured on the particles (the professor: 0.19 to 0.56); β is 15 to 21, so the start is not in the fragmentation regime by cooling (the professor's β ≈ 0.6 at 0.2 R was for the cooling before A6). After the first collapse 60 to 95 % of the gas is in it (Q < 1 and β < 3) until the star forms, then 4 %; Q stays below 1 on 80 % of the mass. See [the spike](spikes/a12-stability-map.md).
+
 ### Fusion laws
 
 A particle of a type that fuses does so per step with probability P = 1 − exp(−r · Δt), with a rate per fusing particle (proposal A2: Gamow's laws, normalised at a reference temperature, with the composition of the neighborhood in them)
@@ -346,6 +358,7 @@ The color comes from the type (editor). The model declares `glow: 'state'`: each
 | Energy diagnostics | `diagnostics` | on | live (Features tab) |
 | Adaptive time step | `adaptiveTimeStep` | off | live (Features tab) |
 | Jeans floor | `jeansFloor` | off | live (Features tab) |
+| Stability map (off, fragmentation, Toomre Q, cooling β) | `stabilityMap` | off | live (Features tab) |
 
 Types: hydrogen (1.00783 u, cool blue-white, the entire initial population), helium (4.0026 u, yellow) and carbon (12 u, grey), none at the start; a share of the initial mass can be given to them. Statistics: the share of the mass of each element, core temperature (densest cell, in MK), maximum density (in ρ₀), fusions per second, of both reactions together (expected, smoothed), and, with the diagnostics on, the energy drift and the virial ratio.
 
