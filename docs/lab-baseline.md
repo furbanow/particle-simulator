@@ -758,6 +758,24 @@ What changed against the build before, honestly:
 
 - **Cost** (six alternated pairs on the GPU in its P5 state, [the spike](spikes/a4-constant-mass-fusion.md)): the late window of the default cloud (frames 1 000 to 1 040) costs **15.6 -> 23.3 ms/frame at 400 000 particles and 27.0 -> 41.8 at 1 000 000** (x1.5: nothing is removed any more); the early window is the same load (50.0 against 51.1 ms at 1 000 000; at 400 000 the pairs read 25.4 against 10.8 and a clocked pair 10.9 against 11.0: a state of the GPU); the worst frame over the median of the periodic readings falls from 65, 68 and 135 ms to 8, 14 and 26 ms at 400 000, 1 000 000 and 2 000 000 particles. The type count on the GPU costs 2.1, 4.2 and 5.9 ms per count at 400 000, 1 000 000 and 2 000 000 particles, every 10 frames. The first-visit benchmark's cap is 580 000 for both builds at equal early cost (replayed with a fake 60 Hz clock).
 
+## After phase C1: the collisions of the gas (RTX 5070)
+
+Phase C1 ([the spike](spikes/c1-mpc-collisions.md)) adds the `collisions` flag, **off by default**: with it off, the passes take one
+uniform branch and the deposit is skipped, and the default cloud runs as before (see [the reference on the RTX 5070](#reference-on-the-rtx-5070)).
+Recorded on the branch `feat/mpc-collisions` (headless Windows Chrome 157, Direct3D 11, RTX 5070). The figures with the flag on:
+
+| Scenario | Result |
+|---|---|
+| `protostar.collisions.parity` | GPU against the twin 4.2e-7 sigma; momentum 1.1e-8 N sigma, energy 5.4e-9 (one substep, 200 000 particles) |
+| `protostar.collisions.conservation` | 30 substeps: momentum 3.5e-7 N sigma, energy 2.7e-7 (half floats: 4.7e-3 and -3.2e-3) |
+| `baseline.protostar.energy-drift` with `params={"collisions":true}` | +0.27 % over 100 orbits (max 0.67 %), circular -0.04 % (0.17 %), application walls -184 % in 78 orbits; the same run off: -0.17 %, +0.24 %, -20 % in 86 orbits |
+| `protostar.collisions.sod` | best gamma 2 in the collisional limit and at the application's rate (density error 0.014 against 0.021 at 5/3 and 2.5); shock at 752 px, exact 747 |
+| `protostar.collisions.sound-speed` | gamma_eff 2.04 (collisional limit), 2.05 (application rate); damping 0.15 and 0.11 /s; without collisions 1.68 /s |
+| `protostar.collisions.equipartition` | dispersion ratio 4 -> 1.00 with e-folding times of 2.5 substeps (4 particles per cell) and 21 (33 per cell); 3.95 and 3.99 without |
+| default cloud, 3 seeds, `cloudVariants=[{"name":"collisions","params":{"collisions":true}}]` | first collapse burns 39.8 % of H (33.5 % off), the helium flashes at 7.4 s (about 23 s off), peak density 433 to 450 rho0 (193 to 365 off), the star is 99.8 % carbon at 34 s |
+| cost, `perf.protostarPhases.*`, frames 10 to 50 | 400 000: 3.50 -> 3.99 ms (+14 %); 1 000 000: 6.64 -> 7.85 ms (+18 %); frames 1000 to 1040: +31 % and +63 % |
+| cost, `perf.protostar.*` | 400 000: simulation 3.17 -> 4.55 ms, whole frame 5.01 -> 7.47 ms; 1 000 000: 5.74 -> 9.64 and 8.62 -> 15.96 ms |
+
 ## Open points for later phases
 
 - The energy-drift scenario (`baseline.protostar.energy-drift`) runs since phase P1a; it was a documented
