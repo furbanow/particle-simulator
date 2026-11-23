@@ -2,7 +2,7 @@
 // frame counts and the thresholds of the sanity checks. The application's own constants stay in
 // src/config.ts.
 
-import { DUST_GRADIENT_CORNER_WEIGHT, DUST_GRAVITY_GAIN } from '../config';
+import { DUST_GRADIENT_CORNER_WEIGHT, DUST_GRAVITY_GAIN, PROTOSTAR_GRAVITY_SLIDER } from '../config';
 
 /** Simulation area of every scenario, in CSS px (the physics scales with min(width, height)). */
 export const LAB_AREA = { width: 1024, height: 768 } as const;
@@ -617,3 +617,31 @@ export const PROTOSTAR_PHASE_COUNTS = [400_000, 1_000_000] as const;
 export const PROTOSTAR_PHASE_CHUNK_FRAMES = 10;
 export const PROTOSTAR_PHASE_CHUNKS = 4;
 export const PROTOSTAR_PHASES = [{ name: 'early', warmupFrames: 10 }, { name: 'late', warmupFrames: 1000 }] as const;
+
+// ---- Thin-disc cooling and Jeans floor (phase P4: A6, A13) ----
+/**
+ * protostar.thin-disc-cooling: blobs (on the lattice of the heating's, isolated cells) of these dispersions (T0) and particle counts, hydrogen
+ * and helium in turn, cooled for one substep at c = COOLING_RATE, kappa = COOLING_OPACITY and T_min = COOLING_FLOOR (T0): the hot blobs' steps
+ * are stiff (3 c mu T^3 dt / (Sigma tau_eff) up to 7e5), the coldest hydrogen blobs are below the floor and the thinnest helium ones cool down
+ * to it, the others follow the law. The blobs' bulk velocities go up to COOLING_BLOB_BULK px/s. The dispersion ratio must be the exact
+ * law's, and the mean velocity must stay, within COOLING_TOLERANCE (rounding of float32 sums).
+ */
+export const COOLING_BLOB_TEMPERATURES = [0.1, 0.6, 1.5, 3, 10] as const;
+export const COOLING_BLOB_COUNTS = [50, 200, 800] as const;
+export const COOLING_RATE = 30;
+export const COOLING_OPACITY = 20;
+export const COOLING_FLOOR = 0.3;
+export const COOLING_BLOB_BULK = 100;
+export const COOLING_TOLERANCE = 3e-4;
+export const COOLING_SEED = 6601;
+/** The blobs' cells stay this many cells from the walls: a hot blob's particles move a few px in a step and must not bounce. */
+export const COOLING_WALL_CELLS = 4;
+/**
+ * protostar.jeans-floor: the blobs at the default gravity (the floor is proportional to G) must end at the floor (or be left alone) within
+ * JEANS_TOLERANCE; then the default cloud with the flag off and on, JEANS_CLOUD_FRAMES frames, the Jeans length counted over the cells of
+ * at least JEANS_CLOUD_MIN_DENSITY rho0 (the cloud's own gas; the thin outskirts are resolved anyway).
+ */
+export const JEANS_GRAVITY = PROTOSTAR_GRAVITY_SLIDER.default;
+export const JEANS_TOLERANCE = 3e-4;
+export const JEANS_CLOUD_FRAMES = 600;
+export const JEANS_CLOUD_MIN_DENSITY = 1;
