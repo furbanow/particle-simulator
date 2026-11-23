@@ -171,7 +171,7 @@ Consequences: the effective softening is about max(ε, one cell); below one cell
 
 The `GPUComputationRenderer` computes the three state textures of a substep (velocity, position and `textureAccel`) from the ones of the previous substep: no pass reads what another writes in the same substep. At the start of the substep that sees the positions xₙ, they hold xₙ, vₙ₋₁ (the velocity lags the position by one substep) and aₙ₋₁. The grids were drawn from xₙ, so every pass can compute aₙ = a(xₙ) (gravity by bilinear interpolation of the grid, plus the drawings' pull), and:
 
-- velocity pass: vₙ = vₙ₋₁ + ½ (aₙ₋₁ + aₙ) Δt, the second half kick of the previous step and the first one of this step; then cooling, heating, the speed limit and the walls act on this value, and it is what is stored;
+- velocity pass: vₙ = vₙ₋₁ + ½ (aₙ₋₁ + aₙ) Δt, the second half kick of the previous step and the first one of this step; then cooling, the Jeans floor (when on), heating, the speed limit and the walls act on this value, and it is what is stored;
 - position pass: xₙ₊₁ = xₙ + vₙ Δt + ½ aₙ Δt², from the same inputs (it recomputes vₙ: the two passes use the same expression, so that they agree on which particles leave the area);
 - `textureAccel` ← aₙ.
 
@@ -179,7 +179,7 @@ The positions then obey xₙ₊₁ = 2 xₙ − xₙ₋₁ + aₙ Δt², the seq
 
 - **First substep of a run.** The initial velocities are those at the initial positions, so nothing is owed for the missing half kick: the acceleration texture starts with z = 1, which switches the kick off in both passes for that substep (the acceleration pass writes 0 there afterwards). Before P5a the first substep gave every particle a full kick `a Δt` too many.
 - **Walls.** A particle whose step ends outside the area bounces: the position pass mirrors the end of the step about the wall, and the velocity pass stores the velocity that makes the next substep's kicks give the speed the particle has after bouncing at the instant it reaches the wall, `−e (v + a s Δt) − a s Δt` (s the share of the step before the wall, e the restitution, 0.5 in the application). Before P5a the velocity vₙ alone was reversed and the position clamped on the wall, which gave every bounce about 1.5 u a Δt of energy (u the normal speed, a the pull towards the inside): first order in Δt and always positive.
-- **Operator splitting.** Cooling and heating modify the velocity after the half kick; they act on the next displacement. Cooling and heating use the current Δt (they are first order in Δt by construction, consistent in the rate: `exp(−k Δt)`).
+- **Operator splitting.** Cooling, the Jeans floor and heating modify the velocity after the half kick; they act on the next displacement and use the current Δt. The cooling is the exact solution of its law over Δt (unconditionally stable: it needs no bound of the time step, however stiff), the heating adds exactly q·Δt.
 - **A time step that changes.** The two half kicks of vₙ belong to the step that ended at xₙ, so they take *its* length Δtₚ (the `dtPrev` uniform, kept by the model in `beforeSubstep()`, which ignores the calls with Δt = 0 of the lab); the drift takes the length Δt of the step that starts at xₙ: vₙ = vₙ₋₁ + ½ (aₙ₋₁ + aₙ) Δtₚ, xₙ₊₁ = xₙ + vₙ Δt + ½ aₙ Δt². Written as the map (xₙ, vₙ) → (xₙ₊₁, vₙ₊₁), that is velocity Verlet with a step of any length at each step: of the second order whatever the sequence of steps (and symplectic as long as the sequence does not depend on the state), and the velocity stored after a bounce is exact whatever the next step. Before phase B5 both kicks took the current Δt, which makes an error of ½ a (Δt − Δt′) at every change of the time step (the speed slider's, now the adaptive step's). The twin takes `dtPrev` too: on a Kepler orbit with a step cut into 1 to 4 substeps from one frame to the next the energy error falls by 4 when the step is halved and does not drift, where the kicks over the current Δt are of the first order (`tests/leapfrog.test.ts`); on the GPU, ten steps of 20 000 particles, six of them of changing lengths, 1 131 bounces, agree with the twin to 1.2·10⁻⁴ px and 1.6·10⁻⁴ px/s (`protostar.integration`).
 
 ### Adaptive time step
@@ -255,11 +255,19 @@ A disc of radius 0.38 L (`PROTOSTAR_CLOUD_RADIUS`), centered on the screen, whos
 
 ### Cooling
 
-At each step, the disordered part of the velocity is damped: v ← v̄ + (v − v̄)·e^(−k_eff·Δt). Rotation and overall infall (carried by v̄) are preserved.
+Radiative cooling of a thin disc (proposal A6, Johnson & Gammie 2003; twin `src/simulation/protostar/cooling.ts`, [spike](spikes/a6-a13-cooling-and-jeans.md)). The density of the grid is the surface density Σ of the model, so a column of gas has the optical depth τ = κΣ/2 from its mid-plane to either face, whatever its thickness, and radiates through the effective depth τ_eff = 3τ/8 + √3/4 + 1/(4τ), which joins the optically thick and thin limits:
 
-**Why cooling is slow by default**: the contraction must stay quasi-static. A faster cooling (or a cold cloud) makes the cloud fall in freely: the center reaches very high temperatures at once and all the hydrogen burns in one explosion.
+dT/dt = −c μ T⁴ / (Σ τ_eff), with T in T₀, Σ in ρ₀, μ = μ_mean / μ_H, down to the floor T_min.
 
-**Opacity**: k_eff = k / (1 + ρ/ρ_opq). Without this term, the core, once smaller than ε, is no longer heated by its compression (the softened potential is harmonic there): cooling won, fusion went out and the whole cloud ended as a cold point. With it, dense gas keeps the heat of its compression, like a protostellar core that has become opaque to its own radiation. Heating by collapse comes from gravity alone: gravitational potential energy becomes agitation in the core.
+T is the temperature (the thermometer's: the radiation goes as T⁴), while the energy per unit mass is the dispersion t = T/μ: at the same temperature a gas of heavier ions holds less heat and cools μ times faster. Over a step Σ and μ are frozen and the law integrates exactly, T′ = T (1 + 3cμT³Δt/(Στ_eff))^(−1/3), floored at T_min (a gas already below the floor is left alone); the deviations from the local mean velocity are scaled by √(T′/T), so rotation and infall are kept. The scheme is unconditionally stable. Σ τ_eff is computed as 3κΣ²/16 + √3Σ/4 + 1/(2κ), finite when Σ → 0.
+
+- **A thermostat**: the loss grows as T⁴ (a gas twice as hot cools 16 times faster), where the old damping v ← v̄ + (v − v̄) e^(−kΔt), k/(1 + ρ/ρ_opq), was independent of T and strongest in the thinnest gas.
+- **Opacity**: dense gas is optically thick (τ ≫ 1) and cools as T⁴/(κΣ²): it keeps the heat of its compression. In that limit only c/κ matters; κ sets where a column becomes thick (Σ ≈ 2/κ ρ₀) and how fast the thin gas cools (2cκμT⁴ whatever Σ).
+- **What changes in the cloud's history**: the cold envelope (2 MK) barely radiates any more (T³ is small), so after the first collapse's bounce the cloud stays warm and falls back after a lull of about 5 s. c/κ cannot be large: the helium core (μ = 2.65, dense) must keep enough heat to reach its ignition; above c/κ ≈ 1 it settles at 75 to 85 MK and never flashes.
+
+### Jeans floor
+
+Behind the `jeansFloor` switch (Features tab, off by default; proposal A13). On a grid of cell Δx a thin sheet's Jeans length λ_J = c_s²/(GΣ) must span at least N_J = 4 cells (Truelove et al. 1997), or the gas fragments at the scale of the grid. With t = 2c_s², the dispersion of each neighborhood is kept at t_J = 2 N_J Δx G Σ or more, by scaling the deviations from the local mean by √(t_J/t) after the cooling (a cold neighborhood, with nothing to scale, gets the missing dispersion as a kick). It is an artificial pressure: it adds energy where the grid no longer resolves the collapse. In the default cloud it rarely acts (the measured dispersion of a 3 × 3 neighborhood includes the infall and the shear): the smallest Jeans length over the cells above 1 ρ₀ goes from 2.1 to 3.5 cells and the worst share of their mass under 4 cells from 24 % to 10 %; the history is the same. The floor is applied by particle from the interpolated neighborhood, the census by cell after the particles moved, hence a minimum a little under 4.
 
 ### Fusion laws
 
@@ -308,7 +316,7 @@ Validation: [spike A5 and A3](spikes/a5-a3-heating-and-t-noise.md).
 
 The energy released per unit of fused mass is feedback × (mass defect / fused mass) × c², with c² = `PROTOSTAR_FUSION_C2` × T₀. We inject the **expected** power (rate × energy, pass 3), not the energy of the fusions actually drawn: heating is smooth instead of arriving in bursts, and the fusions drawn correspond to it on average. The heating adds q·Δt of kinetic energy per unit mass by **scaling the velocities' deviations from the local mean velocity**: v ← v̄ + (v − v̄)·√(1 + 2q·Δt / T), with T the dispersion |v − v̄|² of the neighborhood (energy per unit mass is T / 2, so the dispersion grows by exactly 2q·Δt: ΔK = q·Δt, and what is left of T after the cooling of the same step is the one that counts). Velocity dispersion (heat) increases, and with it the outward push, without noise and without moving the neighborhood's momentum (`heating.ts` is the pure twin; the lab checks the energy to 4·10⁻⁶ per cell and the momentum to rounding). A cell too cold for this (T below `PROTOSTAR_HEATING_T_FLOOR` of T₀: nothing to scale) gets the same energy as a kick √(2·q·Δt) in a random direction, which was the heating of every cell before.
 
-The loop: fusion heats the core → it expands, its density drops (and its cooling rises, becoming less opaque) → fusion slows down → gravity and cooling contract it again. The energy added in a step is bounded by the square of the speed limit, which also keeps it finite if the power grid saturates in half floats.
+The loop: fusion heats the core → it expands, its density drops (and it radiates more, becoming less opaque) → fusion slows down → gravity and cooling contract it again. The energy added in a step is bounded by the square of the speed limit, which also keeps it finite if the power grid saturates in half floats.
 
 ### Transitions: extensible model
 
@@ -316,7 +324,7 @@ Reactions are a table (`PROTOSTAR_REACTIONS`, type `FusionReaction`): fusing typ
 
 ### Rendering
 
-The color comes from the type (editor). The model declares `glow: 'state'`: each particle's brightness is written in the w channel of velocity, based on the local temperature (from 1 to 10 T₀, i.e. 15 to 150 MK) and the local fusion heating. The core lights up and whitens as it burns; the helium formed, yellow, accumulates there, then the core turns to carbon, grey, and shines brightest. The « Chaleur » (Heat) slider of the visual effects adjusts this brightness.
+The color comes from the type (editor). The model declares `glow: 'state'`: each particle's brightness is written in the w channel of velocity, based on the local temperature (from 1 to 15 T₀, i.e. 15 to 225 MK) and the local fusion heating. The core lights up and whitens as it burns; the helium formed, yellow, accumulates there, then the core turns to carbon, grey, and shines brightest. The « Chaleur » (Heat) slider of the visual effects adjusts this brightness.
 
 ### Parameters
 
@@ -329,13 +337,15 @@ The color comes from the type (editor). The model declares `glow: 'state'`: each
 | Structure of the agitation (white, correlated) | `turbulence` | white | restart |
 | Gravity constant G | `gravity` | 9 | live |
 | Softening ε (% of L) | `softening` | 1.6% | live |
-| Cooling k (/s) | `cooling` | 0.51 | live |
-| Opacity density ρ_opq (ρ₀, log) | `opacity` | 5.32 | live |
-| H → He rate λ₀ (/s, log) | `fusionRate` | 4e-3 | live |
+| Radiative cooling c (/s, log) | `radiation` | 10 | live |
+| Opacity κ (per ρ₀, log) | `kappa` | 20 | live |
+| Minimum temperature T_min (T₀, shown in MK) | `minTemperature` | 0.05 (0.75 MK) | live |
+| H → He rate λ₀ (/s, log) | `fusionRate` | 2e-3 | live |
 | He → C rate λ (/s, log) | `heFusionRate` | 2.5e-4 | live |
-| Feedback (log) | `feedback` | 0.146 | live |
+| Feedback (log) | `feedback` | 0.3 | live |
 | Energy diagnostics | `diagnostics` | on | live (Features tab) |
 | Adaptive time step | `adaptiveTimeStep` | off | live (Features tab) |
+| Jeans floor | `jeansFloor` | off | live (Features tab) |
 
 Types: hydrogen (1.00783 u, cool blue-white, the entire initial population), helium (4.0026 u, yellow) and carbon (12 u, grey), none at the start; a share of the initial mass can be given to them. Statistics: the share of the mass of each element, core temperature (densest cell, in MK), maximum density (in ρ₀), fusions per second, of both reactions together (expected, smoothed), and, with the diagnostics on, the energy drift and the virial ratio.
 
@@ -352,6 +362,10 @@ The default cloud (twelve seeds, 34 s): the hydrogen burns on a plateau at 18.2 
 ### Calibration for the fusion of parcels of constant mass (headless Chrome, GTX 1060, 1024 × 768 px area, 400,000 particles)
 
 Phase A4 changed no default ([the spike](spikes/a4-constant-mass-fusion.md)). On the six seeds of the Gamow calibration, the first collapse burns 35 % of the hydrogen as before (a burst of 891,000 fusions per second, 783,000 before), the plateau is at 18.7 MK (17.9 MK over twelve seeds, nine in twelve within 10 to 20 MK, as before), and the helium flash comes in every seed (twelve in twelve within 34 s, median 25.5 s; ten in twelve and 22.9 s before). The helium burns further: at 34 s the carbon holds 70 % of the mass in the median (33 % before) and the helium 24 % (56 %), and the last 15 % of the run reads 102 MK in the median (79 MK). The particles are no longer removed, so the figures that counted them mean something else: the "hydrogen left" is a share of the mass. The momentum of a fusing gas without gravity is conserved to 5e-9 of its thermal momentum over 10,000 substeps (5e-3 before, with half of the particles gone), and the energy the fusions release equals the power the heating deposits to 0.25 % (the Poisson noise of the events). The cost: the late phase of a run is about 50 % dearer (all the particles stay live: 15.6 to 23.3 ms per frame at 400,000 particles, 27.0 to 41.8 ms at 1,000,000, on a GPU in its P5 state), the worst frame of the periodic readings is five to eight times shorter (65 to 8 ms over the median at 400,000 particles, 135 to 26 ms at 2,000,000), and the first-visit benchmark's cap is the same (580,000 particles) when the early frames cost the same, [the spike](spikes/a4-constant-mass-fusion.md) says what it would be if they did not.
+
+### Calibration for the thin-disc cooling (headless Chrome, GTX 1060, 1024 × 768 px area, 400,000 particles)
+
+Phase P4 ([the spike](spikes/a6-a13-cooling-and-jeans.md)): c = 10 /s and κ = 20 (c/κ = 0.5), T_min = 0.05 T₀ (inert in the default cloud), and **λ₀ 4e-3 → 2e-3, feedback 0.146 → 0.3**, which keep the first collapse's burn where it was (46 % of the hydrogen with λ₀ at 4e-3). Twelve seeds, 34 s: the first collapse burns 33.5 % of the hydrogen (35 % before) in a burst of 510,000 fusions per second (870,000), burning resumes at 10.3 s after the bounce (5.2 s before), the hydrogen burns at 27 MK (weighted by the heating; 20 MK before), the helium flash comes in twelve seeds of twelve at 20.5 s (19.1 s), and carbon holds 76 % of the mass at the end (69 %). The He/H ignition ratio of the A2 reference (20 ρ₀, 0.1 per second) is 5.2 (6.3 with λ₀ = 4e-3; real 6.67). A decade of λ₀ moves the burning temperature by +95 % / +5 % around the default (old law: −37 % / +16 %): the plan's "a few percent" is not met by either. The cost is not measurable (whole frame 9.46 ms against 9.59 ms at 400,000 particles).
 
 ### Calibration before the grids (headless Chrome, GTX 1060, 1180 × 726 px area, 30,000 particles)
 
@@ -395,7 +409,7 @@ Effect of settings, from the runs that led to these defaults. Unless stated othe
 
 - 2D, with a 1/r² (3D) gravity law in the plane; softening at least equal to one cell.
 - The « temperature » is measured over a 3 × 3 cell neighborhood: a convergent infall at this scale partly counts as heat.
-- Cooling is a damping of agitation, with an ad hoc opacity; there is no radiative transfer.
+- Cooling is the thin-disc law of each column (local Σ, constant opacity κ, no Kramers term), not a radiative transfer; there is no line cooling, so a cold envelope barely radiates.
 - Feedback is isotropic (heat), without explicit radial push: pressure comes from agitation.
 - There is no thermal pressure of a fluid: without agitation, nothing resists compression.
 - The correction of the noise of T assumes independent particles with Maxwellian velocities, hence a Gamma law for T, with an effective number of particles calibrated on a uniform gas ([the lab measures it](spikes/a5-a3-heating-and-t-noise.md)); it knows nothing of correlations between neighborhoods or of collective motion. The average of T over time adds a delay of τ = 0.1 s to the thermostat and is not credited in the correction.

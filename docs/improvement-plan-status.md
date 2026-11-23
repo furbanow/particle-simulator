@@ -10,14 +10,14 @@ deploys the live site).
 
 | What | Where |
 |---|---|
-| Integration branch | `feat/improvements` (local only, 67+ commits ahead of `master` at `bbfda02`) |
-| One branch per finished phase | `feat/features-tab`, `lab`, `second-deposit`, `dust-gravity`, `energy-diagnostics`, `granular-dust`, `heating-temperature`, `coherent-supernova`, `mean-molecular-weight`, `gpu-concentration`, `integrator-order`, `initial-conditions`, `gamow-rates`, `adaptive-dt`, `constant-mass-fusion` (all already contained in `feat/improvements`) |
+| Integration branch | `feat/improvements` (local only, 75+ commits ahead of `master` at `bbfda02`) |
+| One branch per finished phase | `feat/features-tab`, `lab`, `second-deposit`, `dust-gravity`, `energy-diagnostics`, `granular-dust`, `heating-temperature`, `coherent-supernova`, `mean-molecular-weight`, `gpu-concentration`, `integrator-order`, `initial-conditions`, `gamow-rates`, `adaptive-dt`, `constant-mass-fusion`, `thin-disc-cooling` (all already contained in `feat/improvements`) |
 | Spike documents (design, numbers, how to reproduce) | `docs/spikes/*.md` |
 | GPU lab (dev-only acceptance scenarios) | `docs/lab.md`, `docs/lab-baseline.md`, `lab.html`, `src/lab/`, `scripts/run-lab.mjs` |
 | The reference document and the detailed (French) plan | the professor's artifact `claude.ai/artifact/6Txa6P6gDU4AbjdxHdhPTa`; the plan `~/.claude/plans/fait-un-plan-de-cheerful-sphinx.md` |
 | Old agent worktrees | `.claude/worktrees/agent-*` (git-ignored through `.git/info/exclude`; safe to remove, see the end) |
 
-`make check` (595 tests) and `make build` (with the `check-dist` guard) pass on the head of
+`make check` (612 tests) and `make build` (with the `check-dist` guard) pass on the head of
 `feat/improvements`.
 
 ## Done (all merged in `feat/improvements`)
@@ -39,22 +39,22 @@ deploys the live site).
 | P3b-2 | A2 | Gamow laws, local exponents within 0.023 % of theory, exact unbiased estimator for the triple alpha, He/H ignition ratio 6.3 (real 6.67); λ_He 2.5e-4, glow range 1–15 T0 |
 | P5c | B5 | adaptive time step, flag `adaptiveTimeStep`, ships **OFF** (+30 % work when on; ω·dt max 0.17 → 0.12–0.14) |
 | P3c | A4 | fusion changes the type of constant-mass parcels (nothing is removed): momentum conserved to 4.5e-9, `drift.ts` removed, per-type counts on the GPU, stats tile now "Mass per element" |
+| P4 | A6 + A13 | thin-disc cooling `dT/dt = -c mu T^4 / (Sigma tau_eff)` integrated exactly (lab: exact law to 5.6e-7), `cooling`/`opacity` replaced by c, kappa, T_min; Jeans floor behind `jeansFloor` (OFF; blobs at t_J to 2e-7, the cloud's smallest Jeans length 2.1 -> 3.5 cells); recalibrated c 10, kappa 20, **lambda_0 2e-3, feedback 0.3** (user's choice): first collapse 33.5 %, helium flash 12 of 12 at 20.5 s, H burns at 27 MK after a ~5 s lull; cost not measurable |
 
 ## Remaining
 
 Order matters: the protostar phases are sequential (each recalibrates the same dynamics).
 
-1. **P4: A6 + A13** (protostar). A6 thin-disc cooling `dT/dt = −c·T⁴/(Σ·τ_eff)` replaces `coolingRate`/`opacityDensity` by κ and Tmin (needs the physical T of A1, done). A13 Jeans floor behind flag `jeansFloor`. All velocity-block physics is operator splitting with the current `dt`; new stiff terms must be added to `criticalStep()` (B5). The default cloud is calibrated for the linear cooling `k/(1+ρ/ρ_opq)` and the first-collapse burst is the most cooling-sensitive part: recalibrate G, λ₀, λ_He on the 6-seed table of `docs/spikes/a2-gamow-rates.md` (plateau 10–20 MK, helium flash within 34 s). Per-particle quantities are now per-mass ones (A4).
-2. **P1b: A12** Q and t_cool·Ω maps behind flag `diagnostics`: needs a new render layer in `src/render`, wiring in `main.ts`, view uniforms. Do it after A6 (β depends on the final cooling law). Reuse `src/simulation/protostar/toomre.ts`, the `typeReduction` pattern and `speciesDepositMass`.
-3. **C4** TSC deposit behind flag `tscDeposit` (measure first: decide only if the dispersion or aliasing gain is real). Touches the deposit shaders of both algorithms.
-4. **Gate G1**, then the heavy chantiers, each only if measurements justify it: **C1** MPC/SRD collisions (flag `collisions`; γ = 2, the native 2D value, is a PROVISIONAL choice to confirm; deposit and rotate passes after Verlet), **B3** single pass per particle (keep the stored layout x(n+1), v(n), a(n), `dtPrev`; design it with C1's second pass), **A11** adaptive thickness (flag) then **C2** nested grid (flag; decide the gravity channel budget; **B2** FFT only if C2 doubles the gravity cost), **C3** continuous composition (only if the draw noise is visible after A4).
+1. **P1b: A12** Q and t_cool·Ω maps behind flag `diagnostics`: needs a new render layer in `src/render`, wiring in `main.ts`, view uniforms. β = t_cool Ω uses the thin-disc law of P4 (`coolingLogRate()` of `cooling.ts`: t_cool = 1 / (3 |rate|) at small dt). Reuse `src/simulation/protostar/toomre.ts`, the `typeReduction` pattern and `speciesDepositMass`.
+2. **C4** TSC deposit behind flag `tscDeposit` (measure first: decide only if the dispersion or aliasing gain is real). Touches the deposit shaders of both algorithms.
+3. **Gate G1**, then the heavy chantiers, each only if measurements justify it: **C1** MPC/SRD collisions (flag `collisions`; γ = 2, the native 2D value, is a PROVISIONAL choice to confirm; deposit and rotate passes after Verlet), **B3** single pass per particle (keep the stored layout x(n+1), v(n), a(n), `dtPrev`; design it with C1's second pass), **A11** adaptive thickness (flag) then **C2** nested grid (flag; decide the gravity channel budget; **B2** FFT only if C2 doubles the gravity cost), **C3** continuous composition (only if the draw noise is visible after A4).
 
 ## Known issues and open decisions
 
-- **First-collapse fusion burst** is not tamed (35 % of the hydrogen, ~780 000 fusions/s): it comes from the Gamow steepness at 5–9 MK. Seed `20240611` is the weak one (plateau 39–51 MK, helium flash at 49 s). Over 12 seeds the plateau median is 17.9 MK (9 of 12 in 10–20 MK), 12 of 12 helium flashes.
+- **First-collapse fusion burst** is not tamed: since P4, 33.5 % of the hydrogen at ~510 000 fusions/s (35 % at ~870 000 before; it comes from the Gamow steepness at 5–9 MK). **After P4** the T^4 cooling no longer cools the cold envelope: burning resumes ~5 s after the bounce (10.3 s instead of 5.2 s), and the hydrogen burns at 27 MK (heat-weighted; 20 MK before) in a core of ~12 rho0 (35 before), outside the 10–20 MK window. A line-cooling term for the thin gas would be the lever (not in the proposals). The plan's thermostat test (a few % per decade of lambda) is met by neither law ([spike](spikes/a6-a13-cooling-and-jeans.md)).
 - **A4 cost**: nothing is removed any more, so the late-phase frame is about +50 % (15.6 → 23.3 ms at 400k) and the whole frame +13–15 %. The early-window A/B (25.4 vs 10.8 ms in 6 pairs, 10.9 vs 11.0 on a clocked pair) is **inconclusive**: re-measure on a rested GPU. The first-visit benchmark cap could drop (replayed offline: 580k vs 280k if the 25.4 ms were real); re-check it in a real browser.
 - **Dust**: +14 % at 1M particles in late phases after A10, cause not found (absent at 400k). Particle-cap ratio of the dust vs the protostar is still 1.25 while the measurements support 1.3–1.7: decide. Saved dust configs with `supernovaPower` 70 % now mean 588 px/s rms instead of 294.
-- **Saved configs** keep their old protostar G, λ, and lose removed keys (exponent sliders, `rotation`, `agitation`, `coolingRate` later): defaults are applied silently.
+- **Saved configs** keep their old protostar G, λ₀ (4e-3, with which the first collapse now burns 46 %) and feedback, and lose removed keys (exponent sliders, `rotation`, `agitation`, `cooling`, `opacity`): defaults are applied silently.
 - **Not visually checked by a human**: the lab and the tests validate the physics, but nobody looked at the real UI (the `features` tab with 7–8 tabs in 280 px, the new stat tiles, the glow after the range change, the nebula after A4). Do a visual pass with `make dev` before any merge to `master`.
 - **Timings**: the dev GPU (GTX 1060) often sat in a low-clock state (P5, 734 MHz) during long campaigns; read ratios, not absolute milliseconds.
 - `docs/algorithms.md` is updated by each phase; `CLAUDE.md` mentions the lab in one line.
