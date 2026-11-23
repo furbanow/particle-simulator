@@ -78,9 +78,13 @@ export function fitDampedCosine(times: readonly number[], values: readonly numbe
     };
 }
 
-/** The e-folding time of a decaying positive excess (values > 0), from a least-squares line through ln(values); null if it does not decay. */
-export function eFoldingTime(times: readonly number[], values: readonly number[]): number | null {
-    const points = times.map((t, i) => [t, values[i]] as const).filter(([, v]) => v > 0);
+/**
+ * The e-folding time of a decaying positive excess, from a least-squares line through ln(values) over the points before the first
+ * one at or below `floor` (0 by default: the noise of a relaxed signal would flatten the line); null if it does not decay.
+ */
+export function eFoldingTime(times: readonly number[], values: readonly number[], floor = 0): number | null {
+    const end = values.findIndex(v => !(v > floor));
+    const points = times.slice(0, end < 0 ? times.length : end).map((t, i) => [t, values[i]] as const);
     if (points.length < 2) return null;
     const n = points.length;
     const mt = points.reduce((s, [t]) => s + t, 0) / n;

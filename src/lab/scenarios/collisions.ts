@@ -158,10 +158,14 @@ export const collisionConservation: Scenario = {
             const { positions, velocities } = await readState(context, count);
             const before = keep.velocities ?? new Float32Array(0);
             const t0 = totals(before, count), t1 = totals(velocities, count);
+            // A particle that streams freely from its start for the run's time and leaves the area would have bounced (a collision
+            // changes its velocity, but not by more than its cell's dispersion): such a run cannot judge the momentum.
+            const seconds = COLLISION_CONSERVATION_FRAMES * BASE_DT;
+            const start = keep.positions ?? new Float32Array(0);
             let nearWall = 0, changed = 0;
             for (let i = 0; i < count; i++) {
-                const x = positions[i * 4], y = positions[i * 4 + 1];
-                if (x < 1 || y < 1 || x > W - 1 || y > H - 1) nearWall++;
+                const x = start[i * 4] + before[i * 4] * seconds, y = start[i * 4 + 1] + before[i * 4 + 1] * seconds;
+                if (x < 0 || y < 0 || x > W || y > H || positions[i * 4] < 0) nearWall++;
                 if (Math.abs(velocities[i * 4] - before[i * 4]) > 1e-3 * COLLISION_SIGMA) changed++;
             }
             const momentum = Math.hypot(t1.px - t0.px, t1.py - t0.py) / (count * COLLISION_SIGMA);
@@ -344,7 +348,8 @@ export const collisionEquipartition: Scenario = {
                 await record(0);
                 await runFrames(context, EQUIPARTITION_FRAMES, { async onFrame(frame) { if (frame % EQUIPARTITION_READ_EVERY === 0) await record(frame); } });
                 const perCell = count / (W * H / (LAB_CELL * LAB_CELL));
-                const eFold = eFoldingTime(substeps, ratios.map(r => r - 1));
+                // Over the decay, until the excess is down to a tenth (below that, the noise of the dispersions of 25,000 parcels shows).
+                const eFold = eFoldingTime(substeps, ratios.map(r => r - 1), 0.1 * (ratios[0] - 1));
                 const final = ratios.at(-1) ?? 0;
                 if (!mode.collisions) ok &&= Math.abs(final / EQUIPARTITION_RATIO - 1) < 0.02;
                 else ok &&= Math.abs(final - 1) < Math.abs(ratios[0] - 1) / 2;

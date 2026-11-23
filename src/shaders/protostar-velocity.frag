@@ -61,7 +61,8 @@ void main() {
     // the velocities relative to its mean by +-the angle (with probability 1 - exp(-nu dtPrev): dtPrev is the time since the last
     // collision), which keeps its momentum and energy. The position pass turns the velocity the same way for the drift.
     bool collides = collisionsOn > 0.5;
-    Collision cell = collides ? collisionAt(pos.xy, dtPrev) : Collision(vec2(0.0), 0.0, 0.0);
+    Collision cell = Collision(vec2(0.0), 0.0, 0.0);
+    if (collides) cell = collisionAt(pos.xy, dtPrev);
     vec2 kicked = (collides ? collide(vel.xy, cell) : vel.xy) + kick;
     vec2 next = pos.xy + kicked * dt + 0.5 * a * dt * dt;
     vec2 v = kicked;

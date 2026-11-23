@@ -296,6 +296,7 @@ describe('the lab\'s fits', () => {
         expect(fit.residual).toBeLessThan(0.1);
         expect(eFoldingTime([0, 1, 2, 3], [8, 4, 2, 1])).toBeCloseTo(1 / Math.LN2, 9);
         expect(eFoldingTime([0, 1], [1, 2])).toBeNull();
+        expect(eFoldingTime([0, 1, 2, 3, 4], [8, 4, 2, 0.5, 0.6], 1)).toBeCloseTo(1 / Math.LN2, 9);
     });
 });
 
