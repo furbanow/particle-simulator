@@ -245,17 +245,21 @@ export const PROTOSTAR_GLOW_MAX = 2;
 // 2.5e-4, which puts the ignition of a pure helium gas of 20 rho0 at 0.1 fusions per second at exactly 100 MK (lambda_He * 20^2 = 0.1;
 // lambda_0 = 4e-3 gives hydrogen 15.9 MK there, the ratio is 6.3 against the real 6.67). The cooling, the opacity, the feedback, G and
 // lambda_0 were scanned around the old and the new values (3 to 6 seeds each) and left where they were.
+// P4, the thin-disc cooling (docs/spikes/a6-a13-cooling-and-jeans.md): c = 10 /s and kappa = 20 (c / kappa = 0.5: the dense helium core
+// must keep enough heat to reach its ignition, above 1 it never does), T_min 0.05 T0 (0.75 MK, inert in the default cloud); lambda_0
+// 4e-3 -> 2e-3 and feedback 0.146 -> 0.3, which keep the first collapse's burn where it was (33 % of the hydrogen against 35 %, 46 % with
+// lambda_0 at 4e-3). The ignition of hydrogen at 20 rho0 and 0.1 per second moves to 19 MK: the He/H ratio there is 5.2 (6.3 before).
 export const PROTOSTAR_COUNT_SLIDER: SliderSpec = { min: 1000, max: 2000000, step: 1000, default: 400000 };
 export const PROTOSTAR_VIRIAL_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.33 };         // alpha_vir = 2K / |U|
 export const PROTOSTAR_ROTATION_ENERGY_SLIDER: SliderSpec = { min: 0, max: 0.5, step: 0.01, default: 0.08 };  // beta_rot = E_rot / |U|
 export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 20, step: 0.05, default: 9 };
 export const PROTOSTAR_SOFTENING_SLIDER: SliderSpec = { min: 0.2, max: 5, step: 0.1, default: 1.6 };       // % of L
-export const PROTOSTAR_RADIATION_SLIDER: SliderSpec = { min: 0.1, max: 10000, step: 0, default: 50 };     // c, 1/s, log
-export const PROTOSTAR_KAPPA_SLIDER: SliderSpec = { min: 0.01, max: 1000, step: 0, default: 2 };           // kappa, per rho0, log
+export const PROTOSTAR_RADIATION_SLIDER: SliderSpec = { min: 0.1, max: 10000, step: 0, default: 10 };     // c, 1/s, log
+export const PROTOSTAR_KAPPA_SLIDER: SliderSpec = { min: 0.01, max: 1000, step: 0, default: 20 };          // kappa, per rho0, log
 export const PROTOSTAR_MIN_TEMPERATURE_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.005, default: 0.05 };   // T_min, T0
-export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 4e-3 };       // 1/s, log
+export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 2e-3 };       // 1/s, log
 export const PROTOSTAR_HE_LAMBDA_SLIDER: SliderSpec = { min: 1e-10, max: 1e-2, step: 0, default: 2.5e-4 };  // 1/s at 100 MK and rho0, log
-export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 0.146 };       // log
+export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 0.3 };         // log
 export const PROTOSTAR_H_SIZE = 1.6;               // px, default rendered diameters
 export const PROTOSTAR_HE_SIZE = 2.4;
 export const PROTOSTAR_C_SIZE = 3.2;
