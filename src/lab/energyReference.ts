@@ -3,6 +3,7 @@
 // twin of the reduction (protostar-reduce.frag), and the statistics of an energy series. Pure
 // (tested in tests/lab.test.ts): no GPU, no DOM.
 
+import { REDUCTION_NO_THICKNESS } from '../simulation/protostar/reduction';
 import { ENERGY_OSCILLATION_WINDOW_ORBITS } from './config';
 import { quantile } from './numbers';
 
@@ -158,6 +159,10 @@ export interface ReductionGrids {
     composition: ArrayLike<number>;
     force: ArrayLike<number>;
     power: ArrayLike<number>;
+    /** The gas pass's fourth attachment, the source of the gravity (m, h^2, 0, 0): the softening of every cell. */
+    source: ArrayLike<number>;
+    /** G_eff x mass of one deposit unit: the self-interaction G m^2 / (2 h) the reduction takes off. */
+    gravityPerDeposit: number;
     resolution: number;
     /** Cells per side of a first-stage block (the reduction's scan order). */
     block: number;
@@ -175,8 +180,10 @@ export interface ReductionSums {
     maxSpeed: number;
     maxAcceleration: number;
     doubleKinetic: number;
+    /** 1/2 sum M phi less the self-interaction, cell by cell. */
     potential: number;
-    massSquared: number;
+    /** The smallest softening of a cell with mass, px (REDUCTION_NO_THICKNESS without any). */
+    minSoftening: number;
     massPosition: { x: number; y: number };
     momentum: { x: number; y: number };
 }
@@ -190,7 +197,7 @@ export function reductionReference(g: ReductionGrids): ReductionSums {
     const { resolution: res, block, cell } = g;
     const sums: ReductionSums = {
         peakDensity: 0, peakTemperature: 0, fusionRate: 0, mass: 0, peak: { x: 0, y: 0 }, maxSpeed: 0, maxAcceleration: 0,
-        doubleKinetic: 0, potential: 0, massSquared: 0, massPosition: { x: 0, y: 0 }, momentum: { x: 0, y: 0 },
+        doubleKinetic: 0, potential: 0, minSoftening: REDUCTION_NO_THICKNESS, massPosition: { x: 0, y: 0 }, momentum: { x: 0, y: 0 },
     };
     const blocks = res / block;
     for (let by = 0; by < blocks; by++) {
@@ -209,15 +216,18 @@ export function reductionReference(g: ReductionGrids): ReductionSums {
                         sums.peak = { x, y };
                     }
                     if (density > 0) sums.maxSpeed = Math.max(sums.maxSpeed, Math.hypot(ux, uy) + Math.sqrt(temperature));
-                    if (m > 0) sums.maxAcceleration = Math.max(sums.maxAcceleration, Math.hypot(g.force[k], g.force[k + 1]));
+                    const h2 = g.source[k + 1];
+                    if (m > 0) {
+                        sums.maxAcceleration = Math.max(sums.maxAcceleration, Math.hypot(g.force[k], g.force[k + 1]));
+                        sums.minSoftening = Math.min(sums.minSoftening, Math.sqrt(h2));
+                    }
                     sums.mass += m;
                     sums.massPosition.x += m * x;
                     sums.massPosition.y += m * y;
                     sums.momentum.x += g.moments[k + 1];
                     sums.momentum.y += g.moments[k + 2];
                     sums.doubleKinetic += g.moments[k + 3];
-                    sums.potential += 0.5 * m * g.force[k + 2];
-                    sums.massSquared += g.composition[k + 2];
+                    sums.potential += 0.5 * m * g.force[k + 2] + (h2 > 0 ? 0.5 * g.gravityPerDeposit * g.composition[k + 2] / Math.sqrt(h2) : 0);
                 }
             }
         }

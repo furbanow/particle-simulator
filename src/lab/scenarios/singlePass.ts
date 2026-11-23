@@ -72,6 +72,7 @@ async function windowCost(context: LabContext): Promise<Record<string, JsonValue
     for (const flags of PASS_COST_FLAGS) {
         simulation.setParam(PROTOSTAR_PARAM.tscDeposit, flags.tscDeposit);
         simulation.setParam(PROTOSTAR_PARAM.collisions, flags.collisions);
+        simulation.setParam(PROTOSTAR_PARAM.adaptiveThickness, flags.adaptiveThickness);
         model.beforeSubstep(0);                     // the grids of this setting (and the collision grid) from the frozen particles
         const grid = PROTOSTAR_GRID_PASSES.filter(name => name !== 'collision' || flags.collisions);
         const times = await passTimes(context, [...grid, ...PARTICLE_PASSES, ...ROWS_PASSES]);
@@ -91,6 +92,7 @@ async function windowCost(context: LabContext): Promise<Record<string, JsonValue
     }
     simulation.setParam(PROTOSTAR_PARAM.tscDeposit, false);
     simulation.setParam(PROTOSTAR_PARAM.collisions, false);
+    simulation.setParam(PROTOSTAR_PARAM.adaptiveThickness, false);
     model.beforeSubstep(0);
     return out;
 }

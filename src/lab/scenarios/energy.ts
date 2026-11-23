@@ -219,9 +219,10 @@ export const reductionChannels: Scenario = {
             composition: await readAttachment(renderer, targets.moments, 1),
             force: await readTarget(renderer, targets.gravity),
             power: await readTarget(renderer, targets.power),
+            source: await readAttachment(renderer, targets.gas, 3),
         };
         const sums = reductionReference({
-            ...read, resolution: PROTOSTAR_GRID_RES, block: PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES,
+            ...read, gravityPerDeposit: scales.gravityPerDeposit, resolution: PROTOSTAR_GRID_RES, block: PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES,
             cell: grids.common.gridCell.value, fusionTRef: grids.common.fusionTRef.value,
         });
         // |sum m v| <= sqrt(sum m x sum m |v|^2): the scale of a momentum, which cancels.
@@ -239,7 +240,7 @@ export const reductionChannels: Scenario = {
             maxAcceleration: relative(at(extremes, 3), sums.maxAcceleration),
             doubleKinetic: relative(at(energy, 0), sums.doubleKinetic),
             potential: relative(at(energy, 1), sums.potential),
-            massSquared: relative(at(energy, 2), sums.massSquared),
+            minSoftening: relative(at(energy, 2), sums.minSoftening),
             massPositionX: relative(at(moments, 0), sums.massPosition.x),
             massPositionY: relative(at(moments, 1), sums.massPosition.y),
             momentumX: relative(at(moments, 2), sums.momentum.x, momentumScale),

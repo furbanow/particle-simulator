@@ -145,3 +145,19 @@ export function initialThickness(options: InitialThicknessOptions): number {
     }
     return h;
 }
+
+/**
+ * The response of the grid's gravity to a ripple Sigma0 (1 + A cos k x) (the lab's protostar.thickness.kernel): a_x = -2 pi G Sigma0 A K(k) sin k x,
+ * with the cloud-in-cell deposit's factor S = sinc^2(k dx / 2). With a fixed softening eps, K = S e^(-k eps). With the adaptive thickness h, the
+ * denser crests are also thinner (h goes as 1 / Sigma at a fixed dispersion: the 3 x 3 neighborhood the gas pass reads, of factor
+ * B = (1 + 2 cos k dx) / 3, modulates h^2 by -2 A S B cos k x), and the pair softening (h_i^2 + h_j^2) / 2 of those thinner cells pulls more:
+ * linearizing the sum, K = S e^(-k h) (1 + B k h / 2). The ripple's relation of dispersion is omega^2 = c_s^2 k^2 - 2 pi G Sigma0 k K(k) / S.
+ */
+export function kernelResponse(k: number, cell: number, softening: number, adaptive: boolean): number {
+    const half = k * cell / 2;
+    const sinc = half > 0 ? Math.sin(half) / half : 1;
+    const s = sinc * sinc;
+    if (!adaptive) return s * Math.exp(-k * softening);
+    const b = (1 + 2 * Math.cos(k * cell)) / 3;
+    return s * Math.exp(-k * softening) * (1 + b * k * softening / 2);
+}

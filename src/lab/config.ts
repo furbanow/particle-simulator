@@ -747,10 +747,11 @@ export const EQUIPARTITION_READ_EVERY = 5;
 export const PASS_COST_COUNTS = [400_000, 1_000_000] as const;
 export const PASS_COST_WINDOWS = [{ name: 'early', frames: 55 }, { name: 'late', frames: 1000 }] as const;
 export const PASS_COST_FLAGS = [
-    { name: 'off', tscDeposit: false, collisions: false },
-    { name: 'tsc', tscDeposit: true, collisions: false },
-    { name: 'collisions', tscDeposit: false, collisions: true },
-    { name: 'tsc+collisions', tscDeposit: true, collisions: true },
+    { name: 'off', tscDeposit: false, collisions: false, adaptiveThickness: false },
+    { name: 'tsc', tscDeposit: true, collisions: false, adaptiveThickness: false },
+    { name: 'collisions', tscDeposit: false, collisions: true, adaptiveThickness: false },
+    { name: 'tsc+collisions', tscDeposit: true, collisions: true, adaptiveThickness: false },
+    { name: 'thickness', tscDeposit: false, collisions: false, adaptiveThickness: true },
 ] as const;
 export const PASS_COST_REPEATS = 100;
 export const PASS_COST_ROUNDS = 7;
@@ -763,3 +764,53 @@ export const PASS_COST_FRAME_CHUNKS = 3;
  */
 export const MRT_SPIKE_STEPS = 5;
 export const MRT_SPIKE_REPEATS = 100;
+
+// ---- Adaptive thickness (phase P9: A11, docs/spikes/a11-adaptive-thickness.md) ----
+/**
+ * protostar.thickness.parity: the default cloud after THICKNESS_PARITY_FRAMES frames; with the flag off the gravity grid against the drawings' pass
+ * (bit for bit), with it on the thickness of every cell and the gravity grid against the twins of thickness.ts, the latter at every
+ * THICKNESS_PARITY_STRIDE-th cell of each axis, within THICKNESS_TWIN_TOLERANCE (relative to the largest value) and GRAVITY_TWIN_TOLERANCE.
+ */
+export const THICKNESS_PARITY_PARTICLES = 200_000;
+export const THICKNESS_PARITY_FRAMES = 60;
+export const THICKNESS_PARITY_STRIDE = 3;
+export const THICKNESS_TWIN_TOLERANCE = 1e-5;
+/**
+ * protostar.thickness.start: the median thickness of the cells within THICKNESS_START_RADIUS R of the centre at the first substep, against
+ * initialThickness() (THICKNESS_START_TOLERANCE, relative) for the default cloud and a virial one (THICKNESS_VIRIAL_PARAMS).
+ */
+export const THICKNESS_START_PARTICLES = 400_000;
+export const THICKNESS_START_RADIUS = 0.8;
+export const THICKNESS_START_TOLERANCE = 0.1;
+export const THICKNESS_VIRIAL_PARAMS = { alphaVir: 1, betaRot: 0 } as const;
+/**
+ * protostar.thickness.kernel: the response of the gravity grid to a ripple Sigma0 (1 + A cos k x) of THICKNESS_KERNEL_AMPLITUDE over a gas that
+ * fills the whole area at rest (THICKNESS_KERNEL_PARTICLES, a Maxwellian dispersion), measured as the sin(k x) part of a_x in the middle half
+ * of the area less that of the same particles without the ripple, for THICKNESS_KERNEL_MODES whole wavelengths across the width. The gravity
+ * is set so that the layer is THICKNESS_KERNEL_HEIGHTS px thick (h = sigma^2 / (pi G Sigma0)) with the flag on; off, the fixed softening.
+ * Against the kernel of thickness.ts (kernelResponse) within THICKNESS_KERNEL_TOLERANCE for the modes up to THICKNESS_KERNEL_CHECKED_MODE.
+ */
+export const THICKNESS_KERNEL_PARTICLES = 1_000_000;
+export const THICKNESS_KERNEL_AMPLITUDE = 0.05;
+export const THICKNESS_KERNEL_MODES = [4, 8, 12, 16, 24, 32] as const;
+export const THICKNESS_KERNEL_HEIGHTS = [20, 40] as const;
+export const THICKNESS_KERNEL_SIGMA = 30;
+export const THICKNESS_KERNEL_TOLERANCE = 0.05;
+export const THICKNESS_KERNEL_CHECKED_MODE = 24;
+/**
+ * protostar.thickness.loop: a conservative virial disc (THICKNESS_VIRIAL_PARAMS) with the flag on for THICKNESS_LOOP_SECONDS, the source grid
+ * read every THICKNESS_LOOP_READ_EVERY frames: every thickness within its bounds, and the rms change of the cells' thickness between two
+ * readings in the last third no more than THICKNESS_LOOP_GROWTH times that of the first third (the loop T -> h -> gravity does not ring up).
+ */
+export const THICKNESS_LOOP_PARTICLES = 200_000;
+export const THICKNESS_LOOP_SECONDS = 30;
+export const THICKNESS_LOOP_READ_EVERY = 30;
+export const THICKNESS_LOOP_GROWTH = 2;
+export const THICKNESS_LOOP_MIN_DENSITY = 0.3;
+/**
+ * protostar.thickness.momentum: the total momentum (float64 sum of the velocities read back) of the conservative default cloud over
+ * THICKNESS_MOMENTUM_FRAMES frames, flag off and on, read every THICKNESS_MOMENTUM_READ_EVERY frames, in units of the thermal momentum.
+ */
+export const THICKNESS_MOMENTUM_PARTICLES = 100_000;
+export const THICKNESS_MOMENTUM_FRAMES = 600;
+export const THICKNESS_MOMENTUM_READ_EVERY = 60;

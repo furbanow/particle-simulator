@@ -102,7 +102,9 @@ describe('lab: the reduction twin', () => {
     const cellOf = (x: number, y: number): number => (y * res + x) * 4;
 
     function grids(): ReductionGrids & { gas: number[] } {
-        const gas = zeros(), thermo = zeros(), moments = zeros(), composition = zeros(), force = zeros(), power = zeros();
+        const gas = zeros(), thermo = zeros(), moments = zeros(), composition = zeros(), force = zeros(), power = zeros(), source = zeros();
+        for (let k = 0; k < res * res; k++) source[k * 4 + 1] = 25;   // h = 5 px everywhere...
+        source[cellOf(2, 3) + 1] = 4;                                  // ...but 2 px in the dense cell
         // cell (1, 0) in block (0, 0): density 3, temperature 8 (fusionTRef 2: T0 units 4), mean velocity (3, 4)
         gas.splice(cellOf(1, 0), 4, 3, 8, 3, 4);
         moments.splice(cellOf(1, 0), 4, 2, 0.5, -0.25, 6);
@@ -116,7 +118,7 @@ describe('lab: the reduction twin', () => {
         force.splice(cellOf(2, 3), 4, 6, 8, -1, 0);
         power[cellOf(2, 3) + 1] = 5;
         power[cellOf(1, 0) + 1] = 2;
-        return { gas, thermo, moments, composition, force, power, resolution: res, block: 2, cell: 10, fusionTRef: 2 };
+        return { gas, thermo, moments, composition, force, power, source, gravityPerDeposit: 3, resolution: res, block: 2, cell: 10, fusionTRef: 2 };
     }
 
     it('finds the densest cell, with its temperature and position', () => {
@@ -133,8 +135,9 @@ describe('lab: the reduction twin', () => {
         expect(r.momentum).toEqual({ x: 1.5, y: 0.75 });
         expect(r.massPosition).toEqual({ x: 2 * 15 + 1 * 25, y: 2 * 5 + 1 * 35 });
         expect(r.doubleKinetic).toBe(7);
-        expect(r.potential).toBe(0.5 * 2 * -7 + 0.5 * 1 * -1);
-        expect(r.massSquared).toBe(5);
+        // 1/2 M phi, less the self-interaction -G (sum m^2) / h of each cell (the reduction adds G m^2 / (2 h)).
+        expect(r.potential).toBeCloseTo(0.5 * 2 * -7 + 0.5 * 3 * 4 / 5 + 0.5 * 1 * -1 + 0.5 * 3 * 1 / 2, 12);
+        expect(r.minSoftening).toBe(2);
     });
 
     it('bounds the speed by |mean velocity| + sqrt(T) and the acceleration by |a|, over the cells that hold something', () => {
