@@ -130,6 +130,12 @@ async function main() {
         chrome = launched.child;
         cdp = new Cdp(launched.endpoint);
         await cdp.opened;
+        // Interrupted (Ctrl-C, kill): close the browser first, or a Windows Chrome keeps running the lab on the GPU.
+        const interrupted = () => {
+            Promise.race([cdp.send('Browser.close').catch(() => {}), sleep(2000)]).finally(() => process.exit(130));
+        };
+        process.once('SIGINT', interrupted);
+        process.once('SIGTERM', interrupted);
         const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
         const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
         const page = (method, params) => cdp.send(method, params, sessionId);
