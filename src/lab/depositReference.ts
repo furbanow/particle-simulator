@@ -1,8 +1,9 @@
-// The cloud-in-cell deposit of protostar-deposit.vert / .frag computed on the CPU, in double
+// The deposit of protostar-deposit.vert / .frag (cloud-in-cell, or TSC: deposit-kernel.glsl) computed on the CPU, in double
 // precision, from the position texture read back: the reference the GPU grids are compared with.
 // Pure (tested in tests/lab.test.ts): no GPU, no DOM.
 
 import { MAX_SPECIES } from '../config';
+import { kernelFirstCell, kernelWeight, kernelWidth, type DepositKernel } from '../simulation/depositKernel';
 import type { DepositInputs } from '../simulation/protostar/grids';
 
 /** The composition deposit's channels: (m (1 + Z) / A, m of the hydrogen fuel, m^2, m of the helium fuel). */
@@ -27,18 +28,23 @@ export interface DepositReference {
 }
 
 /**
- * Deposits `count` particles, read from `texels` (RGBA per particle: x, y, type, w), the way the deposit shaders do: the particle's cloud is the 2x2 cells
- * around it with weights max(1 - |distance between cell centers|, 0) per axis, and a particle
- * whose block starts outside the grid is dropped (its point is clipped).
- * `weightMargin` widens the counted footprint (see DepositReference.contributions).
+ * Deposits `count` particles, read from `texels` (RGBA per particle: x, y, type, w), the way the deposit shaders do with `kernel`:
+ * cloud-in-cell, the 2x2 cells around the particle with weights max(1 - |distance between cell centers|, 0) per axis, or TSC, the
+ * 3x3 cells around the one that holds it with quadratic weights (depositKernel.ts). A particle whose point's center is outside
+ * the grid is dropped (its point is clipped). `weightMargin` widens the counted footprint (see DepositReference.contributions).
  */
-export function referenceDeposit(texels: ArrayLike<number>, count: number, inputs: DepositInputs, weightMargin: number): DepositReference {
+export function referenceDeposit(texels: ArrayLike<number>, count: number, inputs: DepositInputs, weightMargin: number,
+                                 kernel: DepositKernel = 'cic'): DepositReference {
     const res = inputs.gridResolution;
     const composition = new Float64Array(res * res * COMPOSITION_CHANNELS);
     const mass = new Float64Array(res * res);
     const occupancy = new Float64Array(res * res);
     const contributions = new Uint32Array(res * res);
     const payloadMax = new Array<number>(COMPOSITION_CHANNELS).fill(0);
+    const width = kernelWidth(kernel);
+    const reach = width / 2 + weightMargin;           // a cell is counted when its center is closer than this to the particle
+    // The point's center: a cell corner (cloud-in-cell, 0 to res) or a cell center (TSC, cells 0 to res - 1).
+    const centerMax = kernel === 'cic' ? res : res - 1;
     let deposited = 0;
     for (let i = 0; i < count; i++) {
         const [x, y, z] = [texels[i * 4], texels[i * 4 + 1], texels[i * 4 + 2]];
@@ -48,21 +54,21 @@ export function referenceDeposit(texels: ArrayLike<number>, count: number, input
         const payload = [m * inputs.inverseMolecularWeight[k], m * fuelX, m * m, m * fuelY];
         const px = x / inputs.gridCell;
         const py = y / inputs.gridCell;
-        const cx = Math.floor(px - 0.5) + 1;
-        const cy = Math.floor(py - 0.5) + 1;
-        if (!(cx >= 0 && cx <= res && cy >= 0 && cy <= res)) continue;
+        const fx = kernelFirstCell(kernel, px);
+        const fy = kernelFirstCell(kernel, py);
+        if (!(fx + 1 >= 0 && fx + 1 <= centerMax && fy + 1 >= 0 && fy + 1 <= centerMax)) continue;
         deposited++;
         payload.forEach((v, c) => { payloadMax[c] = Math.max(payloadMax[c], v); });
-        // A 4x4 block around the particle covers the GPU's 2x2 one and the cells at its margin.
-        for (let iy = cy - 2; iy <= cy + 1; iy++) {
-            const wy = 1 - Math.abs(iy + 0.5 - py);
-            if (iy < 0 || iy >= res || wy <= -weightMargin) continue;
-            for (let ix = cx - 2; ix <= cx + 1; ix++) {
-                const wx = 1 - Math.abs(ix + 0.5 - px);
-                if (ix < 0 || ix >= res || wx <= -weightMargin) continue;
+        // A block one cell wider on each side covers the GPU's and the cells at its margin.
+        for (let iy = fy - 1; iy <= fy + width; iy++) {
+            const dy = iy + 0.5 - py;
+            if (iy < 0 || iy >= res || Math.abs(dy) >= reach) continue;
+            for (let ix = fx - 1; ix <= fx + width; ix++) {
+                const dx = ix + 0.5 - px;
+                if (ix < 0 || ix >= res || Math.abs(dx) >= reach) continue;
                 const cell = iy * res + ix;
                 contributions[cell]++;
-                const weight = Math.max(wx, 0) * Math.max(wy, 0);
+                const weight = kernelWeight(kernel, dx) * kernelWeight(kernel, dy);
                 if (weight === 0) continue;
                 for (let c = 0; c < COMPOSITION_CHANNELS; c++) composition[cell * COMPOSITION_CHANNELS + c] += payload[c] * weight;
                 mass[cell] += m * weight;
