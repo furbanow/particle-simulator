@@ -203,6 +203,16 @@ export const PROTOSTAR_TEMPERATURE_TAU = 0.1;
 // tau = kappa Sigma / 2, T in T0 and Sigma in rho0, down to T_min (the sliders below). Jeans floor (A13, the `jeansFloor` flag): the dispersion of a
 // neighborhood is kept at 2 JEANS_CELLS dx G Sigma or more, so that the Jeans length of the sheet spans JEANS_CELLS cells of the grid (Truelove et al. 1997).
 export const PROTOSTAR_JEANS_CELLS = 4;
+// Collisions of the gas (C1, protostar/collisions.ts, the `collisions` flag): multiparticle collision dynamics (Malevanets & Kapral 1999) on the
+// protostar's cells, shifted at random at every substep (GRID_RES + 1 cells cover the area whatever the shift). Each cell collides with probability
+// 1 - exp(-nu dt), nu = COLLISION_RATE rho sqrt(t) (rho in rho0, the cell's dispersion t in T0): its particles' velocities relative to the
+// cell's mean turn by +-COLLISION_ANGLE (one sign per cell), which conserves the cell's mass, momentum and energy exactly (the parcels all
+// weigh the same, A4). A cell of fewer than COLLISION_MIN_PARTICLES does not collide. The gas is strictly planar: two degrees of
+// freedom, GAS_GAMMA = 2 (the user's choice, docs/spikes/c1-mpc-collisions.md), sound speed sqrt(GAS_GAMMA P / rho) = sqrt(t).
+export const PROTOSTAR_GAS_GAMMA = 2;
+export const PROTOSTAR_COLLISION_ANGLE = Math.PI / 2;
+export const PROTOSTAR_COLLISION_RATE = 1000;           // per s, at rho0 and the dispersion T0
+export const PROTOSTAR_COLLISION_MIN_PARTICLES = 2;
 // Stability map (A12, protostar/stability.ts, the `stabilityMap` choice): Toomre's Q and the cooling parameter beta = t_cool Omega of every
 // cell of the gas grid, drawn over the animation. A disc fragments where Q < Q_CRITICAL (self-gravity beats rotation and pressure) and
 // beta < BETA_CRITICAL (it cools faster than shear can heat it: Gammie 2001, the value of a 2D gas). Cells lighter than MIN_DENSITY
