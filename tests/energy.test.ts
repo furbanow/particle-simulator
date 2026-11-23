@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PROTOSTAR_ENERGY_RATIO_FLOOR } from '../src/config';
 import { EnergyBalance, relativeDrift, virialRatio } from '../src/simulation/protostar/energy';
 import {
-    REDUCTION_FLOATS, REDUCTION_TEXEL, REDUCTION_TEXELS, selfPotentialPerMassSquared, unpackReduction, type ReductionScales,
+    REDUCTION_FLOATS, REDUCTION_NO_THICKNESS, REDUCTION_TEXEL, REDUCTION_TEXELS, selfPotentialPerMassSquared, unpackReduction, type ReductionScales,
 } from '../src/simulation/protostar/reduction';
 
 describe('virial ratio 2K / |U|', () => {
@@ -166,24 +166,20 @@ describe('the multichannel reduction', () => {
         expect(alone.energy.potentialNow).toBeCloseTo(-300 * 0.05, 12);
     });
 
-    it('removes the self-interaction G sum m^2 / (2 epsilon) from the potential energy', () => {
+    it('keeps the self-interaction G m^2 / epsilon as the per-unit kernel of the GPU correction', () => {
         expect(selfPotentialPerMassSquared(4, 10)).toBe(-0.4);
-        // 1/2 sum M phi = -300 counts every particle against itself: -1/2 x 0.4 x sum m^2 (= 100) = -20 of it.
-        const reduction = unpackReduction(texels({ energy: [0, -300, 100, -300] }), scales, true);
-        expect(reduction.energy.potentialNow).toBeCloseTo((-300 + 20) * 0.05, 12);
-        expect(reduction.energy.potential).toBeCloseTo((-300 + 20) * 0.05, 12);
-    });
-
-    it('removes nothing without a softening (a zero length would divide by zero)', () => {
         expect(selfPotentialPerMassSquared(4, 0)).toBe(0);
-        const reduction = unpackReduction(texels({ energy: [0, -300, 100, -300] }), { ...scales, softening: 0 }, true);
-        expect(reduction.energy.potentialNow).toBeCloseTo(-300 * 0.05, 12);
     });
 
-    it('a single particle has no potential energy once its self-interaction is removed', () => {
-        // One deposit unit at the center of a cell: 1/2 M phi = 1/2 x 1 x (-G / epsilon), sum m^2 = 1.
-        const raw = 0.5 * -4 / 10;
-        const reduction = unpackReduction(texels({ energy: [0, raw, 1, raw] }), scales, true);
-        expect(reduction.energy.potentialNow).toBeCloseTo(0, 15);
+    it('takes the potential as the GPU corrected it (the self-interaction is removed cell by cell there)', () => {
+        const reduction = unpackReduction(texels({ core: [0, 0, 0, 10], energy: [0, -280, 12, -260] }), scales, true);
+        expect(reduction.energy.potentialNow).toBeCloseTo(-280 * 0.05, 12);
+        expect(reduction.energy.potential).toBeCloseTo(-260 * 0.05, 12);
+    });
+
+    it('reads the smallest softening, and none without mass or with the marker of no cell', () => {
+        expect(unpackReduction(texels({ core: [0, 0, 0, 10], energy: [0, 0, 7.5, 0] }), scales, true).minSoftening).toBe(7.5);
+        expect(unpackReduction(texels({ core: [0, 0, 0, 10], energy: [0, 0, REDUCTION_NO_THICKNESS, 0] }), scales, true).minSoftening).toBeNull();
+        expect(unpackReduction(texels({ energy: [0, 0, 7.5, 0] }), scales, true).minSoftening).toBeNull();
     });
 });

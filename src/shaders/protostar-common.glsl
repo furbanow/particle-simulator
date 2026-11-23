@@ -6,7 +6,7 @@ uniform sampler2D gridForce;            // gravitational acceleration at the cel
 uniform float tscForce;                 // 1: forceAt() reads gridForce with the TSC weights (the tscDeposit switch)
 uniform sampler2D gridGas;              // (rho / rho0, dispersion px^2/s^2, mean vx, mean vy) of the 3x3 neighborhood
 uniform sampler2D gridHeat;             // (fusion heating per unit mass T0 per s, mu / mu_H, 0, 0) of the 3x3 neighborhood
-uniform sampler2D gridThermo;           // (T averaged over time px^2/s^2, effective number of particles, mu / mu_H, 0) of the 3x3 neighborhood
+uniform sampler2D gridThermo;           // (T averaged over time px^2/s^2, effective number of particles, mu / mu_H, h_ref / h) of the 3x3 neighborhood
 uniform sampler2D gridFuel;             // (X, Y, 0, 0): the mass fractions of the fuel of the first two reactions (hydrogen, helium) in the 3x3 neighborhood
 uniform float gridCell;                 // cell size, px
 uniform float fusionTRef;               // T0, px^2/s^2
@@ -80,13 +80,14 @@ struct Gas {
     float tRate;    // the temperature mu * t averaged over time, px^2/s^2: the fusion rate uses this one (GAS_THERMO)
     float particles;    // effective number of particles behind the temperature (GAS_THERMO)
     vec2 fuel;      // mass fractions (X, Y) of the fuel of the first two reactions: hydrogen and helium (GAS_THERMO)
+    float thin;     // h_ref / h: the volume density of the fusion law over the surface density (A11; exactly 1 with the fixed softening) (GAS_THERMO)
 };
 
 /** Gas state at x: density interpolated bilinearly, the other fields with mass weights. */
 Gas gasAt(vec2 x) {
     ivec2 c[4]; float w[4];
     gridCorners(x, c, w);
-    Gas g = Gas(0.0, 0.0, vec2(0.0), 0.0, 0.0, 0.0, 0.0, vec2(0.0));
+    Gas g = Gas(0.0, 0.0, vec2(0.0), 0.0, 0.0, 0.0, 0.0, vec2(0.0), 0.0);
     for (int k = 0; k < 4; k++) {
         vec4 s = texelFetch(gridGas, c[k], 0);
         vec4 heat = texelFetch(gridHeat, c[k], 0);
@@ -100,6 +101,7 @@ Gas gasAt(vec2 x) {
         vec4 thermo = texelFetch(gridThermo, c[k], 0);
         g.tRate += m * thermo.x;
         g.particles += m * thermo.y;
+        g.thin += m * thermo.w;
         g.fuel += m * texelFetch(gridFuel, c[k], 0).xy;
 #endif
     }
@@ -111,6 +113,7 @@ Gas gasAt(vec2 x) {
         g.tRate /= g.rho;
         g.particles /= g.rho;
         g.fuel /= g.rho;
+        g.thin /= g.rho;
     }
     return g;
 }
@@ -194,7 +197,9 @@ float logUnbiasedResonant(float particles, float tau, float p, float G) {
  * fraction of the type (the fuel) in the neighborhood, f Gamow's law T^-p exp(-b T^-q) of the reaction, and T the temperature (the
  * dispersion times mu / mu_H) averaged over time, corrected for the noise of T: replaced by its exact unbiased estimate for a resonant law
  * (logUnbiasedResonant), divided by the bias that the noise causes (logNoiseBiasCurved, at the local exponent q g - p of the law) for the others. Computed from logarithms: the law's exponential underflows far below T_ref. rho is the density of
- * the grid, the surface density while the cloud has a fixed thickness. Needs GAS_THERMO. Twin: fusionRate() in reactions.ts.
+ * the grid, the surface density, times h_ref / h: the volume density Sigma / (2 h) of the layer in the units where the fixed softening's
+ * is Sigma (A11; the factor is exactly 1 with the flag off). Needs GAS_THERMO. Twin: fusionRate() in reactions.ts, of the density
+ * Sigma lawDensityFactor() (thickness.ts).
  */
 float fusionRateOf(int k, Gas g) {
     if (reactionTo[k] < 0.0 || reactionRate[k] <= 0.0 || g.rho <= 0.0 || g.tRate <= 0.0) return 0.0;
@@ -214,7 +219,7 @@ float fusionRateOf(int k, Gas g) {
             logLaw -= logNoiseBiasCurved(g.particles, alpha, barrier, q);
         }
     }
-    float logRate = log(reactionRate[k]) + reactionDensityExponent[k] * log(g.rho * fuel) + logLaw;
+    float logRate = log(reactionRate[k]) + reactionDensityExponent[k] * log(g.rho * g.thin * fuel) + logLaw;
     return exp(min(logRate, log(FUSION_RATE_MAX)));
 }
 

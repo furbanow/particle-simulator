@@ -30,6 +30,7 @@ export class StabilityPass {
     private readonly u = {
         centerOfMass: { value: new THREE.Vector2() },
         gravityDensity: { value: 0 },
+        toomreFactor: { value: 1 },
     };
 
     constructor(grids: StabilityGridUniforms, cooling: StabilityCoolingUniforms) {
@@ -42,10 +43,11 @@ export class StabilityPass {
         return this.pass.target;
     }
 
-    /** Draws the map about `center` (px) for G_eff rho0 = `gravityDensity` (px/s^2). */
-    render(renderer: THREE.WebGLRenderer, center: { x: number; y: number }, gravityDensity: number): void {
+    /** Draws the map about `center` (px) for G_eff rho0 = `gravityDensity` (px/s^2), Q times `toomreFactor` (the thickness's, A11). */
+    render(renderer: THREE.WebGLRenderer, center: { x: number; y: number }, gravityDensity: number, toomreFactor = 1): void {
         this.u.centerOfMass.value.set(center.x, center.y);
         this.u.gravityDensity.value = gravityDensity;
+        this.u.toomreFactor.value = toomreFactor;
         this.pass.render(renderer);
         renderer.setRenderTarget(null);
     }

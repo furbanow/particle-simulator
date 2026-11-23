@@ -9,6 +9,7 @@ uniform sampler2D gridThermo;           // (T averaged, effective particles, mu 
 uniform float gridCell;                 // px
 uniform vec2 centerOfMass;              // px
 uniform float gravityDensity;           // G_eff rho0, px/s^2: G Sigma = gravityDensity * rho
+uniform float toomreFactor;             // the thickness's factor of Q (A11: 0.8 + 0.7 sigma_z / sigma_R), 1 for a thin sheet
 uniform float fusionTRef;               // T0, px^2/s^2
 uniform float radiation;                // c, 1/s
 uniform float opacityKappa;             // kappa, per rho0
@@ -45,7 +46,7 @@ void main() {
     float kappa2 = 2.0 * omega * vorticity;
 
     float gravity = STELLAR_TOOMRE * gravityDensity * rho;
-    float q = gravity > 0.0 ? min(sqrt(max(t, 0.0) * 0.5) * sqrt(max(kappa2, 0.0)) / gravity, STABILITY_CAP) : STABILITY_CAP;
+    float q = gravity > 0.0 ? min(toomreFactor * sqrt(max(t, 0.0) * 0.5) * sqrt(max(kappa2, 0.0)) / gravity, STABILITY_CAP) : STABILITY_CAP;
 
     // The rate of the cooling of protostar-velocity.frag (cooling.ts: coolingLogRate), at the cell's temperature.
     float mu = texelFetch(gridThermo, cell, 0).z;

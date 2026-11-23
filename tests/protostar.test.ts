@@ -52,7 +52,7 @@ describe('protostar declaration', () => {
         expect(PROTOSTAR.params.filter(p => p.tab === 'initial').map(p => p.key)).toEqual(['count', 'alphaVir', 'betaRot', 'profile', 'turbulence']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'radiation', 'kappa', 'minTemperature']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'fusion').map(p => p.key)).toEqual(['fusionRate', 'heFusionRate', 'feedback']);
-        expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics', 'adaptiveTimeStep', 'jeansFloor', 'stabilityMap', 'tscDeposit', 'collisions']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics', 'adaptiveTimeStep', 'jeansFloor', 'stabilityMap', 'tscDeposit', 'collisions', 'adaptiveThickness']);
         // the temperature exponents are not parameters any more: they are Gamow's (3.9 at 15 MK for pp, 41 at 100 MK for the triple alpha)
         expect(params).not.toHaveProperty('fusionExponent');
         expect(params).not.toHaveProperty('heFusionExponent');

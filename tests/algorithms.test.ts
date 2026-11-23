@@ -194,7 +194,7 @@ describe('panel tabs', () => {
             count: true, alphaVir: true, betaRot: true, profile: true, turbulence: true, gravity: false, softening: false, radiation: false,
             kappa: false, minTemperature: false, fusionRate: false, heFusionRate: false, feedback: false,
             diagnostics: false, adaptiveTimeStep: false, jeansFloor: false, stabilityMap: false, tscDeposit: false,
-            collisions: false,
+            collisions: false, adaptiveThickness: false,
         });
     });
 });

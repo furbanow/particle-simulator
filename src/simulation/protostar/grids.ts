@@ -21,7 +21,7 @@ import collisionFrag from '../../shaders/protostar-collision.frag?raw';
 import { COLLISION_GRID_RES, COLLISION_SEED_SALT } from './collisions';
 import reduceFrag from '../../shaders/protostar-reduce.frag?raw';
 import { smoothingWeight } from './noiseBias';
-import { REDUCTION_TEXEL, REDUCTION_TEXELS } from './reduction';
+import { REDUCTION_NO_THICKNESS, REDUCTION_TEXEL, REDUCTION_TEXELS } from './reduction';
 
 const COARSE_RES = PROTOSTAR_GRID_RES / PROTOSTAR_COARSE_FACTOR;
 const REDUCE_BLOCK = PROTOSTAR_GRID_RES / PROTOSTAR_STATS_REDUCE_RES;
@@ -46,7 +46,7 @@ const STAGE = { first: 0, second: 1 } as const;
 const reduceDefines = (stage: number, block: number) => withDefines(reduceFrag, {
     REDUCE_STAGE: stage, REDUCE_FIRST: STAGE.first, REDUCE_SECOND: STAGE.second, BLOCK: block,
     TEXEL_CORE: REDUCTION_TEXEL.core, TEXEL_EXTREMES: REDUCTION_TEXEL.extremes,
-    TEXEL_ENERGY: REDUCTION_TEXEL.energy, TEXEL_MOMENTS: REDUCTION_TEXEL.moments,
+    TEXEL_ENERGY: REDUCTION_TEXEL.energy, TEXEL_MOMENTS: REDUCTION_TEXEL.moments, NO_THICKNESS: glslFloat(REDUCTION_NO_THICKNESS),
 });
 const potentialDefines = (stage: number, block: number) => withDefines(potentialFrag, {
     POTENTIAL_STAGE: stage, POTENTIAL_FIRST: STAGE.first, POTENTIAL_SECOND: STAGE.second, BLOCK: block,
@@ -144,8 +144,9 @@ export interface ProtostarGridTargets {
     /**
      * Three attachments: `gas.texture` (attachment 0) holds (rho / rho0, the velocity dispersion, mean v), `gas.textures[1]` the temperature
      * (the dispersion times mu / mu_H) averaged over time, the effective number of particles and the factor mu / mu_H: (T averaged, N,
-     * mu / mu_H, 0), `gas.textures[2]` the mass fractions of the fuel (X, Y, 0, 0). Two targets take turns from one substep to the
-     * next: this one is the latest drawn.
+     * mu / mu_H, h_ref / h), `gas.textures[2]` the mass fractions of the fuel (X, Y, 0, 0), `gas.textures[3]` the source of the
+     * gravity (m of the cell, h^2, 0, 0): h the thickness of the layer with the adaptive thickness (A11), the fixed softening otherwise.
+     * Two targets take turns from one substep to the next: this one is the latest drawn.
      */
     readonly gas: THREE.WebGLRenderTarget;
     readonly power: THREE.WebGLRenderTarget;
@@ -192,10 +193,24 @@ export interface GridScales {
     /** G_eff x simulation mass of one deposit unit. */
     gravityPerDeposit: number;
     softening: number;
+    /** The adaptive thickness (A11): on or off, and what the gas pass computes h with. */
+    thickness: ThicknessScales;
     /** rho / rho0 per particle in a cell of the collision grid. */
     collisionDensity: number;
     /** The shift of the collision grid at this substep, px (collisionShift() of collisions.ts). */
     collisionShift: readonly [number, number];
+}
+
+/** What the gas pass computes the thickness of the layer with (A11, thickness.ts). */
+export interface ThicknessScales {
+    on: boolean;
+    /** 1 / (2 pi G rho0): px per (px^2/s^2) per rho0 (thicknessPerDispersion()). */
+    perDispersion: number;
+    /** The bounds of h, px. */
+    floor: number;
+    ceiling: number;
+    /** h_ref of the fusion law's volume density, px. */
+    reference: number;
 }
 
 /**
@@ -286,7 +301,8 @@ class CollisionDeposit {
  *  3. power: deposit of the expected fusion power of the fusing particles;
  *  4. heat: fusion heating per unit mass of each 3x3 neighborhood, and the molecular weight's factor for the velocity pass;
  *  5. coarse + gravity: softened gravity and its Plummer potential at the cell centers, summed cell
- *     to cell on two levels (the force in x and y, the potential in z);
+ *     to cell on two levels (the force in x and y, the potential in z), from the source the gas pass wrote (the masses and the
+ *     softening of every cell: the fixed one, or the thickness of the layer with A11);
  *  6. with the collisions of the gas (C1), the collision deposit on the shifted grid (CollisionDeposit), of the velocities kicked to
  *     the instant of the positions with the force of step 5.
  * The particle passes sample gas, heat and gravity through the common uniforms. reduceStats()
@@ -313,6 +329,10 @@ export class ProtostarGrids {
     private readonly coarse: GridPass;
     private readonly gravity: GridPass;
     private gravityPlain: GridPass | null = null;
+    /** The gravity pass of the drawings' kind (masses from the moments, the fixed softening), for the lab's parity of A11; built on first use. */
+    private gravityFixed: GridPass | null = null;
+    /** The source of the gravity, (m, h^2) of the gas pass's fourth attachment, shared by reference with the passes that read it. */
+    private readonly sourceTexture: Uniform<THREE.Texture | null>;
     private readonly gravityUniforms: Record<string, THREE.IUniform>;
     private readonly reduce1: GridPass;
     readonly reduce2: GridPass;
@@ -339,6 +359,11 @@ export class ProtostarGrids {
         molecularWeight: { value: 1 },
         /** The noise shape of the deposit's kernel (PROTOSTAR_NOISE_N_SHAPE, or _TSC): the gas pass's effective number of particles. */
         noiseShape: { value: PROTOSTAR_NOISE_N_SHAPE },
+        thicknessOn: { value: 0 },
+        thicknessPerDispersion: { value: 1 },
+        thicknessFloor: { value: 1 },
+        thicknessCeiling: { value: 1 },
+        thicknessReference: { value: 1 },
     };
     /**
      * Dev-only (the lab's cost comparison): false makes the moments pass deposit the moments alone,
@@ -382,14 +407,17 @@ export class ProtostarGrids {
         // Both attachments blend the same way: they must have the same type (float32 or half float).
         this.moments = new DepositPass(DEPOSIT_KIND.momentsAndComposition, particleUniforms, geometry, gridTarget(res, blendType, 2));
         this.momentsTexture = { value: this.moments.target.texture };
-        // Three attachments (gas; the averaged temperature, the effective number of particles and the molecular weight's factor; the
-        // fuel fractions), two targets in turn.
-        const gasTargets = [gridTarget(res, THREE.FloatType, 3), gridTarget(res, THREE.FloatType, 3)] as const;
+        // Four attachments (gas; the averaged temperature, the effective number of particles, the molecular weight's factor and the
+        // thickness's factor of the fusion law; the fuel fractions; the source of the gravity), two targets in turn.
+        const gasTargets = [gridTarget(res, THREE.FloatType, 4), gridTarget(res, THREE.FloatType, 4)] as const;
+        this.sourceTexture = { value: gasTargets[0].textures[3] };
         const gasPass = (current: number): GridPass => new GridPass(withDefines(gasFrag, PROTOSTAR_DEFINES), {
             gridMoments: this.momentsTexture, gridComposition: { value: this.moments.target.textures[1] },
             gridThermoPrevious: { value: gasTargets[1 - current].textures[1] },
             depositVelScale: u.depositVelScale, densityPerDeposit: u.densityPerDeposit, temperatureWeight: u.temperatureWeight,
             molecularWeight: u.molecularWeight, noiseShape: u.noiseShape,
+            thicknessOn: u.thicknessOn, thicknessPerDispersion: u.thicknessPerDispersion, thicknessFloor: u.thicknessFloor,
+            thicknessCeiling: u.thicknessCeiling, thicknessReference: u.thicknessReference, softening2: u.softening2,
         }, gasTargets[current]);
         this.gasPasses = [gasPass(0), gasPass(1)];
         common.gridGas.value = this.gasPasses[0].target.texture;
@@ -402,11 +430,12 @@ export class ProtostarGrids {
             gridThermo: common.gridThermo,                 // the factor mu / mu_H of the gas pass of the same substep
         }, gridTarget(res, THREE.FloatType));
         common.gridHeat.value = this.heat.target.texture;
-        this.coarse = new GridPass(withDefines(coarseFrag, { COARSE_FACTOR: PROTOSTAR_COARSE_FACTOR }), {
+        this.coarse = new GridPass(withDefines(coarseFrag, { COARSE_FACTOR: PROTOSTAR_COARSE_FACTOR, COARSE_THICKNESS: 1 }), {
             gridMoments: this.momentsTexture, gridCell: common.gridCell,
+            gridSource: this.sourceTexture, thicknessOn: u.thicknessOn, softening2: u.softening2,
         }, gridTarget(COARSE_RES, THREE.FloatType));
         this.gravityUniforms = {
-            gridMoments: this.momentsTexture,
+            gridMoments: this.momentsTexture, gridSource: this.sourceTexture,
             gridCoarse: { value: this.coarse.target.texture },
             gridCell: common.gridCell, softening2: u.softening2, gravityPerDeposit: u.gravityPerDeposit,
         };
@@ -414,6 +443,7 @@ export class ProtostarGrids {
         common.gridForce.value = this.gravity.target.texture;
         this.potential1 = new GridPass(potentialDefines(STAGE.first, REDUCE_BLOCK), {
             gridMoments: this.momentsTexture, gridForce: common.gridForce,
+            gridComposition: { value: this.moments.target.textures[1] }, gridSource: this.sourceTexture, gravityPerDeposit: u.gravityPerDeposit,
         }, gridTarget(PROTOSTAR_STATS_REDUCE_RES, THREE.FloatType));
         this.potential2 = new GridPass(potentialDefines(STAGE.second, PROTOSTAR_STATS_REDUCE_RES), {
             source: { value: this.potential1.target.texture },
@@ -422,6 +452,7 @@ export class ProtostarGrids {
             gridGas: common.gridGas, gridThermo: common.gridThermo, gridMoments: this.momentsTexture,
             gridComposition: { value: this.moments.target.textures[1] }, gridForce: common.gridForce,
             gridPower: { value: this.power.target.texture }, gridCell: common.gridCell, fusionTRef: common.fusionTRef,
+            gridSource: this.sourceTexture, gravityPerDeposit: u.gravityPerDeposit,
         }, gridTarget(PROTOSTAR_STATS_REDUCE_RES, THREE.FloatType, REDUCTION_TEXELS));
         const stages = this.reduce1.target.textures;
         this.reduce2 = new GridPass(reduceDefines(STAGE.second, PROTOSTAR_STATS_REDUCE_RES), {
@@ -514,6 +545,11 @@ export class ProtostarGrids {
         u.densityPerDeposit.value = s.densityPerDeposit;
         u.gravityPerDeposit.value = s.gravityPerDeposit;
         u.softening2.value = s.softening * s.softening;
+        u.thicknessOn.value = s.thickness.on ? 1 : 0;
+        u.thicknessPerDispersion.value = s.thickness.perDispersion;
+        u.thicknessFloor.value = s.thickness.floor;
+        u.thicknessCeiling.value = s.thickness.ceiling;
+        u.thicknessReference.value = s.thickness.reference;
         const { common } = this;
         common.collisionVelScale.value = s.depositVelScale;
         common.collisionDensity.value = s.collisionDensity;
@@ -554,6 +590,7 @@ export class ProtostarGrids {
         this.common.gridGas.value = gas.target.texture;
         this.common.gridThermo.value = gas.target.textures[1];
         this.common.gridFuel.value = gas.target.textures[2];
+        this.sourceTexture.value = gas.target.textures[3];
         this.power.render(renderer);
         this.heat.render(renderer);
         this.coarse.render(renderer);
@@ -595,8 +632,23 @@ export class ProtostarGrids {
     private gravityPass(potential: boolean): GridPass {
         return new GridPass(withDefines(gravityFrag, {
             GRID_RES: PROTOSTAR_GRID_RES, COARSE_RES, COARSE_FACTOR: PROTOSTAR_COARSE_FACTOR, NEAR_RADIUS: PROTOSTAR_NEAR_RADIUS,
-            ...(potential ? { GRAVITY_POTENTIAL: 1 } : {}),
+            GRAVITY_SOURCE: 1, ...(potential ? { GRAVITY_POTENTIAL: 1 } : {}),
         }), this.gravityUniforms, gridTarget(PROTOSTAR_GRID_RES, THREE.FloatType));
+    }
+
+    /**
+     * Dev-only (the lab's parity of A11): draws the gravity of the last update() with the pass of the drawings' kind (grid-gravity.frag
+     * without GRAVITY_SOURCE: the masses of the moments, the fixed softening for every pair) into a target of its own, and returns it.
+     * With the adaptive thickness off it must equal the gravity grid to the bit.
+     */
+    debugRenderFixedGravity(): THREE.WebGLRenderTarget {
+        this.gravityFixed ??= new GridPass(withDefines(gravityFrag, {
+            GRID_RES: PROTOSTAR_GRID_RES, COARSE_RES, COARSE_FACTOR: PROTOSTAR_COARSE_FACTOR, NEAR_RADIUS: PROTOSTAR_NEAR_RADIUS,
+            ...(this.potentialEnabled ? { GRAVITY_POTENTIAL: 1 } : {}),
+        }), { ...this.gravityUniforms }, gridTarget(PROTOSTAR_GRID_RES, THREE.FloatType));
+        this.gravityFixed.render(this.renderer);
+        this.renderer.setRenderTarget(null);
+        return this.gravityFixed.target;
     }
 
     /** Dev-only (see potentialEnabled): the gravity pass as it was before the potential, built on first use. */
@@ -644,6 +696,7 @@ export class ProtostarGrids {
         }
         this.momentsAlone?.dispose();
         this.gravityPlain?.dispose();
+        this.gravityFixed?.dispose();
         this.collisionDeposit?.dispose();
     }
 }

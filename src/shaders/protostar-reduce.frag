@@ -11,12 +11,19 @@
 // stats always did), so ties keep the earliest and the position goes with the density.
 
 #if REDUCE_STAGE == REDUCE_FIRST
+/** +G m^2 / (2 h) of a cell: what takes the particles' interaction with themselves off 1/2 M phi (h^2 > 0; 0 without mass). */
+float selfTerm(float massSquared, float h2, float gravity) {
+    return h2 > 0.0 ? 0.5 * gravity * massSquared * inversesqrt(h2) : 0.0;
+}
+
 uniform sampler2D gridGas;              // (rho / rho0, dispersion px^2/s^2, mean velocity px/s)
 uniform sampler2D gridThermo;           // (T averaged, effective particles, mu / mu_H, 0): the temperature is mu / mu_H times the dispersion
 uniform sampler2D gridMoments;          // (m, m v, m |v|^2) in deposit units
 uniform sampler2D gridComposition;      // (m / mu, count, m^2, 0): m^2 in z
 uniform sampler2D gridForce;            // (ax, ay, phi, 0): px/s^2, px^2/s^2
 uniform sampler2D gridPower;            // fusions per s in y
+uniform sampler2D gridSource;           // (m, h^2, 0, 0): the softening^2 of each cell (A11; eps^2 with the fixed softening)
+uniform float gravityPerDeposit;        // G_eff x mass of one deposit unit
 uniform float gridCell;                 // px
 uniform float fusionTRef;
 
@@ -29,7 +36,7 @@ void main() {
     float peakDensity = 0.0, peakTemperature = 0.0, rate = 0.0, mass = 0.0;
     vec2 peak = vec2(0.0);
     float maxSpeed = 0.0, maxAcceleration = 0.0;
-    float doubleKinetic = 0.0, potential = 0.0, massSquared = 0.0;
+    float doubleKinetic = 0.0, potential = 0.0, minThickness = NO_THICKNESS;
     vec2 massPosition = vec2(0.0), momentum = vec2(0.0);
     for (int j = 0; j < BLOCK; j++) {
         for (int i = 0; i < BLOCK; i++) {
@@ -46,18 +53,22 @@ void main() {
             }
             // Speed bound of a cell: its mean velocity plus the rms dispersion around it (the dispersion: a speed, not a temperature).
             if (gas.x > 0.0) maxSpeed = max(maxSpeed, length(gas.zw) + sqrt(gas.y));
-            if (s.x > 0.0) maxAcceleration = max(maxAcceleration, length(force.xy));
+            float h2 = texelFetch(gridSource, c, 0).y;
+            if (s.x > 0.0) {
+                maxAcceleration = max(maxAcceleration, length(force.xy));
+                minThickness = min(minThickness, sqrt(h2));
+            }
             mass += s.x;
             massPosition += s.x * center;
             momentum += s.yz;
             doubleKinetic += s.w;
-            potential += 0.5 * s.x * force.z;
-            massSquared += texelFetch(gridComposition, c, 0).z;
+            // 1/2 M phi less the self-interaction of the particles of the cell, -G m^2 / h each (see reduction.ts).
+            potential += 0.5 * s.x * force.z + selfTerm(texelFetch(gridComposition, c, 0).z, h2, gravityPerDeposit);
         }
     }
     gl_FragColor = vec4(peakDensity, peakTemperature, rate, mass);
     outExtremes = vec4(peak, maxSpeed, maxAcceleration);
-    outEnergy = vec4(doubleKinetic, potential, massSquared, 0.0);
+    outEnergy = vec4(doubleKinetic, potential, minThickness, 0.0);
     outMoments = vec4(massPosition, momentum);
 }
 #else
@@ -92,7 +103,11 @@ void main() {
         }
     } else if (texel == TEXEL_ENERGY) {
         for (int j = 0; j < BLOCK; j++) {
-            for (int i = 0; i < BLOCK; i++) result += texelFetch(stageEnergy, ivec2(i, j), 0);
+            for (int i = 0; i < BLOCK; i++) {
+                vec4 s = texelFetch(stageEnergy, ivec2(i, j), 0);
+                result.xy += s.xy;
+                result.z = i == 0 && j == 0 ? s.z : min(result.z, s.z);
+            }
         }
         result.w = texelFetch(potentialBefore, ivec2(0), 0).x;
     } else {

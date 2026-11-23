@@ -4,7 +4,8 @@ import {
     PROTOSTAR_FUSION_T_REF, PROTOSTAR_GLOW_FUSION, PROTOSTAR_GLOW_HEATING_REF, PROTOSTAR_GLOW_MAX, PROTOSTAR_GLOW_T_RANGE,
     PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_HEATING_T_FLOOR, PROTOSTAR_JEANS_CELLS, PROTOSTAR_MAX_SPEED,
     PROTOSTAR_MAX_SUBSTEP_RATIO, PROTOSTAR_MAX_SUBSTEPS, PROTOSTAR_MIN_SUBSTEP_RATIO, PROTOSTAR_RATE_SMOOTHING, PROTOSTAR_RESTITUTION, PROTOSTAR_STATS_INTERVAL, PROTOSTAR_STEP_COURANT,
-    PROTOSTAR_STEP_MAX_READINGS, PROTOSTAR_STEP_OMEGA, PROTOSTAR_STEP_READ_INTERVAL, PROTOSTAR_STEP_RELEASE, TOTAL_MASS,
+    PROTOSTAR_STEP_MAX_READINGS, PROTOSTAR_STEP_OMEGA, PROTOSTAR_STEP_READ_INTERVAL, PROTOSTAR_STEP_RELEASE, PROTOSTAR_THICKNESS_CEILING,
+    PROTOSTAR_THICKNESS_FLOOR_CELLS, PROTOSTAR_THICKNESS_Q_FACTOR, PROTOSTAR_THICKNESS_REFERENCE, TOTAL_MASS,
 } from '../../config';
 import { glslFloat } from '../../gl/withDefines';
 import type { ParamValue, ParamValues, ParticleType } from '../algorithm';
@@ -23,6 +24,7 @@ import { StabilityPass } from './stabilityPass';
 import { TypeCountReduction } from './typeReduction';
 import { REDUCTION_FLOATS, REDUCTION_TEXELS, unpackReduction, type Reduction, type ReductionScales } from './reduction';
 import { criticalStep, substepBounds, SubstepController } from './timeStep';
+import { initialThickness, thicknessPerDispersion, type ThicknessBounds } from './thickness';
 import velocityFrag from '../../shaders/protostar-velocity.frag?raw';
 import positionFrag from '../../shaders/protostar-position.frag?raw';
 import accelFrag from '../../shaders/protostar-accel.frag?raw';
@@ -111,6 +113,7 @@ export class ProtostarModel implements GpuModel {
     private diagnostics = true;
     private adaptiveStep = false;
     private jeansFloor = false;
+    private adaptiveThickness = false;
     private stabilityMode: StabilityMapMode = 'off';
     private stability: StabilityPass | null = null;    // built when the map is first shown
     private stabilityStale = true;                     // the grids changed since the map was drawn
@@ -215,6 +218,7 @@ export class ProtostarModel implements GpuModel {
         if (key === P.kappa && typeof value === 'number') this.own.opacityKappa.value = value;
         if (key === P.minTemperature && typeof value === 'number') this.own.minTemperature.value = value;
         if (key === P.jeansFloor) this.jeansFloor = value === true;
+        if (key === P.adaptiveThickness) this.adaptiveThickness = value === true;
         if (key === P.tscDeposit) this.grids.setTscDeposit(value === true);
         if (key === P.collisions) this.grids.setCollisions(value === true);
         if (key === P.diagnostics) this.setDiagnostics(value === true);
@@ -255,6 +259,11 @@ export class ProtostarModel implements GpuModel {
         return numberOr(this.params[P.softening], 0) / 100 * length;
     }
 
+    /** The bounds of the adaptive thickness (A11), px: a cell, and a share of the initial cloud radius. */
+    private thicknessBounds(cell: number, cloudRadius: number): ThicknessBounds {
+        return { floor: PROTOSTAR_THICKNESS_FLOOR_CELLS * cell, ceiling: PROTOSTAR_THICKNESS_CEILING * cloudRadius };
+    }
+
     initialize(state: InitialState): void {
         this.initialCloud = null;
         if (this.debugInitialState) {
@@ -263,10 +272,19 @@ export class ProtostarModel implements GpuModel {
         }
         const length = Math.max(1, Math.min(state.width, state.height));
         const radius = PROTOSTAR_CLOUD_RADIUS * length;
+        const profile = state.params[P.profile] === 'maclaurin' ? 'maclaurin' : 'uniform';
+        const virial = numberOr(state.params[P.alphaVir], 0), rotation = numberOr(state.params[P.betaRot], 0);
+        const gravity = this.gravity(length);
+        // With the adaptive thickness the disc's table is softened by the thickness the cloud will have (A11): alpha_vir and
+        // beta_rot stay the energies of the gravity the cloud feels.
+        const softening = state.params[P.adaptiveThickness] === true
+            ? initialThickness({
+                radius, gravity, totalMass: TOTAL_MASS, profile, virial, rotation, softening: this.softening(length),
+                bounds: this.thicknessBounds(Math.max(state.width, state.height, 1) / PROTOSTAR_GRID_RES, radius),
+            })
+            : this.softening(length);
         this.initialCloud = fillCloud(state, {
-            radius, gravity: this.gravity(length), totalMass: TOTAL_MASS, softening: this.softening(length),
-            profile: state.params[P.profile] === 'maclaurin' ? 'maclaurin' : 'uniform',
-            virial: numberOr(state.params[P.alphaVir], 0), rotation: numberOr(state.params[P.betaRot], 0),
+            radius, gravity, totalMass: TOTAL_MASS, softening, profile, virial, rotation,
             turbulence: state.params[P.turbulence] === 'correlated' ? 'correlated' : 'white',
         });
     }
@@ -346,8 +364,10 @@ export class ProtostarModel implements GpuModel {
         const reading = this.latestReduction;
         const size = this.context.screenSize.value;
         const tuned = this.debugCriterion;
+        // The length of the criterion: the fixed softening, or the thinnest layer of the latest reduction (A11).
+        const softening = this.adaptiveThickness ? reading?.minSoftening ?? 0 : this.softening(this.scales.length);
         const criterion = {
-            cell: Math.max(size.x, size.y, 1) / PROTOSTAR_GRID_RES, softening: this.softening(this.scales.length),
+            cell: Math.max(size.x, size.y, 1) / PROTOSTAR_GRID_RES, softening,
             courant: tuned?.courant ?? PROTOSTAR_STEP_COURANT, omega: tuned?.omega ?? PROTOSTAR_STEP_OMEGA,
         };
         const dtCritical = reading ? criticalStep(reading.maxSpeed, reading.maxAcceleration, criterion) : null;
@@ -388,6 +408,10 @@ export class ProtostarModel implements GpuModel {
             densityPerDeposit: meanMass / (neighborhood * rho0),
             gravityPerDeposit: this.gravity(length) * meanMass,
             softening: this.softening(length),
+            thickness: {
+                on: this.adaptiveThickness, perDispersion: thicknessPerDispersion(this.gravity(length), rho0),
+                ...this.thicknessBounds(cell, cloudRadius), reference: PROTOSTAR_THICKNESS_REFERENCE * length,
+            },
             // The collision grid (C1): one particle's mass over a cell's area in rho0, and the substep's random shift.
             collisionDensity: meanMass / (cell * cell * rho0),
             collisionShift: collisionShift(this.substep, cell),
@@ -569,7 +593,8 @@ export class ProtostarModel implements GpuModel {
         );
         if (this.stabilityStale) {
             const size = this.context.screenSize.value;
-            this.stability.render(this.context.renderer, this.centerOfMass ?? { x: size.x / 2, y: size.y / 2 }, this.gravityDensity);
+            this.stability.render(this.context.renderer, this.centerOfMass ?? { x: size.x / 2, y: size.y / 2 }, this.gravityDensity,
+                this.adaptiveThickness ? PROTOSTAR_THICKNESS_Q_FACTOR : 1);
             this.stabilityStale = false;
         }
         return { texture: this.stability.target.texture, extent: common.gridCell.value * PROTOSTAR_GRID_RES, mode: this.stabilityMode };

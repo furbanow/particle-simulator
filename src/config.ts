@@ -210,6 +210,16 @@ export const PROTOSTAR_JEANS_CELLS = 4;
 // weigh the same, A4). A cell of fewer than COLLISION_MIN_PARTICLES does not collide. The gas is strictly planar: two degrees of
 // freedom, GAS_GAMMA = 2 (the user's choice, docs/spikes/c1-mpc-collisions.md), sound speed sqrt(GAS_GAMMA P / rho) = sqrt(t).
 export const PROTOSTAR_GAS_GAMMA = 2;
+// Adaptive thickness (A11, protostar/thickness.ts, the `adaptiveThickness` flag): the softening of the gravity becomes the scale height of a
+// self-gravitating sheet in every cell, h = sigma_z^2 / (pi G Sigma) with sigma_z^2 = t / 2 (the dispersion of one component), between
+// THICKNESS_FLOOR_CELLS cells and THICKNESS_CEILING times the initial cloud radius; a pair of cells is softened by eps_ij^2 = (h_i^2 + h_j^2) / 2.
+// The fusion law reads the volume density Sigma / (2 h), as Sigma THICKNESS_REFERENCE / h with THICKNESS_REFERENCE (in L) the default
+// softening, so that lambda keeps its calibration where the layer is as thick as the fixed softening was. The stability map multiplies Q by
+// THICKNESS_Q_FACTOR = 0.8 + 0.7 sigma_z / sigma_R (Romeo & Falstad 2013) with sigma_z = sigma_R.
+export const PROTOSTAR_THICKNESS_FLOOR_CELLS = 1;
+export const PROTOSTAR_THICKNESS_CEILING = 0.4;
+export const PROTOSTAR_THICKNESS_REFERENCE = 0.016;
+export const PROTOSTAR_THICKNESS_Q_FACTOR = 0.8 + 0.7;
 export const PROTOSTAR_COLLISION_ANGLE = Math.PI / 2;
 export const PROTOSTAR_COLLISION_RATE = 1000;           // per s, at rho0 and the dispersion T0
 export const PROTOSTAR_COLLISION_MIN_PARTICLES = 2;

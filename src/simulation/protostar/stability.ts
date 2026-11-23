@@ -39,6 +39,8 @@ export interface StabilityScales {
     /** T0 as a dispersion, px^2/s^2: a hydrogen gas of dispersion t has the temperature t / T0. */
     t0: number;
     cooling: RadiativeCooling;
+    /** The factor of Q of a thick layer (A11, PROTOSTAR_THICKNESS_Q_FACTOR); 1 when absent. */
+    toomreFactor?: number;
 }
 
 /** One cell's stability: what the shader writes, (q, beta, rho, kappa2). */
@@ -58,11 +60,14 @@ export function angularVelocity(dx: number, dy: number, ux: number, uy: number, 
     return (dx * uy - dy * ux) / Math.max(dx * dx + dy * dy, minR2);
 }
 
-/** Toomre's Q of a cell of surface density `rho` (rho0), dispersion `t` (px^2/s^2) and epicyclic frequency squared `kappa2`. */
-export function cellToomre(rho: number, t: number, kappa2: number, gravityDensity: number): number {
+/**
+ * Toomre's Q of a cell of surface density `rho` (rho0), dispersion `t` (px^2/s^2) and epicyclic frequency squared `kappa2`, times
+ * `factor`: the thickness's (A11: PROTOSTAR_THICKNESS_Q_FACTOR), 1 for a thin sheet.
+ */
+export function cellToomre(rho: number, t: number, kappa2: number, gravityDensity: number, factor = 1): number {
     const gravity = STELLAR_TOOMRE * gravityDensity * rho;
     if (!(gravity > 0)) return PROTOSTAR_STABILITY_CAP;
-    return Math.min(Math.sqrt(Math.max(t, 0) / 2) * Math.sqrt(Math.max(kappa2, 0)) / gravity, PROTOSTAR_STABILITY_CAP);
+    return Math.min(factor * Math.sqrt(Math.max(t, 0) / 2) * Math.sqrt(Math.max(kappa2, 0)) / gravity, PROTOSTAR_STABILITY_CAP);
 }
 
 /** beta = t_cool |Omega| of a cell (CAP when it does not cool). */
@@ -109,7 +114,7 @@ export function stabilityMap(grid: GasGrid, center: { x: number; y: number }, sc
             const vorticity = derivative(i, j, 1, 0, 3) - derivative(i, j, 0, 1, 2);
             const kappa2 = 2 * omega * vorticity;
             out.set([
-                cellToomre(rho, t, kappa2, scales.gravityDensity),
+                cellToomre(rho, t, kappa2, scales.gravityDensity, scales.toomreFactor ?? 1),
                 cellCooling(rho, t, thermo[k + 2], omega, scales),
                 rho, kappa2,
             ], k);
