@@ -150,8 +150,10 @@ Gas gasFrom(sampler2D gasGrid, sampler2D heatGrid, sampler2D thermoGrid, sampler
 
 /** Gas state at x, from the level x reads (the main grid, or the fine one of the nested box). */
 Gas gasAt(vec2 x) {
-    if (inNested(x)) return gasFrom(gridGasFine, gridHeatFine, gridThermoFine, gridFuelFine, x, nestedCell, nestedOrigin);
-    return gasFrom(gridGas, gridHeat, gridThermo, gridFuel, x, gridCell, gridOrigin);
+    Gas g;
+    if (inNested(x)) g = gasFrom(gridGasFine, gridHeatFine, gridThermoFine, gridFuelFine, x, nestedCell, nestedOrigin);
+    else g = gasFrom(gridGas, gridHeat, gridThermo, gridFuel, x, gridCell, gridOrigin);
+    return g;
 }
 
 /** ln(1 + x) for x > -1 without the cancellation of log(1 + x) when |x| is small (twin: log1p() in noiseBias.ts). */

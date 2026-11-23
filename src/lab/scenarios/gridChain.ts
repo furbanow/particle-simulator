@@ -49,7 +49,8 @@ async function readAll(context: LabContext, grids: AnyGrids): Promise<Map<string
     grids.stashPotential();
     grids.reduceStats();
     out.set('potential', await readTarget(renderer, t.potential));
-    out.set('reduction', await readTarget(renderer, t.reduce2));
+    // The first four texels: the nested grid (C2) appended three of its own, zero while its box is off.
+    out.set('reduction', (await readTarget(renderer, t.reduce2)).slice(0, 4 * 4));
     return out;
 }
 

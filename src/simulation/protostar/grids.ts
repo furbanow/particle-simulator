@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-    MAX_SPECIES, PROTOSTAR_COLLISION_RATE, PROTOSTAR_GRID_RES, PROTOSTAR_NOISE_N_SHAPE, PROTOSTAR_NOISE_N_SHAPE_TSC, PROTOSTAR_STATS_REDUCE_RES,
+    MAX_SPECIES, PROTOSTAR_COLLISION_RATE, PROTOSTAR_GRID_RES, PROTOSTAR_NESTED_RATIO, PROTOSTAR_NOISE_N_SHAPE, PROTOSTAR_NOISE_N_SHAPE_TSC, PROTOSTAR_STATS_REDUCE_RES,
     PROTOSTAR_TEMPERATURE_TAU,
 } from '../../config';
 import { additiveBlending, clipSpaceCamera, type Uniform } from '../../gl/common';
@@ -36,6 +36,15 @@ const potentialDefines = (stage: number, block: number, nested: { NESTED_LEVEL: 
 });
 
 let halfFloatDepositForced = false;
+let nestedRatioForced: number | null = null;
+
+/**
+ * Dev-only (the lab): the nested grid's ratio (main cell / fine cell) of the grids created from now on, instead of PROTOSTAR_NESTED_RATIO
+ * (a divisor of PROTOSTAR_GRID_RES), or back to it with null. The application never sets it.
+ */
+export function forceNestedRatio(ratio: number | null): void {
+    nestedRatioForced = ratio;
+}
 
 /**
  * Dev-only (the lab page, src/lab): makes the grids created from now on deposit in half floats
@@ -226,6 +235,8 @@ export class ProtostarGrids {
     private readonly nestedActive = { value: 0 };
     private readonly nestedActiveBefore = { value: 0 };
     private tsc = false;
+    /** Main cell / fine cell of the nested grid (C2). */
+    readonly nestedRatio = nestedRatioForced ?? PROTOSTAR_NESTED_RATIO;
     /** The model's previous substep length (s), shared by reference with its particle passes: the collision deposit's kick. */
     private stepLength: Uniform<number> = { value: 0 };
     private readonly u = {
@@ -354,7 +365,7 @@ export class ProtostarGrids {
         if (on && !this.nested) {
             this.nested = new NestedLevel({
                 renderer: this.renderer, geometry: this.geometry, depositUniforms: this.depositUniforms, blendType: this.blendType,
-                scales: this.u, common: this.common, mainSource: this.chain.sourceTexture,
+                scales: this.u, common: this.common, mainSource: this.chain.sourceTexture, ratio: this.nestedRatio,
             }, {
                 reduce: reduceDefines(STAGE.first, REDUCE_BLOCK, { NESTED_LEVEL: 1 }),
                 potential1: potentialDefines(STAGE.first, REDUCE_BLOCK, { NESTED_LEVEL: 1 }),
@@ -386,6 +397,11 @@ export class ProtostarGrids {
 
     private updateNestedOn(): void {
         this.common.nestedOn.value = this.nestedEnabled && this.nestedPlaced && this.nested ? 1 : 0;
+    }
+
+    /** Dev-only (the lab's cost of the passes): the nested grid's fine level, null before the flag was first switched on. */
+    get debugNestedLevel(): NestedLevel | null {
+        return this.nested;
     }
 
     /** The fine level's scales (set every substep while the box is on). */

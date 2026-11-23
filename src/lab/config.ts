@@ -841,3 +841,43 @@ export const NESTED_SPIKE_COUNTS = [400_000, 1_000_000] as const;
 export const NESTED_SPIKE_WINDOWS = [{ name: 'early', frames: 90 }, { name: 'late', frames: 1030 }] as const;
 export const NESTED_SPIKE_LAST_FRAME = 1200;
 export const NESTED_RATIO = 8;
+/**
+ * protostar.nested.point-mass (C2): NESTED_BLOB_PARTICLES particles at one point (NESTED_BLOB_OFFSET main cells off a cell center) pull massless
+ * probes on rings of NESTED_RING_RADII main cells (NESTED_RING_ANGLES each), with the flag off, with the box centred on the point, and with the
+ * point NESTED_OUTSIDE_CELLS main cells outside the box's edge. NESTED_FORCE_TOLERANCE bounds the error of the mean pull against the softened
+ * law and the anisotropy (the professor's < 5 %), and the change of the pull of the outside point on the probes inside the box.
+ */
+export const NESTED_BLOB_PARTICLES = 2000;
+export const NESTED_BLOB_OFFSET = 0.3;
+export const NESTED_RING_RADII = [0.25, 0.5, 1, 1.5, 2, 3, 5, 7, 9, 12] as const;
+export const NESTED_RING_ANGLES = 16;
+export const NESTED_OUTSIDE_CELLS = 3;
+export const NESTED_FORCE_TOLERANCE = 0.05;
+/** The rings judged against the law: from NESTED_JUDGED_RADII[0] main cells (a few fine softenings) to the box's inner edge. */
+export const NESTED_JUDGED_RADII = [0.5, 7] as const;
+/**
+ * protostar.nested.conservation (C2): the conservative default cloud (elastic walls) for NESTED_CONSERVATION_ORBITS orbits at
+ * NESTED_CONSERVATION_PARTICLES particles, the flag off, the box held at the cloud's center, and the box moved by NESTED_MOVE_CELLS main cells
+ * every NESTED_MOVE_FRAMES frames; the energy as baseline.protostar.energy-drift reads it, the momentum every NESTED_MOMENTUM_EVERY frames.
+ */
+export const NESTED_CONSERVATION_PARTICLES = 100_000;
+export const NESTED_CONSERVATION_ORBITS = 100;
+export const NESTED_CONSERVATION_BUDGET_MS = 600_000;
+export const NESTED_MOVE_CELLS = 4;
+export const NESTED_MOVE_FRAMES = 50;
+export const NESTED_MOMENTUM_EVERY = 50;
+/**
+ * protostar.nested.cloud (C2): the default cloud for NESTED_CLOUD_FRAMES frames with the flag off and on at the ratios NESTED_CLOUD_RATIOS
+ * (the box placed by the readings), read every NESTED_CLOUD_READ_EVERY frames: the peak density and temperature, the box, the fine core's
+ * omega dt, the share of the fine mass whose Jeans length is under NESTED_JEANS_CELLS fine cells, and the fragments (fine cells denser than
+ * NESTED_FRAGMENT_DENSITY rho0 and than their 8 neighbors).
+ */
+export const NESTED_CLOUD_FRAMES = 1200;
+export const NESTED_CLOUD_RATIOS = [2, 4, 8] as const;
+export const NESTED_CLOUD_READ_EVERY = 50;
+export const NESTED_JEANS_CELLS = 4;
+export const NESTED_FRAGMENT_DENSITY = 5;
+/** cost.protostar.nested (C2): the default cloud at NESTED_COST_COUNTS particles at frame NESTED_COST_FRAME (the box on), each pass alone and NESTED_COST_FRAMES whole frames flag on and off. */
+export const NESTED_COST_COUNTS = [400_000, 1_000_000] as const;
+export const NESTED_COST_FRAME = 1030;
+export const NESTED_COST_FRAMES = 60;

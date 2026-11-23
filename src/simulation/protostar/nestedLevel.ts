@@ -2,8 +2,7 @@
 // chain of the same resolution, NESTED_RATIO times finer, over the box; the passes that join it to the main grid; its reductions.
 import * as THREE from 'three';
 import {
-    PROTOSTAR_COARSE_FACTOR, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_NESTED_MARGIN_CELLS, PROTOSTAR_NESTED_RATIO,
-    PROTOSTAR_STATS_REDUCE_RES,
+    PROTOSTAR_COARSE_FACTOR, PROTOSTAR_GRID_RES, PROTOSTAR_NEAR_RADIUS, PROTOSTAR_NESTED_MARGIN_CELLS, PROTOSTAR_STATS_REDUCE_RES,
 } from '../../config';
 import type { Uniform } from '../../gl/common';
 import { GridPass, gridTarget } from '../../gl/gridPass';
@@ -29,6 +28,8 @@ export interface NestedLevelOptions {
     common: ProtostarCommonUniforms;
     /** The main chain's source of the gravity (h^2 of the main cells, for a_main(inside)). */
     mainSource: Uniform<THREE.Texture | null>;
+    /** Main cell / fine cell (PROTOSTAR_NESTED_RATIO; the lab tries others). A divisor of the resolution. */
+    ratio: number;
 }
 
 /** The scales of the fine level that differ from the main grid's (set every substep). */
@@ -93,7 +94,7 @@ export class NestedLevel {
             },
         });
         const coarseRes = res / PROTOSTAR_COARSE_FACTOR;
-        this.gather = new GridPass(withDefines(gatherFrag, { GRID_RES: res, NESTED_RATIO: PROTOSTAR_NESTED_RATIO }), {
+        this.gather = new GridPass(withDefines(gatherFrag, { GRID_RES: res, NESTED_RATIO: options.ratio }), {
             gridMomentsFine: this.chain.momentsTexture, gridSourceMain: mainSource, nestedBox: this.own.nestedBox,
         }, gridTarget(res, THREE.FloatType));
         const inside = { value: this.gather.target.texture };
@@ -132,14 +133,15 @@ export class NestedLevel {
     /** Puts the box at `origin` (its lower left main cell) on a grid of `mainCell` px cells: the fine cell, the origin and the read region. */
     place(origin: { x: number; y: number }, mainCell: number): void {
         const { common } = this.options;
-        const fineCell = mainCell / PROTOSTAR_NESTED_RATIO;
+        const { ratio } = this.options;
+        const fineCell = mainCell / ratio;
         common.nestedCell.value = fineCell;
         common.nestedOrigin.value.set(origin.x * mainCell, origin.y * mainCell);
         const region = readRegion({ x: origin.x * mainCell, y: origin.y * mainCell }, fineCell, PROTOSTAR_GRID_RES, PROTOSTAR_NESTED_MARGIN_CELLS);
         common.nestedLo.value.set(region.lo.x, region.lo.y);
         common.nestedHi.value.set(region.hi.x, region.hi.y);
         this.own.nestedBox.value.set(origin.x, origin.y);
-        const size = boxCells({ gridRes: PROTOSTAR_GRID_RES, ratio: PROTOSTAR_NESTED_RATIO });
+        const size = boxCells({ gridRes: PROTOSTAR_GRID_RES, ratio });
         // a_main(inside) is read bilinearly at the fine centers: the box's main cells and one around them.
         this.own.gravityRegion.value.set(origin.x - 1, origin.y - 1, origin.x + size, origin.y + size);
     }

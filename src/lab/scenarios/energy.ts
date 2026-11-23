@@ -12,6 +12,7 @@ import {
     PROTOSTAR_STATS_REDUCE_RES, TOTAL_MASS,
 } from '../../config';
 import { PROTOSTAR_PARAM } from '../../simulation/protostar/declaration';
+import type { ProtostarModel } from '../../simulation/protostar/gpuModel';
 import {
     REDUCTION_TEXEL, selfPotentialPerMassSquared, unpackReduction, type Reduction,
 } from '../../simulation/protostar/reduction';
@@ -326,7 +327,7 @@ interface DriftSeries {
     maxAcceleration: number[];
 }
 
-interface DriftRun {
+export interface DriftRun {
     name: string;
     orbitPeriod: number;
     orbitsRun: number;
@@ -356,10 +357,10 @@ function stepOverride(): Record<string, boolean> {
 }
 
 /** A conservative run: the cloud, its length, the time step and the walls. */
-interface DriftSpec {
+export interface DriftSpec {
     name: string;
-    /** Initial conditions, through the sliders. */
-    params: Record<string, number>;
+    /** Initial conditions and switches, through the sliders. */
+    params: Record<string, number | boolean>;
     particles: number;
     orbits: number;
     maxFrames: number;
@@ -368,10 +369,14 @@ interface DriftSpec {
     timeScale?: number;
     /** Restitution of the walls; the application's when omitted. */
     restitution?: number;
+    /** After the restart, before the first frame (the nested grid's scenarios force its box there). */
+    afterRestart?(model: ProtostarModel): void;
+    /** After every frame (1-based). */
+    onFrame?(frame: number, model: ProtostarModel): void;
 }
 
 /** A conservative run of one cloud for up to `orbits` orbits (at the half-mass radius), reading the energy every few frames. */
-async function driftRun(context: LabContext, spec: DriftSpec): Promise<DriftRun> {
+export async function driftRun(context: LabContext, spec: DriftSpec): Promise<DriftRun> {
     try {
         return await driftRunUnchecked(context, spec);
     } finally {
@@ -386,6 +391,7 @@ async function driftRunUnchecked(context: LabContext, spec: DriftSpec): Promise<
     await restart(context, { count: particles, overrides: { ...CONSERVATIVE_OVERRIDES, ...stepOverride() }, params: spec.params, timeScale: spec.timeScale });
     const model = protostarModel(context);
     model.velocityUniforms.restitution.value = spec.restitution ?? PROTOSTAR_RESTITUTION;
+    spec.afterRestart?.(model);
     const length = Math.min(LAB_AREA.width, LAB_AREA.height);
     const num = (key: string): number => Number(simulation.params[key]);
     const gravity = num(PROTOSTAR_PARAM.gravity) * PROTOSTAR_GRAVITY_UNIT * length ** 3 / TOTAL_MASS;
@@ -432,6 +438,7 @@ async function driftRunUnchecked(context: LabContext, spec: DriftSpec): Promise<
             async onFrame() {
                 frames++;
                 substeps += simulation.lastSubsteps;
+                spec.onFrame?.(frames, model);
                 if (varying) model.debugSubsteps = VARYING_SUBSTEPS[frames % VARYING_SUBSTEPS.length];
                 model.endFrame();                                      // the model alone: the reduction only
                 if (frames === 1 || frames % ENERGY_DRIFT_READ_EVERY === 0) await take();
@@ -460,7 +467,7 @@ function statisticsMetrics(s: DriftStatistics | null): JsonValue {
     };
 }
 
-function runMetrics(run: DriftRun): Record<string, JsonValue> {
+export function runMetrics(run: DriftRun): Record<string, JsonValue> {
     const s = run.series;
     const keep = decimate(s.frames.map((_, i) => i), 60);
     const pick = (values: number[]): number[] => keep.map(i => sig(values[i]));
@@ -492,7 +499,7 @@ function runMetrics(run: DriftRun): Record<string, JsonValue> {
     };
 }
 
-const summary = (run: DriftRun): string => {
+export const summary = (run: DriftRun): string => {
     const all = run.synchronized, late = run.synchronizedSettled, lag = run.unsynchronized;
     const p = (v: number | undefined): string => v === undefined ? 'n/a' : `${(v * 100).toFixed(2)} %`;
     return `${run.name}: ${run.orbitsRun.toFixed(0)} orbits, drift ${p(all?.final)} (max ${p(all?.maxAbs)}, +/- ${p(all?.oscillation)} about ${p(late?.slopePerOrbit)}/orbit after settling; `

@@ -3,7 +3,7 @@ import {
     MAX_SPECIES, PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_ENERGY_FIRST_FRAME, PROTOSTAR_FUSION_C2,
     PROTOSTAR_FUSION_T_REF, PROTOSTAR_GLOW_FUSION, PROTOSTAR_GLOW_HEATING_REF, PROTOSTAR_GLOW_MAX, PROTOSTAR_GLOW_T_RANGE,
     PROTOSTAR_GLOW_TEMPERATURE, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_GRID_RES, PROTOSTAR_NESTED_INNER, PROTOSTAR_NESTED_OFF_DENSITY,
-    PROTOSTAR_NESTED_ON_DENSITY, PROTOSTAR_NESTED_ON_READINGS, PROTOSTAR_NESTED_RATIO, PROTOSTAR_NESTED_SOFTENING_DIVISOR,
+    PROTOSTAR_NESTED_ON_DENSITY, PROTOSTAR_NESTED_ON_READINGS, PROTOSTAR_NESTED_SOFTENING_DIVISOR,
     PROTOSTAR_NESTED_STILL_CELLS, PROTOSTAR_HEATING_T_FLOOR, PROTOSTAR_JEANS_CELLS, PROTOSTAR_MAX_SPEED,
     PROTOSTAR_MAX_SUBSTEP_RATIO, PROTOSTAR_MAX_SUBSTEPS, PROTOSTAR_MIN_SUBSTEP_RATIO, PROTOSTAR_RATE_SMOOTHING, PROTOSTAR_RESTITUTION, PROTOSTAR_STATS_INTERVAL, PROTOSTAR_STEP_COURANT,
     PROTOSTAR_STEP_MAX_READINGS, PROTOSTAR_STEP_OMEGA, PROTOSTAR_STEP_READ_INTERVAL, PROTOSTAR_STEP_RELEASE, PROTOSTAR_THICKNESS_CEILING,
@@ -119,10 +119,7 @@ export class ProtostarModel implements GpuModel {
     private adaptiveThickness = false;
     private nestedGrid = false;
     /** Where the nested grid's box goes (C2), from the stats' readings. */
-    private readonly nestedBox = new NestedBoxController({
-        gridRes: PROTOSTAR_GRID_RES, ratio: PROTOSTAR_NESTED_RATIO, onDensity: PROTOSTAR_NESTED_ON_DENSITY, offDensity: PROTOSTAR_NESTED_OFF_DENSITY,
-        readings: PROTOSTAR_NESTED_ON_READINGS, stillCells: PROTOSTAR_NESTED_STILL_CELLS, inner: PROTOSTAR_NESTED_INNER,
-    });
+    private readonly nestedBox: NestedBoxController;
     /** Dev-only (the lab): a box (main cells) held whatever the readings, or null to let the readings place it. */
     private nestedForced: { x: number; y: number } | null = null;
     private stabilityMode: StabilityMapMode = 'off';
@@ -177,6 +174,10 @@ export class ProtostarModel implements GpuModel {
 
     constructor(private readonly context: GpuModelContext) {
         this.grids = new ProtostarGrids(context.renderer, context.geometry, context.drawing.uniforms);
+        this.nestedBox = new NestedBoxController({
+            gridRes: PROTOSTAR_GRID_RES, ratio: this.grids.nestedRatio, onDensity: PROTOSTAR_NESTED_ON_DENSITY, offDensity: PROTOSTAR_NESTED_OFF_DENSITY,
+            readings: PROTOSTAR_NESTED_ON_READINGS, stillCells: PROTOSTAR_NESTED_STILL_CELLS, inner: PROTOSTAR_NESTED_INNER,
+        });
         this.typeReduction = new TypeCountReduction(context.renderer);
         const common = this.grids.common;
         const [tMin, tMax] = PROTOSTAR_GLOW_T_RANGE;
@@ -463,9 +464,9 @@ export class ProtostarModel implements GpuModel {
             this.stashedFrame = this.frame;
         }
         grids.setScales(scales);
-        // The nested grid's fine level (C2): its cells are PROTOSTAR_NESTED_RATIO times smaller, its softening is the main one over the divisor.
+        // The nested grid's fine level (C2): its cells are nestedRatio (PROTOSTAR_NESTED_RATIO) times smaller, its softening is the main one over the divisor.
         if (grids.nestedOn) {
-            const fineCell = cell / PROTOSTAR_NESTED_RATIO;
+            const fineCell = cell / grids.nestedRatio;
             grids.setNestedScales({
                 densityPerDeposit: meanMass / (9 * fineCell * fineCell * rho0),
                 softening: scales.softening / PROTOSTAR_NESTED_SOFTENING_DIVISOR,
