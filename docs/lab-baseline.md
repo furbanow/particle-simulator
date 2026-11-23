@@ -867,3 +867,30 @@ would save as much (0.13 to 0.18 ms per substep), not done.
   second), not of the model. The reference point is a lab convention.
 - Re-record this baseline, with the commit it comes from, whenever a phase recalibrates G,
   lambda, alpha or the feedback (the plan's recalibration steps).
+
+## After phase A11: the adaptive thickness (RTX 5070)
+
+Phase A11 ([spike](spikes/a11-adaptive-thickness.md)) adds the `adaptiveThickness` flag, **off** by default. With it off the dynamics is
+unchanged: the gravity grid is the fixed softening's to the bit (`protostar.thickness.parity`), and the only change of the reductions is
+that the self-interaction of the potential energy is taken off cell by cell on the GPU instead of once on the CPU (the same to rounding;
+`protostar.energy-reference` and `protostar.reduction-channels` pass with the same errors as before). The reduction's channel of
+Σ m² became the smallest softening of a cell with mass.
+
+**The whole lab** on the head of `feat/adaptive-thickness` (frozen worktree, `--timeout 3600`: the runner's default 1200 s is shorter than
+the whole run): 95 scenarios in 34 minutes, 93 pass, 1 skip (the tuning scenario without variants), 1 fail: the adaptive step's omega dt
+bound (0.225 > 0.15), the known failure of the RTX 5070 reference. `lab.selftest` passed this time (its replay check fails once in a
+while on Direct3D 11). The default cloud (flag off) is the reference's within the replay noise:
+
+| t (s) | core T (MK) | peak density (rho0) | H, He, C |
+|---|---|---|---|
+| 2.27 | 10.7 | 6.2 | 399 967, 33, 0 |
+| 4.25 | 5.8 | 2.2 | 265 535, 119 698, 14 767 |
+| 14.5 | 19.4 | 10.4 | 263 235, 121 998, 14 767 |
+| 20.4 | 51.3 | 20.0 | 161 913, 223 108, 14 979 |
+| 25.5 | 128.4 | 104.9 | 54 542, 107 144, 238 314 |
+| 34 | 113.2 | 192.9 | 35 756, 116 706, 247 538 |
+
+**With the flag on** (`params={"adaptiveThickness":true}`): the conservative cloud's energy drifts by +56 % over 100 orbits (41 % in its
+first collapse; −0.15 % off), the default cloud's first burst burns 12 % of the hydrogen (33.5 % off) and its core ends at 291 rho0 and
+204 MK, mostly carbon; `cost.protostar.passes` (setting `thickness`) +0.015 to +0.11 ms per substep, within the noise;
+`perf.protostarPhases` 3.49 / 5.20 ms at 400 000 (early / late; 3.42 / 5.97 off), 6.50 / 10.38 at 1 000 000 (6.78 / 11.1 off).
