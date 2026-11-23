@@ -19,7 +19,8 @@ import {
     SOD_DENSITY_RATIO, SOD_GAMMAS, SOD_PARTICLES, SOD_PRESSURE_RATIO, SOD_SECONDS, SOUND_AMPLITUDE, SOUND_MODE, SOUND_PARTICLES,
     SOUND_READ_EVERY, SOUND_SECONDS,
 } from '../config';
-import { protostarGrids, protostarModel, restart, runFrames } from '../driver';
+import { forceHalfFloatDeposit } from '../../simulation/protostar/grids';
+import { protostarGrids, protostarModel, rebuildPipeline, restart, runFrames } from '../driver';
 import { significant } from '../numbers';
 import { eFoldingTime, fitDampedCosine } from '../oscillation';
 import { mulberry32 } from '../random';
@@ -151,11 +152,27 @@ export const collisionConservation: Scenario = {
         const count = COLLISION_PARITY_PARTICLES;
         const runs: Record<string, JsonValue>[] = [];
         let ok = true;
-        for (const mode of MODES) {
+        // The three modes, then the collisional limit with the grids in half floats (the GPUs without EXT_float_blend): there the
+        // cell's mean is rounded to 11 bits, so its momentum is kept to about that, which is recorded and not judged.
+        const halfFloat = { name: 'collisional limit, half floats', collisions: true, rate: COLLISION_ALWAYS };
+        for (const mode of [...MODES, ...(context.floatBlend ? [halfFloat] : [])]) {
+            const half = mode === halfFloat;
             const keep: { positions?: Float32Array; velocities?: Float32Array } = {};
-            await startGas(context, count, thermalFill(count, COLLISION_PARITY_MARGIN, COLLISION_PARITY_BULK, keep), mode.collisions, mode.rate);
-            await runFrames(context, COLLISION_CONSERVATION_FRAMES);
-            const { positions, velocities } = await readState(context, count);
+            if (half) {
+                forceHalfFloatDeposit(true);
+                rebuildPipeline(context);
+            }
+            let positions: Float32Array, velocities: Float32Array;
+            try {
+                await startGas(context, count, thermalFill(count, COLLISION_PARITY_MARGIN, COLLISION_PARITY_BULK, keep), mode.collisions, mode.rate);
+                await runFrames(context, COLLISION_CONSERVATION_FRAMES);
+                ({ positions, velocities } = await readState(context, count));
+            } finally {
+                if (half) {
+                    forceHalfFloatDeposit(false);
+                    rebuildPipeline(context);
+                }
+            }
             const before = keep.velocities ?? new Float32Array(0);
             const t0 = totals(before, count), t1 = totals(velocities, count);
             // A particle that streams freely from its start for the run's time and leaves the area would have bounced (a collision
@@ -170,7 +187,7 @@ export const collisionConservation: Scenario = {
             }
             const momentum = Math.hypot(t1.px - t0.px, t1.py - t0.py) / (count * COLLISION_SIGMA);
             const energy = t1.energy / t0.energy - 1;
-            ok &&= nearWall === 0 && momentum < COLLISION_CONSERVATION_DRIFT && Math.abs(energy) < COLLISION_CONSERVATION_DRIFT;
+            ok &&= nearWall === 0 && (half || (momentum < COLLISION_CONSERVATION_DRIFT && Math.abs(energy) < COLLISION_CONSERVATION_DRIFT));
             runs.push({ mode: mode.name, particlesChanged: changed, particlesAtAWall: nearWall, momentumOverNSigma: round(momentum), energyChange: round(energy) });
         }
         return {
