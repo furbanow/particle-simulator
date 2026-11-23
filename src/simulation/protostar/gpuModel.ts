@@ -124,6 +124,7 @@ export class ProtostarModel implements GpuModel {
     private readonly energyBalance = new EnergyBalance();
     private currentEnergy: ProtostarEnergy | null = null;
     private reductionScales: ReductionScales | null = null;     // those of the last substep's grids
+    private gridScales: GridScales | null = null;               // the scales the last substep's grids were drawn with
     private gridsDrawn = false;                        // the grids hold this run's state (not a previous run's)
     private stashedFrame = -1;                         // the frame in which the potential of the previous grids was kept
     private coreTemperature: number | null = null;
@@ -306,6 +307,7 @@ export class ProtostarModel implements GpuModel {
         this.latestReduction = null;
         this.latestReductionFrame = 0;
         this.reductionScales = null;
+        this.gridScales = null;
         this.gridsDrawn = false;
         this.lastDt = 0;                               // the first substep of the run owes no half kick (z = 1), whatever dtPrev holds
         this.stepController.reset();
@@ -422,6 +424,7 @@ export class ProtostarModel implements GpuModel {
             this.stashedFrame = this.frame;
         }
         grids.setScales(scales);
+        this.gridScales = scales;
         grids.update(context.positionTexture(), context.velocityTexture(), dt, context.variableTexture(ACCEL));
         this.gridsDrawn = true;
         this.stabilityStale = true;
@@ -557,6 +560,17 @@ export class ProtostarModel implements GpuModel {
     /** Dev-only: the reading in flight (resolves once it is in `reduction`), for the lab page. */
     get debugReading(): Promise<void> | null {
         return this.pendingReading;
+    }
+
+    /** Dev-only, read-only: the scales the last grids were drawn with (to draw other grids alike, the lab's parity of the grid chain). */
+    get debugGridScales(): GridScales | null {
+        return this.gridScales;
+    }
+
+    /** Dev-only: the particle textures the grids are drawn from (positions, velocities, the previous accelerations). */
+    debugGridInputs(): { positions: THREE.Texture; velocities: THREE.Texture; accelerations: THREE.Texture } {
+        const { context } = this;
+        return { positions: context.positionTexture(), velocities: context.velocityTexture(), accelerations: context.variableTexture(ACCEL) };
     }
 
     /** Dev-only, read-only: the scales that turn the sums of the last grids into simulation units, for the lab page. */
