@@ -2,7 +2,7 @@
 
 State of the work that implements the professor's "Améliorations des algorithmes v3" document
 (23 proposals A1–A14, B1–B5, C1–C4 for the protostar and the sticky dust). Last updated on 2026-11-23
-after phase A11 (adaptive thickness, flag off). Everything described as done is committed on `feat/improvements`, which is pushed to
+after phase A11 (adaptive thickness, flag off, merged) and step 1 of C2 (grid chain refactoring, on `feat/nested-grid`). Everything described as done is committed on `feat/improvements`, which is pushed to
 `origin`; **`master` was not touched** (a push to `master` deploys the live site).
 
 ## Where things are
@@ -49,7 +49,13 @@ after phase A11 (adaptive thickness, flag off). Everything described as done is 
 
 Order matters: the protostar phases are sequential (each recalibrates the same dynamics).
 
-0. **A11 is implemented** (flag off, see the table) on `feat/adaptive-thickness`; next: **C2** (nested grid), starting with a behavior-neutral refactoring of the grid chain, then its gate; B2 only if C2 doubles the gravity's cost.
+0. **A11 is done and merged** (flag off, see the table). **C2 (nested grid)**: on branch `feat/nested-grid` (not merged), step 1 is done: the
+   grids are refactored into a grid chain (`gridChain.ts`, `gridCommon.ts`) with no change of behavior (proven to the bit by
+   `protostar.grid-chain.parity` against a frozen copy in `src/lab/legacy/`, to delete once C2 is settled), the deposit has a `gridOrigin`
+   uniform, and the gate's measurements are in [spikes/c2-nested-grid.md](spikes/c2-nested-grid.md) (`spike.c2.nested`: the peak jumps
+   between clumps until ~20 s; a fine chain costs +19 to +47 % of a substep, almost all of it its second deposit). **The design of C2 is
+   NOT decided**: the spike lists the open choices (where the box goes, what is fine, the time step, which is the main risk). B2 is not
+   justified by these numbers.
 1. Gate G1 was measured for C1 on the RTX 5070 (protostar 3.14 ms of simulation at 400k, 5.75 ms at 1M; the deposits are 60 to 75 % of it) and C1 is done. **B3 was dropped at its gate P8** ([spike](spikes/b3-single-pass.md)): the deposits are 85 to 95 % of a substep, the three particle passes 3 to 10 %, and a single pass would save at most 0.11 to 0.19 ms per substep (2 to 7 % of the simulation frame). Next, each only if measurements justify it: **A11** adaptive thickness (flag) then **C2** nested grid (flag; decide the gravity channel budget; **B2** FFT only if C2 doubles the gravity cost), **C3** continuous composition (only if the draw noise is visible after A4; it would want `vel.z`, which C1 left free for a later gamma = 5/3). Measure each with `cost.protostar.passes` (every pass of a substep alone, flags off and on).
 
 ## Known issues and open decisions
