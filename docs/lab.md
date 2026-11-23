@@ -54,6 +54,19 @@ installed and nothing else (Node's own `fetch` and `WebSocket`):
 line per scenario on stderr; the exit code is 1 when a scenario failed and 2 when the lab could
 not run. Set `LAB_NO_SANDBOX=1` where Chrome refuses to start without `--no-sandbox` (containers).
 
+Under WSL2, the Windows Chrome runs on the real GPU (a Linux Chrome in WSL would go through Mesa's
+D3D12 layer). With `networkingMode=mirrored` in `.wslconfig` it reaches the dev server on
+`localhost`; give it its `chrome.exe` and a Windows-visible directory for its throwaway profile:
+
+    LAB_CHROME="/mnt/c/Program Files/Google/Chrome/Application/chrome.exe" \
+    LAB_TMPDIR=/mnt/c/Users/<you>/AppData/Local/Temp \
+    node scripts/run-lab.mjs --angle default --query "scenarios=lab.selftest"
+
+The script converts the profile path with `wslpath -w`, reads the DevTools endpoint from the
+profile's `DevToolsActivePort` (a Windows Chrome prints nothing on the WSL side) and closes the
+browser through the protocol. `--angle default` is Chrome's own backend on Windows (Direct3D 11),
+the one a visitor gets; the recorded GTX 1060 numbers used `gl` on Linux.
+
 ## What is in it
 
 | Id | What it does |
