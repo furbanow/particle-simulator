@@ -921,3 +921,41 @@ off). Conservative cloud over 100 orbits: +0.81 % with the box fixed, +1.60 % wi
 (8e-3 off). Point mass: the law within 0.75 %, anisotropy 0.18 %, the pull across the edge changed by 0.01 % rms. Cost with the box on:
 +33 % per frame at 400 000 (8.45 against 6.33 ms), +22 % at 1 000 000 (16.06 against 13.12 ms). The dropped ε/2: +43 to +54 % of |E0|
 over 100 orbits whatever the step, the core 550 to 1 700 rho0, omega dt 0.5 to 0.7.
+
+## After the calibration: every flag on (RTX 5070)
+
+The calibration ([spike](spikes/calibration.md)) turns every protostar feature flag on by default and sets G 6, c 5, λ₀ 6e-3, feedback 1.
+`restart()` now gives the scenarios the lab's reference model, every flag off (`LAB_REFERENCE_FLAGS`), unless they pass `shippedFlags: true`:
+the physics scenarios run the model they were recorded with (with the new G, c, λ₀ and feedback where they take the defaults), the default
+cloud's baselines and the protostar's performance probes run the application's model.
+
+**The whole lab** on the head of `feat/calibration` (frozen worktree, `--timeout 3600`): 102 scenarios in 51 minutes, 100 pass, 1 skip (the
+tuning scenario without variants), 1 fail: the adaptive step's ω·dt bound (worst 0.166 > 0.15; 0.225 before), the known failure of the RTX 5070
+reference. Nothing else changed status.
+
+**The default cloud** (`baseline.protostar.default-cloud`, 34 s; the whole life, 198 s, is in the spike): the numbers change on purpose.
+
+| t (s) | core T (MK) | peak density (rho0) | burning gas (MK) | H, He, C |
+|---|---|---|---|---|
+| 2.27 | 4.5 | 2.5 | 4.1 | 400 000, 0, 0 |
+| 4.25 | 25.2 | 3.3 | 19.7 | 377 618, 22 382, 0 |
+| 14.5 | 1.4 | 1.4 | 5.1 | 377 345, 22 655, 0 |
+| 20.4 | 3.7 | 2.1 | 7.1 | 377 339, 22 661, 0 |
+| 25.5 | 10.2 | 3.0 | 11.0 | 376 389, 23 611, 0 |
+| 34 | 16.8 | 4.1 | 15.5 | 373 714, 26 286, 0 |
+
+Peak over the 34 s: 37.8 MK, 10.7 ρ₀ (the first collapse; 193 ρ₀ before, in the carbon core). Wall time 10.3 s (8.4 s before). The
+A2 reference (`baseline.protostar.ignition-ratio`): He/H 6.03 at 0.5 per second and 60 ρ₀, the other references in the spike.
+
+**Cost** of every flag on (`perf.protostar.*`, ms per frame; before: [the reference on the RTX 5070](#reference-on-the-rtx-5070)):
+
+| | before (flags off) | after (every flag on) |
+|---|---|---|
+| 400 000: simulation / whole frame | 3.14 / 5.0 | 4.91 / 6.04 (+56 % / +21 %) |
+| 1 000 000: simulation / whole frame | 5.75 / 8.8 | 11.14 / 13.05 (+94 % / +48 %) |
+| 400 000: early / late window (`perf.protostarPhases`) | 3.5 / 6.2 | 5.6 / 6.3 |
+| 1 000 000: early / late window | 6.5 / 11.2 | 11.7 / 13.9 |
+
+The late windows cost little more: with the flags on the default cloud's core no longer falls to the grid's scale by frame 1 000. The
+first-visit benchmark times the early frames with the flags on (adaptive step off), so its cap drops by about the early ratio (1.6 at 400 000,
+1.8 at 1 000 000).

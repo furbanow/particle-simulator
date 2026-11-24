@@ -175,8 +175,10 @@ comes from the code and gets the new values). A saved configuration therefore ru
 - **The lull after the first collapse** is 18 s.
 - **After the helium flash the core falls to the grid's scale**: carbon at 239 MK and 345 to 365 ρ₀ at 198 s in all six seeds (ω·dt 0.23 in
   the core), the end state of every setting with the flags on: nothing burns the carbon and nothing holds it up.
-- **Cost**: every flag on costs what their spikes measured, together (below, from the lab's performance probes); the first-visit benchmark
-  times the flags on (the adaptive step off, `BENCHMARK_PARAMS`), so its cap drops accordingly.
+- **Cost** (`perf.protostar.*`, RTX 5070): simulation 3.14 → 4.91 ms per frame at 400 000 particles (+56 %), 5.75 → 11.14 ms at 1 000 000
+  (+94 %); whole frame +21 % / +48 % ([lab-baseline.md](../lab-baseline.md#after-the-calibration-every-flag-on-rtx-5070)). The first-visit
+  benchmark times the flags on (the adaptive step off, `BENCHMARK_PARAMS`), so its cap drops by about 1.6 to 1.8.
+- **The whole lab**: 100 of 102 pass, the known failure (the adaptive step's ω·dt bound) and the skip as before.
 
 ## Reproducing
 
