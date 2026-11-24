@@ -74,7 +74,7 @@ export interface CloudVariant {
 async function runDefaultCloud(context: LabContext, variant?: CloudVariant): Promise<ScenarioOutcome> {
     const { baselineParticles: count } = context.options;
     const frames = variant?.frames ?? context.options.baselineFrames;
-    await restart(context, { count, seed: variant?.seed, overrides: variant?.overrides, params: variant?.params });
+    await restart(context, { count, seed: variant?.seed, overrides: variant?.overrides, params: variant?.params, shippedFlags: true });
     if (variant) {
         // A restart gives the switches their application values back: only the ones the variant changes are set.
         const model = protostarModel(context);

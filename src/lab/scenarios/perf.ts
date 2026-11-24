@@ -74,7 +74,7 @@ async function probe(context: LabContext, algorithm: AlgorithmId, count: number)
     // The protostar's variant of the page URL (`?perfVariant={"molecularWeight":false,"overrides":{...}}`): the physics of another build,
     // so that two builds are timed on the same dynamics (the cost of a change of shaders, not of a change of defaults).
     const variant = algorithm === 'protostar' ? parseCloudVariants(`[${context.options.perfVariant}]`)[0] : undefined;
-    await restart(context, { algorithm, count, overrides: variant?.overrides });
+    await restart(context, { algorithm, count, overrides: variant?.overrides, shippedFlags: true });
     if (variant?.molecularWeight === false) protostarModel(context).debugGrids.molecularWeightEnabled = false;
     const stack = renderStack(context);
     stack.prepare();

@@ -3,6 +3,10 @@
 // src/config.ts.
 
 import { DUST_GRADIENT_CORNER_WEIGHT, DUST_GRAVITY_GAIN, PROTOSTAR_GRAVITY_SLIDER } from '../config';
+import type { ParamValues } from '../simulation/algorithm';
+import type { AlgorithmId } from '../simulation/algorithms';
+import { PROTOSTAR_PARAM } from '../simulation/protostar/declaration';
+import { STICKY_DUST_PARAM } from '../simulation/stickyDust/declaration';
 
 /** Simulation area of every scenario, in CSS px (the physics scales with min(width, height)). */
 export const LAB_AREA = { width: 1024, height: 768 } as const;
@@ -12,6 +16,19 @@ export const LAB_SEED = 20240611;
 
 /** Renderer names (UNMASKED_RENDERER) of software rasterizers: their timings mean nothing. */
 export const SOFTWARE_RENDERER_PATTERN = /swiftshader|llvmpipe|softpipe|software|basic render driver/i;
+
+/**
+ * The feature flags of the lab's reference model, which restart() applies unless a scenario asks for the shipped ones
+ * (`shippedFlags`): every flag off, the model each physics scenario was written and recorded for. The application turns them all
+ * on since the calibration (docs/spikes/calibration.md); a scenario that tests a flag sets it through its `params`.
+ */
+export const LAB_REFERENCE_FLAGS: Readonly<Record<AlgorithmId, ParamValues>> = {
+    protostar: {
+        [PROTOSTAR_PARAM.adaptiveTimeStep]: false, [PROTOSTAR_PARAM.jeansFloor]: false, [PROTOSTAR_PARAM.tscDeposit]: false,
+        [PROTOSTAR_PARAM.collisions]: false, [PROTOSTAR_PARAM.adaptiveThickness]: false, [PROTOSTAR_PARAM.nestedGrid]: false,
+    },
+    stickyDust: { [STICKY_DUST_PARAM.tscDeposit]: false },
+};
 
 /** Frames between two GPU synchronizations in the long loops (keeps the command queue short, lets read-backs resolve). */
 export const LAB_SYNC_EVERY = 10;

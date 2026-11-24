@@ -97,19 +97,27 @@ describe('protostar declaration', () => {
         expect(flag?.kind).toBe('boolean');
         expect(flag?.tab).toBe('features');
         expect(flag?.doc.length).toBeGreaterThan(flag?.label.length ?? 0);
-        // off by default: the measured cost (a fifth more substeps over the default cloud's run) is above the plan's tenth of a frame
-        expect(flag?.kind === 'boolean' && flag.default).toBe(false);
-        expect(defaultParams(PROTOSTAR).adaptiveTimeStep).toBe(false);
+        // on by default since the calibration (docs/spikes/calibration.md), with every other flag
+        expect(flag?.kind === 'boolean' && flag.default).toBe(true);
+        expect(defaultParams(PROTOSTAR).adaptiveTimeStep).toBe(true);
     });
 
-    it('has the Jeans floor switch in the features tab, applied live and off by default', () => {
+    it('has the Jeans floor switch in the features tab, applied live and on by default', () => {
         const flag = PROTOSTAR.params.find(p => p.key === PROTOSTAR_PARAM.jeansFloor);
         expect(flag?.kind).toBe('boolean');
         expect(flag?.tab).toBe('features');
         expect(flag && appliesOnRestart(flag)).toBe(false);
         expect(flag?.doc.length).toBeGreaterThan(flag?.label.length ?? 0);
-        // an artificial pressure that heats the dense core (docs/spikes/a6-a13-cooling-and-jeans.md): optional, as the proposal asks
-        expect(defaultParams(PROTOSTAR).jeansFloor).toBe(false);
+        // an artificial pressure that heats the dense core (docs/spikes/a6-a13-cooling-and-jeans.md): optional, as the proposal asks;
+        // on by default since the calibration (docs/spikes/calibration.md)
+        expect(defaultParams(PROTOSTAR).jeansFloor).toBe(true);
+    });
+
+    it('turns every feature flag of the physics on by default (the calibrated model), the stability map off', () => {
+        const defaults = defaultParams(PROTOSTAR);
+        for (const key of [PROTOSTAR_PARAM.diagnostics, PROTOSTAR_PARAM.adaptiveTimeStep, PROTOSTAR_PARAM.jeansFloor, PROTOSTAR_PARAM.tscDeposit,
+            PROTOSTAR_PARAM.collisions, PROTOSTAR_PARAM.adaptiveThickness, PROTOSTAR_PARAM.nestedGrid]) expect(defaults[key]).toBe(true);
+        expect(defaults[PROTOSTAR_PARAM.stabilityMap]).toBe('off');
     });
 
     it('replaces the linear cooling by the thin-disc law: c, kappa and T_min, with no trace of the old keys', () => {

@@ -33,7 +33,7 @@ export const protostarPhaseScenarios: Scenario[] = PROTOSTAR_PHASE_COUNTS.map((c
     async run(context): Promise<ScenarioOutcome> {
         const { simulation, software } = context;
         const simulate = (): void => { simulation.step(); simulation.endFrame(); };
-        await restart(context, { count: software ? 20_000 : count });
+        await restart(context, { count: software ? 20_000 : count, shippedFlags: true });
         const windows: Record<string, JsonValue> = {};
         const notes: string[] = [];
         let done = 0;
@@ -63,7 +63,7 @@ export const protostarHitchScenarios: Scenario[] = PROTOSTAR_HITCH_COUNTS.map((c
     async run(context): Promise<ScenarioOutcome> {
         const { simulation, software, sync } = context;
         if (software) return { status: 'skip', metrics: { valid: false }, details: 'INVALID: software renderer, timings are meaningless.' };
-        await restart(context, { count });
+        await restart(context, { count, shippedFlags: true });
         const times: number[] = [];
         let last = performance.now();
         for (let frame = 1; frame <= PROTOSTAR_HITCH_WARMUP_FRAMES + PROTOSTAR_HITCH_FRAMES; frame++) {
@@ -96,7 +96,7 @@ export const typeCountCostScenarios: Scenario[] = TYPE_COUNT_COST_COUNTS.map((co
     async run(context): Promise<ScenarioOutcome> {
         const { simulation, software, sync } = context;
         if (software) return { status: 'skip', metrics: { valid: false }, details: 'INVALID: software renderer, timings are meaningless.' };
-        await restart(context, { count });
+        await restart(context, { count, shippedFlags: true });
         await runFrames(context, TYPE_COUNT_COST_FRAMES);
         const model = protostarModel(context) as unknown as { debugRenderTypeCount?: () => void };
         const render = model.debugRenderTypeCount?.bind(model);
