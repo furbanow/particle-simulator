@@ -304,28 +304,29 @@ describe('Gamow rates: the reaction table\'s arrays', () => {
     });
 });
 
-describe('Gamow rates: the calibration of the defaults (docs/spikes/a2-gamow-rates.md)', () => {
+describe('Gamow rates: the calibration of the defaults (docs/spikes/a2-gamow-rates.md, docs/spikes/calibration.md)', () => {
     const defaults = defaultParams(PROTOSTAR);
     const [h, he] = [fusionLawOf(PP, defaults), fusionLawOf(TRIPLE, defaults)];
     const ratioAt = (density: number, rate: number): number => ignitionRatio(PROTOSTAR_REACTIONS, defaults, density, rate, 0, 1);
 
     it('are the values the default cloud was calibrated with', () => {
-        expect(defaults).toMatchObject({ gravity: 9, radiation: 10, kappa: 20, minTemperature: 0.05, fusionRate: 2e-3, heFusionRate: 2.5e-4, feedback: 0.3 });
+        expect(defaults).toMatchObject({ gravity: 6, radiation: 5, kappa: 20, minTemperature: 0.05, fusionRate: 6e-3, heFusionRate: 2.5e-4, feedback: 1 });
     });
 
-    it('ignite a pure helium gas of 20 rho0 at 0.1 fusions per second per particle at 100 MK, its real ignition, and hydrogen at 19 MK', () => {
-        // lambda_He rho^2 = 2.5e-4 * 400 = 0.1 at the reference temperature of the law; lambda_0 rho = 2e-3 * 20 = 0.04 there. lambda_0 was 4e-3
-        // (hydrogen at 15.9 MK, a ratio of 6.3) until the thin-disc cooling (P4), which halved it to keep the first collapse's burn where it was.
+    it('ignite a pure helium gas of 20 rho0 at 0.1 fusions per second per particle at 100 MK, its real ignition, and hydrogen at 14 MK', () => {
+        // lambda_He rho^2 = 2.5e-4 * 400 = 0.1 at the reference temperature of the law; lambda_0 rho = 6e-3 * 20 = 0.12 there. lambda_0 was 4e-3
+        // (hydrogen at 15.9 MK, a ratio of 6.3), then 2e-3 after the thin-disc cooling (P4: 19 MK, 5.2); the calibration with every flag on
+        // set it to 6e-3: hydrogen at 14.3 MK, a ratio of 6.98 (real 6.67).
         expect(ignitionTemperature(he, 20, 0.1) * T0 / 1e6).toBeCloseTo(100, 8);
-        expect(ignitionTemperature(h, 20, 0.1) * T0 / 1e6).toBeGreaterThan(18.5);
-        expect(ignitionTemperature(h, 20, 0.1) * T0 / 1e6).toBeLessThan(20);
-        expect(ratioAt(20, 0.1)).toBeGreaterThan(5);
-        expect(ratioAt(20, 0.1)).toBeLessThan(100 / 15);
+        expect(ignitionTemperature(h, 20, 0.1) * T0 / 1e6).toBeGreaterThan(14);
+        expect(ignitionTemperature(h, 20, 0.1) * T0 / 1e6).toBeLessThan(14.5);
+        expect(ratioAt(20, 0.1)).toBeGreaterThan(100 / 15);
+        expect(ratioAt(20, 0.1)).toBeLessThan(7.2);
     });
 
     it('keep the ratio of the ignition temperatures within 10 % of the real 6.7 at the density and rate of the star\'s core, and between 3 and 12 wherever a star goes', () => {
-        // The ratio depends on the point: the two laws differ in steepness and in density exponent (1 and 2). With lambda_0 = 2e-3 it runs from
-        // 3.3 (20 rho0, 0.5 per second) to 9.4 (100 rho0, 0.03 per second); it was 4.1 to 10.9 with 4e-3.
+        // The ratio depends on the point: the two laws differ in steepness and in density exponent (1 and 2). With lambda_0 = 6e-3 it runs from
+        // 4.7 (20 rho0, 0.5 per second) to 11.8 (100 rho0, 0.03 per second), 8.0 at 40 rho0 and 0.1 per second; it was 3.3 to 9.4 with 2e-3.
         expect(ratioAt(40, 0.1)).toBeGreaterThan(6.0);
         expect(ratioAt(40, 0.1)).toBeLessThan(8.5);
         for (const density of [20, 40, 100]) {
