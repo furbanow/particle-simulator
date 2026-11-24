@@ -76,4 +76,7 @@ blend of the three element colours instead of one, and the mass per particle cha
 
 ## Verdict
 
-(pending the user's decision)
+**C3 is not done** (the user's decision, 2026-11-24). The draw of A4 leaves the first collapse unchanged (0.3 %) and shows only in the
+helium phase (flash ±1 s, carbon ±4 points at 34 s), well inside the variety of the cloud seeds; the energy has no draw noise at all. C3
+would cost about 3 % of a substep, 96 MB and a large change of the shaders, the deposits and the stats, and would lose the picture of parcels
+changing one by one. The scenario stays in the lab to re-measure the noise if the fusion changes.
