@@ -10,6 +10,12 @@ Currently deployed at https://furbanow.github.io/particle-simulator/
 - `make check`: type checking and tests. Run after every change.
 - `make build`: production build in `dist/`
 
+## Releases
+
+- Versions are semver tags `vX.Y.Z` (`v0.1.0` is the first). The changelog is `public/release-notes.html`, copied as is into `dist/` and served at https://furbanow.github.io/particle-simulator/release-notes.html.
+- **Every merge into `master` is a release.** Before merging, add the version's entry at the top of `public/release-notes.html` (in English, user-facing, concise, no theory): minor version for new features, patch for fixes only. While the version is prepared on its branch the entry carries the "unreleased" badge; replace it with the date when releasing.
+- After the merge, tag the merge commit (`git tag -a vX.Y.Z -m "vX.Y.Z"`) and push the tag along with `master` (`git push origin master vX.Y.Z`).
+
 ## Organization
 
 - `src/config.ts`: all constants. No magic numbers in the rest of the code.

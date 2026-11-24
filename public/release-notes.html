@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Release notes · Particle Simulator</title>
+<meta name="description" content="What changed in each version of Particle Simulator, the GPGPU particle simulator in the browser.">
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+  :root {
+    --bg: #f5f6f9;
+    --surface: #ffffff;
+    --fg: #17202d;
+    --muted: #5b6676;
+    --rule: #dde1e8;
+    --accent: #5b4bb5;
+    --accent-soft: #ecebfa;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0d121b; --surface: #151d2a; --fg: #e3e8f0; --muted: #97a3b5; --rule: #283346; --accent: #a99dff; --accent-soft: #262344; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 var(--font); padding: 40px 16px 80px; }
+  main { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+  header { display: flex; gap: 16px; align-items: center; }
+  header img { width: 56px; height: 56px; border-radius: 12px; }
+  h1 { margin: 0; font-size: 30px; line-height: 1.2; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  article { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+  .version { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+  h2 { margin: 0; font-size: 24px; }
+  .date { font: 500 13px/1 var(--mono); color: var(--muted); }
+  .badge { font: 500 12px/1 var(--mono); background: var(--accent-soft); color: var(--accent); padding: 4px 8px; border-radius: 4px; }
+  h3 { margin: 8px 0 0; font-size: 16px; }
+  p { margin: 0; }
+  ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  code { font: 0.9em var(--mono); background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+  .lede { color: var(--muted); }
+  footer { color: var(--muted); font-size: 14px; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="logo.png" alt="">
+    <div>
+      <h1>Release notes</h1>
+      <p>Particle Simulator · <a href="./">open the simulator</a> · <a href="https://github.com/furbanow/particle-simulator">source code</a></p>
+    </div>
+  </header>
+
+  <article id="v0.2.0">
+    <div class="version"><h2>0.2.0</h2><span class="badge">unreleased</span></div>
+    <p class="lede">A physics release. The Protostar now lives a whole star’s life in about three minutes: a first collapse, hydrogen burning at 10 to 20 MK, a helium flash, then a carbon core. The Sticky dust becomes a granular medium with coherent supernovae. Every change is checked by unit tests and by acceptance scenarios run on the GPU.</p>
+
+    <h3>Protostar</h3>
+    <ul>
+      <li><strong>Gas collisions.</strong> Particles collide in cells (multiparticle collision dynamics), so the gas behaves as an ideal gas: isotropic pressure and real shocks.</li>
+      <li><strong>Real fusion laws.</strong> The proton-proton chain and the triple alpha follow Gamow’s laws, depend on the local share of fuel, and are corrected for the noise of the measured temperature.</li>
+      <li><strong>Temperature with the molecular weight.</strong> At the same velocity dispersion, helium reads 2.65 times hotter than hydrogen, as a thermometer would.</li>
+      <li><strong>Fusion keeps every particle.</strong> A particle is a parcel of constant mass that changes type when it fuses: mass and momentum are conserved exactly. The statistics show the share of mass of each element.</li>
+      <li><strong>Radiative cooling of a thin disc</strong> (a T⁴ law with the optical depth of each column), with sliders for the cooling rate, the opacity and the minimum temperature.</li>
+      <li><strong>Adaptive thickness:</strong> the gas layer is as thick as its own gravity and heat allow, which sets the softening of gravity and the density the fusion sees.</li>
+      <li><strong>Nested grid:</strong> a grid 8 times finer is laid over the core once it forms.</li>
+      <li><strong>Smoother gravity</strong> with a 3 × 3 (TSC) deposit, and a <strong>Jeans floor</strong> that keeps the gas from fragmenting at the scale of the grid.</li>
+      <li><strong>Second-order integration</strong> with an adaptive time step: wall bounces no longer inject energy, and a gravity-only cloud (optional features off) keeps its energy within 0.2 % over 100 orbits.</li>
+      <li><strong>Initial cloud set by energies:</strong> new sliders for the virial ratio and the rotation energy, the true rotation curve of a disc, and options for a Maclaurin density profile and correlated (Larson) turbulence.</li>
+      <li><strong>New statistics:</strong> energy drift and virial ratio.</li>
+      <li><strong>Stability map:</strong> an overlay of Toomre’s Q and the cooling parameter β of every cell, showing where the disc can fragment.</li>
+      <li><strong>Recalibrated defaults</strong> (G 6, cooling 5, λ₀ 6·10⁻³, feedback 1) for the model with every feature on.</li>
+    </ul>
+
+    <h3>Sticky dust</h3>
+    <ul>
+      <li><strong>Granular dust:</strong> grains resist compression by their agitation, stick faster where the dust is dense and agitated (Haff’s law), and bounce when they meet faster than the new <em>collision speed</em> slider. Particles glow with the agitation around them, not with their speed.</li>
+      <li><strong>Isotropic, faster gravity:</strong> the pull of a clump no longer depends on the direction (4 to 5 % instead of about 40 %), and is computed once per grid cell instead of once per particle.</li>
+      <li><strong>Coherent supernovae:</strong> they fire on the share of mass in the densest zone, found on the GPU without reading the particles back (fewer stutters); the ejecta fly out in layers, heavy elements slower, all still pulled by gravity; the shock wave slows down as R ∝ t<sup>½</sup>.</li>
+    </ul>
+
+    <h3>Interface</h3>
+    <ul>
+      <li>A <strong>Features</strong> tab lists the optional parts of each algorithm as switches, applied live.</li>
+      <li>New or reworked sliders for both algorithms, each documented on hover in the five languages.</li>
+    </ul>
+
+    <h3>Compatibility and performance</h3>
+    <ul>
+      <li>The full Protostar model costs more GPU time: the first-visit benchmark sets a lower particle cap on the same device.</li>
+      <li>Configurations saved with 0.1.0 keep their stored values; parameters that did not exist take their default and removed sliders are dropped. Load the built-in <em>Default</em> configuration to get the calibrated model.</li>
+    </ul>
+
+    <h3>For developers</h3>
+    <ul>
+      <li>A dev-only GPU lab (<code>lab.html</code>, <code>scripts/run-lab.mjs</code>) runs acceptance scenarios on the real simulation in headless Chrome; it is never part of the build.</li>
+      <li>Every law has a pure CPU twin under test (672 tests). The physics is documented in <code>docs/algorithms.md</code> and the design notes in <code>docs/spikes/</code>.</li>
+    </ul>
+  </article>
+
+  <article id="v0.1.0">
+    <div class="version"><h2>0.1.0</h2><span class="date">2026-11-19</span></div>
+    <p class="lede">The first public version.</p>
+    <ul>
+      <li>A GPGPU particle simulator in the browser (TypeScript, Three.js, WebGL2), up to 3 million particles.</li>
+      <li>Two algorithms: <strong>Sticky dust</strong> (multi-scale gravity on a mipmapped density grid, pressure, viscosity, supernovae with a shock wave) and <strong>Protostar</strong> (softened gravity on 128² grids, cooling, H → He → C fusion whose heat slows the collapse).</li>
+      <li>The first 10 elements with their real atomic masses, sizes and CPK colors; a simple and an advanced element editor; element configurations saved in the browser.</li>
+      <li>Whole-simulation configurations: save, duplicate, rename, load.</li>
+      <li>Static drawings: attractors and repellers drawn with the mouse, imported from an image or written as text.</li>
+      <li>A mouse toolbar: point force (gravity or vortex), brush tips, eraser, shapes.</li>
+      <li>HDR rendering: nebula, gravitational lens, bloom, vignette, grain and tone mapping.</li>
+      <li>Pause, speed, zoom and pan, keyboard shortcuts.</li>
+      <li>Interface in English, French, German, Polish and Spanish.</li>
+      <li>A GPU benchmark on the first visit that sets the particle cap.</li>
+    </ul>
+  </article>
+
+  <footer>Particle Simulator is free software under the GNU AGPL v3 or later.</footer>
+</main>
+</body>
+</html>
