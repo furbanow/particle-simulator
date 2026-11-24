@@ -9,7 +9,7 @@ import { MAX_SPECIES, PROTOSTAR_GRID_RES, PROTOSTAR_T0_KELVIN } from '../../conf
 import { defaultParams } from '../../simulation/params';
 import { HELIUM, HYDROGEN, PROTOSTAR, PROTOSTAR_PARAM } from '../../simulation/protostar/declaration';
 import {
-    CONSTANT_MASS_CORE_RADIUS, DRAW_NOISE_BURST_SECONDS, DRAW_NOISE_FLASH_CARBON, DRAW_NOISE_NUDGE, DRAW_NOISE_READ_EVERY,
+    CONSTANT_MASS_CORE_RADIUS, DRAW_NOISE_BURST_SECONDS, DRAW_NOISE_FLASH_AFTER_SECONDS, DRAW_NOISE_FLASH_CARBON, DRAW_NOISE_POISSON_MIN_SHARE, DRAW_NOISE_NUDGE, DRAW_NOISE_READ_EVERY,
     DRAW_NOISE_SNAPSHOT_EVERY, DRAW_NOISE_STREAM_STRIDE, DRAW_NOISE_STREAMS, LAB_SEED,
 } from '../config';
 import { burnTemperature } from '../core';
@@ -102,6 +102,14 @@ async function runArm(context: LabContext, arm: Arm): Promise<RunResult> {
     return { arm, rates, snapshots, finalTypes };
 }
 
+/** The helium flash as the A2 spike reads it: the first time after DRAW_NOISE_FLASH_AFTER_SECONDS the carbon exceeds its value then by DRAW_NOISE_FLASH_CARBON. */
+function heliumFlash(snapshots: readonly Snapshot[]): number | null {
+    const after = snapshots.filter(s => s.seconds >= DRAW_NOISE_FLASH_AFTER_SECONDS);
+    if (after.length === 0) return null;
+    const start = after[0].shares[2];
+    return firstReaching(after.map(s => [s.seconds, s.shares[2] - start] as const), DRAW_NOISE_FLASH_CARBON);
+}
+
 /** What the user sees of a run, the outcomes compared between the runs. */
 function outcomes(run: RunResult): Record<string, number | null> {
     const { snapshots, rates } = run;
@@ -113,7 +121,7 @@ function outcomes(run: RunResult): Record<string, number | null> {
         hydrogenBurntInFirstBurst: 1 - atBurst.shares[0],
         peakFusionsPerSecond: peak[1],
         peakAtSeconds: peak[0],
-        heliumFlashSeconds: firstReaching(snapshots.map(s => [s.seconds, s.shares[2]] as const), DRAW_NOISE_FLASH_CARBON),
+        heliumFlashSeconds: heliumFlash(snapshots),
         finalHydrogen: last.shares[0],
         finalHelium: last.shares[1],
         finalCarbon: last.shares[2],
@@ -163,7 +171,9 @@ const drawNoise: Scenario = {
         const median = (v: number[]): number | null => v.length > 0 ? v[Math.floor(v.length / 2)] : null;
         // The Poisson noise of the fusions of one reading of the stats (the expected rate times the interval between readings).
         const interval = DRAW_NOISE_READ_EVERY * frameSeconds(context);
-        const poisson = base.rates.filter(r => r[1] > 0).map(r => 1 / Math.sqrt(r[1] * interval)).sort((x, y) => x - y);
+        const peakRate = base.rates.reduce((m, r) => Math.max(m, r[1]), 0);
+        const poisson = base.rates.filter(r => r[1] > 0 && r[1] >= DRAW_NOISE_POISSON_MIN_SHARE * peakRate)
+            .map(r => 1 / Math.sqrt(r[1] * interval)).sort((x, y) => x - y);
         const divergenceOf = (other: RunResult | undefined, level: number): JsonValue => other ? sig(divergence(base, other, level)) : null;
         const levels = [0.001, 0.01, 0.05];
         const pairs = runs.slice(1).map(r => ({ name: r.arm.name, ...Object.fromEntries(levels.map(l => [`${l * 100}%`, divergenceOf(r, l)])) }));
@@ -181,7 +191,7 @@ const drawNoise: Scenario = {
                     hydrogenSeries: noiseSeries(s => s.hydrogenNoise), heliumSeries: noiseSeries(s => s.heliumNoise),
                     parcelsWhereBurningSeries: noiseSeries(s => s.parcelsWhereBurning),
                 },
-                poissonNoisePerReading: { intervalSeconds: sig(interval), median: sig(median(poisson)), worst: sig(poisson[poisson.length - 1] ?? null) },
+                poissonNoisePerReading: { intervalSeconds: sig(interval), minShareOfPeak: DRAW_NOISE_POISSON_MIN_SHARE, atPeak: sig(peakRate > 0 ? 1 / Math.sqrt(peakRate * interval) : null), median: sig(median(poisson)), worst: sig(poisson[poisson.length - 1] ?? null) },
                 sharesSeries: Object.fromEntries(runs.map(r => [r.arm.name, r.snapshots.map(s => [sig(s.seconds), ...s.shares.map(sig)])])),
             },
             details: `${runs.length} runs; the replay ${replayDiffers === 0 ? 'is identical' : `differs (${replayDiffers} particles)`}; `

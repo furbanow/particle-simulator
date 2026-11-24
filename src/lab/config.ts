@@ -883,6 +883,12 @@ export const DRAW_NOISE_STREAM_STRIDE = 1_000_000;
 export const DRAW_NOISE_NUDGE = 1e-6;
 export const DRAW_NOISE_READ_EVERY = 10;
 export const DRAW_NOISE_SNAPSHOT_EVERY = 40;
-/** The end of the first burst (s; the A4 spike's "hydrogen burnt before 4.5 s"), and the carbon share that marks the helium flash. */
+/**
+ * The end of the first burst (s; the A4 spike's "hydrogen burnt before 4.5 s"); the helium flash as the A2 spike reads it: the carbon above
+ * its value at DRAW_NOISE_FLASH_AFTER_SECONDS by DRAW_NOISE_FLASH_CARBON of the mass (3 000 parcels of 400 000).
+ */
 export const DRAW_NOISE_BURST_SECONDS = 4.5;
-export const DRAW_NOISE_FLASH_CARBON = 0.01;
+export const DRAW_NOISE_FLASH_AFTER_SECONDS = 6;
+export const DRAW_NOISE_FLASH_CARBON = 0.0075;
+/** The Poisson noise of a reading's fusions is given over the readings whose expected rate is at least this share of the run's peak. */
+export const DRAW_NOISE_POISSON_MIN_SHARE = 0.01;
