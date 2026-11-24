@@ -12,9 +12,14 @@ Currently deployed at https://furbanow.github.io/particle-simulator/
 
 ## Releases
 
-- Versions are semver tags `vX.Y.Z` (`v0.1.0` is the first). The changelog is `public/release-notes.html`, copied as is into `dist/` and served at https://furbanow.github.io/particle-simulator/release-notes.html.
-- **Every merge into `master` is a release.** Before merging, add the version's entry at the top of `public/release-notes.html` (in English, user-facing, concise, no theory): minor version for new features, patch for fixes only. While the version is prepared on its branch the entry carries the "unreleased" badge; replace it with the date when releasing.
-- After the merge, tag the merge commit (`git tag -a vX.Y.Z -m "vX.Y.Z"`) and push the tag along with `master` (`git push origin master vX.Y.Z`).
+Versions are semver tags `vX.Y.Z` (`v0.1.0` is the first); the `version` of `package.json` (and `package-lock.json`) always matches the tag of the release being prepared. The changelog is `public/release-notes.html`, copied as is into `dist/` and served at https://furbanow.github.io/particle-simulator/release-notes.html.
+
+**Every merge into `master` is a release** (minor version for new features, patch for fixes only):
+
+1. On the branch, when the work starts: `npm version X.Y.Z --no-git-tag-version` (updates `package.json` and `package-lock.json`, no commit, no tag), and add the version's entry at the top of `public/release-notes.html` (in English, user-facing, concise, no theory) with the "unreleased" badge. Keep the entry up to date as the branch grows.
+2. Before merging: replace the badge with the release date (`<span class="date">YYYY-MM-DD</span>`), run `make check` and `make build`, commit.
+3. Merge into `master`, tag the merge commit (`git tag -a vX.Y.Z -m "vX.Y.Z"`) and push the tag along with `master` (`git push origin master vX.Y.Z`); the push deploys GitHub Pages.
+4. A fix committed directly on `master` is a patch release too: bump the version, add its entry, tag the commit.
 
 ## Organization
 
