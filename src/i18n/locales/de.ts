@@ -98,6 +98,7 @@ export const de: Record<MessageKey, string> = {
     'ui.author': 'Autor:',
     'ui.author.title': 'Software Engineering',
     'ui.sourceCode': 'Quellcode (AGPL v3)',
+    'ui.releaseNotes': 'Versionshinweise',
     'ui.pause': 'Pause',
     'ui.resume': 'Fortsetzen',
     'ui.pause.title': 'Simulation pausieren (Leertaste)',

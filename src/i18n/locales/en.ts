@@ -114,6 +114,7 @@ export const en = {
     'ui.author': 'Author:',
     'ui.author.title': 'Software Engineering',
     'ui.sourceCode': 'Source code (AGPL v3)',
+    'ui.releaseNotes': 'Release notes',
     'ui.pause': 'Pause',
     'ui.resume': 'Resume',
     'ui.pause.title': 'Pause the simulation (Space)',
