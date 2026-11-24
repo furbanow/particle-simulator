@@ -892,3 +892,8 @@ export const DRAW_NOISE_FLASH_AFTER_SECONDS = 6;
 export const DRAW_NOISE_FLASH_CARBON = 0.0075;
 /** The Poisson noise of a reading's fusions is given over the readings whose expected rate is at least this share of the run's peak. */
 export const DRAW_NOISE_POISSON_MIN_SHARE = 0.01;
+/**
+ * The replay is not identical to the bit on the RTX 5070 (the order of the blended additions of the deposits varies: 3 603 parcels of 400 000
+ * of another type after 34 s): it passes when its final shares of the mass are within this of the first run's.
+ */
+export const DRAW_NOISE_REPLAY_TOLERANCE = 0.002;

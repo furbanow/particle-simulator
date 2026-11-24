@@ -9,7 +9,7 @@ import { MAX_SPECIES, PROTOSTAR_GRID_RES, PROTOSTAR_T0_KELVIN } from '../../conf
 import { defaultParams } from '../../simulation/params';
 import { HELIUM, HYDROGEN, PROTOSTAR, PROTOSTAR_PARAM } from '../../simulation/protostar/declaration';
 import {
-    CONSTANT_MASS_CORE_RADIUS, DRAW_NOISE_BURST_SECONDS, DRAW_NOISE_FLASH_AFTER_SECONDS, DRAW_NOISE_FLASH_CARBON, DRAW_NOISE_POISSON_MIN_SHARE, DRAW_NOISE_NUDGE, DRAW_NOISE_READ_EVERY,
+    CONSTANT_MASS_CORE_RADIUS, DRAW_NOISE_BURST_SECONDS, DRAW_NOISE_FLASH_AFTER_SECONDS, DRAW_NOISE_FLASH_CARBON, DRAW_NOISE_POISSON_MIN_SHARE, DRAW_NOISE_REPLAY_TOLERANCE, DRAW_NOISE_NUDGE, DRAW_NOISE_READ_EVERY,
     DRAW_NOISE_SNAPSHOT_EVERY, DRAW_NOISE_STREAM_STRIDE, DRAW_NOISE_STREAMS, LAB_SEED,
 } from '../config';
 import { burnTemperature } from '../core';
@@ -156,6 +156,9 @@ const drawNoise: Scenario = {
         const base = runs[0];
         const replay = runs.find(r => r.arm.name === 'draw 0 again');
         const replayDiffers = replay ? replay.finalTypes.reduce((n, t, i) => n + (t !== base.finalTypes[i] ? 1 : 0), 0) : -1;
+        const lastShares = (run: RunResult | undefined): number[] => run?.snapshots[run.snapshots.length - 1]?.shares ?? [];
+        const replayShareGap = replay ? Math.max(...lastShares(base).map((v, k) => Math.abs(v - (lastShares(replay)[k] ?? Infinity)))) : Infinity;
+        const replayOk = replayShareGap <= DRAW_NOISE_REPLAY_TOLERANCE;
         const table = runs.map(r => ({ name: r.arm.name, values: outcomes(r) }));
         const keys = Object.keys(outcomes(base));
         const draws = table.filter((_, i) => runs[i].arm.draw);
@@ -178,10 +181,10 @@ const drawNoise: Scenario = {
         const levels = [0.001, 0.01, 0.05];
         const pairs = runs.slice(1).map(r => ({ name: r.arm.name, ...Object.fromEntries(levels.map(l => [`${l * 100}%`, divergenceOf(r, l)])) }));
         return {
-            status: replayDiffers === 0 ? 'pass' : 'fail',
+            status: replayOk ? 'pass' : 'fail',
             metrics: {
                 particles: context.options.baselineParticles, frames: context.options.baselineFrames, seed: LAB_SEED,
-                replayParticlesOfAnotherType: replayDiffers,
+                replayParticlesOfAnotherType: replayDiffers, replayLargestShareGap: sig(replayShareGap),
                 runs: table.map(row => ({ name: row.name, ...Object.fromEntries(Object.entries(row.values).map(([k, v]) => [k, sig(v)])) })),
                 spreadOfDraws: spreadOf(draws), spreadOfNudges: spreadOf([table[0], ...nudged]),
                 firstDivergenceFromDraw0Seconds: pairs,
@@ -191,7 +194,7 @@ const drawNoise: Scenario = {
                     hydrogenSeries: noiseSeries(s => s.hydrogenNoise), heliumSeries: noiseSeries(s => s.heliumNoise),
                     parcelsWhereBurningSeries: noiseSeries(s => s.parcelsWhereBurning),
                 },
-                poissonNoisePerReading: { intervalSeconds: sig(interval), minShareOfPeak: DRAW_NOISE_POISSON_MIN_SHARE, atPeak: sig(peakRate > 0 ? 1 / Math.sqrt(peakRate * interval) : null), median: sig(median(poisson)), worst: sig(poisson[poisson.length - 1] ?? null) },
+                poissonNoisePerReading: { intervalSeconds: sig(interval), minShareOfPeak: DRAW_NOISE_POISSON_MIN_SHARE, DRAW_NOISE_REPLAY_TOLERANCE, atPeak: sig(peakRate > 0 ? 1 / Math.sqrt(peakRate * interval) : null), median: sig(median(poisson)), worst: sig(poisson[poisson.length - 1] ?? null) },
                 sharesSeries: Object.fromEntries(runs.map(r => [r.arm.name, r.snapshots.map(s => [sig(s.seconds), ...s.shares.map(sig)])])),
             },
             details: `${runs.length} runs; the replay ${replayDiffers === 0 ? 'is identical' : `differs (${replayDiffers} particles)`}; `
