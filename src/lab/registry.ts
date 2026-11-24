@@ -31,6 +31,7 @@ import { secondDeposit, secondDepositLoad } from './scenarios/secondDeposit';
 import { secondDepositCost } from './scenarios/secondDepositCost';
 import { selftest } from './scenarios/selftest';
 import { singlePassScenarios } from './scenarios/singlePass';
+import { drawNoiseScenarios } from './scenarios/drawNoise';
 import { stabilityScenarios } from './scenarios/stabilityMap';
 import { nestedGridScenarios } from './scenarios/nestedGrid';
 import { thicknessScenarios } from './scenarios/thickness';
@@ -85,4 +86,5 @@ export const SCENARIOS: readonly Scenario[] = [
     ...tscDepositScenarios,
     ...collisionScenarios,
     ...singlePassScenarios,
+    ...drawNoiseScenarios,
 ];

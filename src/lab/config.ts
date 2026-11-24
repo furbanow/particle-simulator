@@ -872,3 +872,17 @@ export const NESTED_FRAGMENT_DENSITY = 5;
 export const NESTED_COST_COUNTS = [400_000, 1_000_000] as const;
 export const NESTED_COST_FRAME = 1030;
 export const NESTED_COST_FRAMES = 60;
+/**
+ * spike.c3.draw-noise (the gate of C3): the default cloud (LAB_SEED) run with the fusion draw's random stream started at DRAW_NOISE_STREAMS
+ * offsets (DRAW_NOISE_STREAM_STRIDE substeps apart: the runs never share a draw), the first one run again (the GPU's determinism), and with the
+ * gravity nudged by a relative DRAW_NOISE_NUDGE either way (a deterministic perturbation as small as a float's rounding: the chaos of the
+ * cloud alone). Read every DRAW_NOISE_READ_EVERY frames (the stats' reduction) and DRAW_NOISE_SNAPSHOT_EVERY frames (positions and grids).
+ */
+export const DRAW_NOISE_STREAMS = 4;
+export const DRAW_NOISE_STREAM_STRIDE = 1_000_000;
+export const DRAW_NOISE_NUDGE = 1e-6;
+export const DRAW_NOISE_READ_EVERY = 10;
+export const DRAW_NOISE_SNAPSHOT_EVERY = 40;
+/** The end of the first burst (s; the A4 spike's "hydrogen burnt before 4.5 s"), and the carbon share that marks the helium flash. */
+export const DRAW_NOISE_BURST_SECONDS = 4.5;
+export const DRAW_NOISE_FLASH_CARBON = 0.01;

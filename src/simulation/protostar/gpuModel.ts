@@ -163,6 +163,14 @@ export class ProtostarModel implements GpuModel {
         this.updateReactions();
     }
 
+    /**
+     * Dev-only (the lab): starts the random stream of the substeps (the fusion draw of the position pass, the kicks of the cold cells, the
+     * collision grid) at `offset` instead of 0, so that the same cloud can be run with other draws only. Call it after a restart.
+     */
+    debugStartRandomStream(offset: number): void {
+        this.substep = Math.max(0, Math.round(offset)) % SEED_PERIOD;
+    }
+
     /** Dev-only (the lab): a number of substeps per frame that replaces the fixed and the adaptive counts (a reference run at a smaller step); null in the application. */
     debugSubsteps: number | null = null;
 
