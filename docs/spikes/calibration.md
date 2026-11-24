@@ -99,3 +99,95 @@ fewer fusions).
 | 6e-3 | 1 | 5.7 % | 18.8 | 24.2 (32 %) | 67 % | none |
 | 2e-3 | 1 | 2.0 % | 18.8 | 20.9 (41 %) | 38 % | none |
 | 2e-3 | 3 | 1.9 % | 15.9 | 15.9 (99 %) | 10 % | none |
+
+**The whole life at feedback 1 to 3** (14 000 frames = 400 s, two seeds, G 6):
+
+| c | λ₀ | feedback | first collapse | burnT | H-weighted (share at 10–20 MK) | helium flash |
+|---|---|---|---|---|---|---|
+| 5 | 6e-3 | 1 | 5.7 % | 17.4 MK | 35 MK (22 %) | 172 s |
+| 5 | 4e-3 | 1.5 | 3.8 % | 18.0 | 33 (27 %) | 267 s |
+| 5 | 2e-3 | 2 | 2.0 % | 18.9 | 25 (36 %) | 390 s |
+| 10 | 2e-3 | 2 | 2.0 % | 19.8 | 37 (25 %) | 203 s |
+| 10 | 2e-3 | 3 | 2.0 % | 20.3 | 28 (28 %) | 317 s |
+
+All of them burn at 10 to 20 MK over most of the hydrogen phase (G 6, c 5, λ₀ 6e-3, feedback 1, burning temperature every 20 s: 7, 17,
+17, 16, 24, 17, 24, 37 MK, then the flash), and all heat up in the last third of the hydrogen, before the flash: the hydrogen-weighted
+median stays at 25 to 37 MK. A larger feedback shifts it down but makes the star live longer (390 s at feedback 2, c 5).
+
+## The new defaults
+
+**G 9 → 6, c 10 → 5, λ₀ 2e-3 → 6e-3, feedback 0.3 → 1**, κ 20, T_min 0.05 T₀ and λ_He 2.5e-4 unchanged, every flag on. Chosen as the setting
+whose hydrogen burns coolest over the time a visitor watches it, with the shortest life of those (the flash under 3 minutes).
+
+Six seeds (20240611 to 20240616), 7 000 frames = 198 s, on the frozen worktree with the shipped defaults (no override):
+
+| | median | spread |
+|---|---|---|
+| first collapse | 5.7 % of the hydrogen, 38 400 fusions/s | 5.6 to 5.7 % |
+| burning again (100 fusions/s or more) | 23.5 s | the same in all six |
+| **H burns at** (burnT) | **18.9 MK** | 18.4 to 19.0 MK, **6 of 6 in 10–20** |
+| core plateau (densest cell) | 23.4 MK at 4.9 ρ₀ | 23.1 to 23.8 MK |
+| hydrogen-weighted burning temperature | 36 MK, 17 % of the hydrogen at 10–20 MK | |
+| **helium flash** | **6 of 6, 171.7 s** | 170.0 to 171.7 s |
+| at 198 s | carbon 99.5 %, hydrogen 0.5 %, core 215 MK | |
+
+The run (seed 20240611): the first collapse at 3.7 s (34 MK, 9 ρ₀) burns 5.7 % of the hydrogen, its heat bounces the cloud, which cools to
+1.5 MK and falls back; the hydrogen lights again at 22 s and burns at 10 to 20 MK, the core breathing between 8 and 18 MK, for about 120 s
+(92 % of the hydrogen left at 47 s, 73 % at 120 s), then heats as the hydrogen runs out (24 to 37 MK from 140 s), and the helium flash turns
+everything to carbon at 172 s. **The lull is longer** (18 s against about 5 s with the flags off): the feedback of 1 bounces the core
+harder, and G 6 makes the fall back slower.
+
+**The thermostat test** (the plan: "the central temperature varies by a few percent when λ varies by a decade"), three seeds each, 198 s:
+
+| λ₀ | 1.9e-3 (÷ 3.16) | 6e-3 (the default) | 1.9e-2 (× 3.16) |
+|---|---|---|---|
+| burning temperature (burnT) | 20.1 MK (+6 %) | 18.9 MK | 19.4 MK (+3 %) |
+| first collapse | 1.9 % | 5.7 % | 15.2 % |
+| helium flash | none in 198 s (38 % of H left) | 171.7 s | 140.0 s |
+
+**Met for the first time**: +6 % / +3 % across a decade of λ₀ (+95 % / +5 % with the flags off and the P4 defaults, −37 % / +16 % with the
+old cooling). The burning temperature is set by the thermostat (G, c and the feedback), not by λ₀, which now mostly sets the first burst.
+
+**The A2 reference** moves back towards the real ratio: at 20 ρ₀ and 0.1 fusions per second per particle hydrogen ignites at 14.3 MK
+(19.2 MK with λ₀ 2e-3), so the He/H ignition ratio there is 6.98 (5.2; real 6.67); over 20 to 100 ρ₀ and 0.03 to 0.5 per second it runs
+from 4.7 to 11.8 (`tests/gamowRates.test.ts`).
+
+## What changed in the code
+
+| Piece | Where |
+|---|---|
+| The six flags default to on | `src/simulation/protostar/declaration.ts`; the docs of five of them say "On by default" in the five catalogs |
+| G, c, λ₀, feedback | `src/config.ts` (the sliders' defaults, with the history in the comment above them) |
+| The lab's reference model: `restart()` turns every flag off (`LAB_REFERENCE_FLAGS`) unless the scenario passes `shippedFlags: true` (the default cloud's baselines and the protostar's performance probes) | `src/lab/config.ts`, `src/lab/driver.ts`, `src/lab/scenarios/baseline.ts`, `perf.ts`, `perfProtostar.ts` |
+| Tests: the flags' defaults, the calibration values and the A2 reference | `tests/protostar.test.ts`, `tests/gamowRates.test.ts` |
+
+The lab's physics scenarios were written for each part alone and recorded with every flag off: with the flags now on by default they would
+all have changed (A11 does not conserve the energy, C1 changes the cold collapse and the Sod tube's reference...). `restart()` keeps them on that
+reference model; a scenario that tests a flag already sets it.
+
+**Saved configurations** keep their stored values: every flag off and G 9, c 10, λ₀ 2e-3, feedback 0.3 (the built-in "Default" configuration
+comes from the code and gets the new values). A saved configuration therefore runs the model it was saved with.
+
+## Limits
+
+- **The last third of the hydrogen burns hot** (25 to 40 MK, then up to 200 MK in the flash): as the hydrogen runs out the helium core
+  contracts and heats. Every setting tried does it; a larger feedback softens it at the price of a longer life.
+- **The lull after the first collapse** is 18 s.
+- **After the helium flash the core falls to the grid's scale**: carbon at 239 MK and 345 to 365 ρ₀ at 198 s in all six seeds (ω·dt 0.23 in
+  the core), the end state of every setting with the flags on: nothing burns the carbon and nothing holds it up.
+- **Cost**: every flag on costs what their spikes measured, together (below, from the lab's performance probes); the first-visit benchmark
+  times the flags on (the adaptive step off, `BENCHMARK_PARAMS`), so its cap drops accordingly.
+
+## Reproducing
+
+    S=...   # scratch directory
+    # serve the frozen worktree: cd ~/src/ps-frozen && npx vite --port 5199
+    V='[{"name":"new defaults","frames":7000}]'
+    flock /tmp/particle-sim-gpu.lock node scripts/run-lab.mjs --url http://localhost:5199/particle-simulator/lab.html --timeout 3600 --out $S/c1.json \
+        --query "scenarios=baseline.protostar.default-cloud-tuning&cloudSeeds=6&cloudVariants=$(node -e 'console.log(encodeURIComponent(process.argv[1]))' "$V")"
+    node scripts/cloud-tuning-summary.mjs $S/c1.json
+    node scripts/cloud-tuning-series.mjs $S/c1.json "new defaults" 20240611 1
+
+A variant with `"params":{"collisions":false,...}` turns flags off; `"overrides":{"gravity":9,"radiation":10,"fusionRate":0.002,"feedback":0.3}`
+gives the old physics values. The hydrogen-weighted temperature was computed by a scratch script over the same series (the hydrogen burnt between
+two readings, weighted by their mean `burnTemperatureMK`).
