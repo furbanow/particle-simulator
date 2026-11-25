@@ -478,6 +478,14 @@ export const TOOLTIP_GAP = 10;                     // px between a tooltip and w
 export const ELEMENT_CONFIGS_KEY = 'gpu-gravity-bloom.elements';
 export const SIMULATION_CONFIGS_KEY = 'gpu-gravity-bloom.simulations';
 export const DELETE_CONFIRM_MS = 3000;            // delay to confirm a config deletion
+// Share links (`?algo=protostar&gravity=1.2&species.0.mass=4`): the keys that are not parameter keys.
+export const SHARE_KEY = {
+    algorithm: 'algo',
+    typeCount: 'types',
+    speciesPrefix: 'species.',
+    textSuffix: '.text',                           // after a drawing kind: `attractor.text`
+} as const;
+export const SHARE_FEEDBACK_MS = 2000;             // how long the share button shows "copied"
 // Element chart: arrow keys move a bar by this fraction of its height.
 export const CHART_KEY_STEP = 0.05;
 // Colors are edited as hue (HUE_STEPS steps per turn), saturation and lightness (in %).

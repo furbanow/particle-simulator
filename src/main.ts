@@ -20,6 +20,7 @@ import {
 import { findParam, validParamValue } from './simulation/params';
 import { Simulation } from './simulation/Simulation';
 import { ElementConfigStore } from './elementConfigs';
+import { decodeShareQuery, encodeShareQuery } from './shareLink';
 import { SimulationConfigStore, type SimulationConfig, type SimulationSetup } from './simulationConfigs';
 import { BenchmarkDialog } from './ui/benchmarkDialog';
 import { ConfigPicker } from './ui/configPicker';
@@ -32,6 +33,7 @@ import { DisplaySettingsPanel } from './ui/displaySettingsPanel';
 import { ElementsQuickPanel } from './ui/elementsQuickPanel';
 import { Modal } from './ui/modal';
 import { ParamPanel } from './ui/paramPanel';
+import { setupShareButton } from './ui/shareButton';
 import { setupShortcuts } from './ui/shortcuts';
 import { setupSliders, syncAllRanges, titleResettableRanges } from './ui/sliders';
 import { Stats } from './ui/stats';
@@ -63,7 +65,11 @@ renderer.setSize(width, height);
 // ---- Saved configs ----
 let localStore: Storage | null = null;
 try { localStore = window.localStorage; } catch { /* storage blocked: configs live in memory only */ }
-const simulationConfigs = new SimulationConfigStore(localStore, sharedControlSpecs());
+const controlSpecs = sharedControlSpecs();
+const simulationConfigs = new SimulationConfigStore(localStore, controlSpecs);
+// A share link: its setup is applied over the defaults of its algorithm, as unsaved edits.
+const sharedSetup = decodeShareQuery(window.location.search, controlSpecs);
+if (sharedSetup) simulationConfigs.selectDefaults(sharedSetup.algorithm);
 
 // ---- Simulation & rendering ----
 function failWith(err: unknown): never {
@@ -221,6 +227,11 @@ const simulationPicker = new ConfigPicker<SimulationConfig, SimulationSetup>({
     groupOf: config => isAlgorithmId(config.algorithm) ? ALGORITHMS[config.algorithm].label : config.algorithm,
 });
 const refreshSimulationPicker = () => simulationPicker.refresh();
+setupShareButton(byId<HTMLButtonElement>('shareBtn'), () => {
+    const url = new URL(window.location.pathname, window.location.origin);
+    url.search = encodeShareQuery(simulationSetup(), controlSpecs);
+    return url.href;
+});
 uiPanel.addEventListener('input', refreshSimulationPicker);
 uiPanel.addEventListener('change', refreshSimulationPicker);
 elementBar.onEdit = () => {
@@ -395,7 +406,11 @@ resize();
 const firstBenchmark = displaySettings.values.particleCap === null ? benchmarkGpu() : null;
 // An algorithm's defaults are not applied (the element editor stays on its own current config); a saved config or a preset is.
 const { current: startConfig } = simulationConfigs;
-if (simulationConfigs.canEdit(startConfig.id) || simulationConfigs.isPreset(startConfig.id)) applySimulationSetup(startConfig);
+if (sharedSetup) {
+    applySimulationSetup(sharedSetup);
+    // The link has done its job: the address goes back to the plain page.
+    window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+} else if (simulationConfigs.canEdit(startConfig.id) || simulationConfigs.isPreset(startConfig.id)) applySimulationSetup(startConfig);
 else restart();
 simulationPicker.refreshList();
 simulationPicker.refresh();
