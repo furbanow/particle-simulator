@@ -94,6 +94,11 @@ export const formatEnergyDrift = (fraction: number): string =>
 /** A temperature in T0, in millions of kelvins. */
 export const formatTemperature = (t: number): string => `${fixed(1)(t * PROTOSTAR_T0_KELVIN / KELVIN_PER_MK)} MK`;
 
+// Titles of the groups of the Physics tab.
+const GRAVITY_SECTION = t('algo.protostar.section.gravity');
+const HEAT_SECTION = t('algo.protostar.section.heat');
+const COLLISIONS_SECTION = t('algo.protostar.section.collisions');
+
 const params: readonly ParamDef[] = [
     { ...sliderFields(PROTOSTAR_COUNT_SLIDER), key: PROTOSTAR_PARAM.count, tab: 'initial', label: t('algo.protostar.param.count.label'),
         doc: t('algo.protostar.param.count.doc'),
@@ -110,21 +115,28 @@ const params: readonly ParamDef[] = [
     { kind: 'choice', key: PROTOSTAR_PARAM.turbulence, tab: 'initial', label: t('algo.protostar.param.turbulence.label'), default: 'white',
         options: TURBULENCE_KINDS.map(value => ({ value, label: t(`algo.protostar.option.turbulence.${value}`) })),
         doc: t('algo.protostar.param.turbulence.doc') },
-    { ...sliderFields(PROTOSTAR_GRAVITY_SLIDER), key: PROTOSTAR_PARAM.gravity, tab: 'physics', label: t('algo.protostar.param.gravity.label'),
+    { ...sliderFields(PROTOSTAR_GRAVITY_SLIDER), key: PROTOSTAR_PARAM.gravity, tab: 'physics', section: GRAVITY_SECTION, label: t('algo.protostar.param.gravity.label'),
         doc: t('algo.protostar.param.gravity.doc'),
         format: v => `G = ${fixed(2)(v)}` },
-    { ...sliderFields(PROTOSTAR_SOFTENING_SLIDER), key: PROTOSTAR_PARAM.softening, tab: 'physics', label: t('algo.protostar.param.softening.label'),
+    { ...sliderFields(PROTOSTAR_SOFTENING_SLIDER), key: PROTOSTAR_PARAM.softening, tab: 'physics', section: GRAVITY_SECTION, label: t('algo.protostar.param.softening.label'),
         doc: t('algo.protostar.param.softening.doc'),
+        disabledWhen: { param: PROTOSTAR_PARAM.adaptiveThickness, equals: true },
         format: v => `ε = ${fixed(1)(v)} %` },
-    { ...logSliderFields(PROTOSTAR_RADIATION_SLIDER), key: PROTOSTAR_PARAM.radiation, tab: 'physics', label: t('algo.protostar.param.radiation.label'),
+    { kind: 'boolean', key: PROTOSTAR_PARAM.adaptiveThickness, tab: 'physics', section: GRAVITY_SECTION, label: t('algo.protostar.param.adaptiveThickness.label'),
+        doc: t('algo.protostar.param.adaptiveThickness.doc'), default: true },
+    { ...logSliderFields(PROTOSTAR_RADIATION_SLIDER), key: PROTOSTAR_PARAM.radiation, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.radiation.label'),
         doc: t('algo.protostar.param.radiation.doc'),
         format: v => `c = ${formatSmall(v)} /s` },
-    { ...logSliderFields(PROTOSTAR_KAPPA_SLIDER), key: PROTOSTAR_PARAM.kappa, tab: 'physics', label: t('algo.protostar.param.kappa.label'),
+    { ...logSliderFields(PROTOSTAR_KAPPA_SLIDER), key: PROTOSTAR_PARAM.kappa, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.kappa.label'),
         doc: t('algo.protostar.param.kappa.doc'),
         format: v => `κ = ${formatSmall(v)} / ρ₀` },
-    { ...sliderFields(PROTOSTAR_MIN_TEMPERATURE_SLIDER), key: PROTOSTAR_PARAM.minTemperature, tab: 'physics',
+    { ...sliderFields(PROTOSTAR_MIN_TEMPERATURE_SLIDER), key: PROTOSTAR_PARAM.minTemperature, tab: 'physics', section: HEAT_SECTION,
         label: t('algo.protostar.param.minTemperature.label'), doc: t('algo.protostar.param.minTemperature.doc'),
         format: formatTemperature },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.jeansFloor, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.jeansFloor.label'),
+        doc: t('algo.protostar.param.jeansFloor.doc'), default: true },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.collisions, tab: 'physics', section: COLLISIONS_SECTION, label: t('algo.protostar.param.collisions.label'),
+        doc: t('algo.protostar.param.collisions.doc'), default: true },
     { ...logSliderFields(PROTOSTAR_LAMBDA_SLIDER), key: PROTOSTAR_PARAM.fusionRate, tab: 'fusion', label: t('algo.protostar.param.fusionRate.label'),
         doc: t('algo.protostar.param.fusionRate.doc'),
         format: v => `λ₀ = ${formatSmall(v)}` },
@@ -138,17 +150,11 @@ const params: readonly ParamDef[] = [
         doc: t('algo.protostar.param.diagnostics.doc'), default: false },
     { kind: 'boolean', key: PROTOSTAR_PARAM.adaptiveTimeStep, tab: 'features', label: t('algo.protostar.param.adaptiveTimeStep.label'),
         doc: t('algo.protostar.param.adaptiveTimeStep.doc'), default: false },
-    { kind: 'boolean', key: PROTOSTAR_PARAM.jeansFloor, tab: 'features', label: t('algo.protostar.param.jeansFloor.label'),
-        doc: t('algo.protostar.param.jeansFloor.doc'), default: true },
     { kind: 'choice', key: PROTOSTAR_PARAM.stabilityMap, tab: 'features', label: t('algo.protostar.param.stabilityMap.label'), default: 'off',
         options: STABILITY_MAP_MODES.map(value => ({ value, label: t(`algo.protostar.option.stabilityMap.${value}`) })),
         doc: t('algo.protostar.param.stabilityMap.doc') },
     { kind: 'boolean', key: PROTOSTAR_PARAM.tscDeposit, tab: 'features', label: t('algo.protostar.param.tscDeposit.label'),
         doc: t('algo.protostar.param.tscDeposit.doc'), default: false },
-    { kind: 'boolean', key: PROTOSTAR_PARAM.collisions, tab: 'features', label: t('algo.protostar.param.collisions.label'),
-        doc: t('algo.protostar.param.collisions.doc'), default: true },
-    { kind: 'boolean', key: PROTOSTAR_PARAM.adaptiveThickness, tab: 'features', label: t('algo.protostar.param.adaptiveThickness.label'),
-        doc: t('algo.protostar.param.adaptiveThickness.doc'), default: true },
     { kind: 'boolean', key: PROTOSTAR_PARAM.nestedGrid, tab: 'features', label: t('algo.protostar.param.nestedGrid.label'),
         doc: t('algo.protostar.param.nestedGrid.doc'), default: false },
 ];

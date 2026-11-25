@@ -18,17 +18,19 @@ export const PARTICLE_COUNT_PARAM = 'count';
  * The tabs of the panel, in display order. 'initial' holds what only takes effect on the next
  * restart; the other tabs hold what applies while it changes. A tab shows only when a parameter
  * is declared in it, so an algorithm gets its Fusion or Supernova tab by declaring its parameters.
- * 'features' holds the optional parts of an algorithm (boolean switches, applied right away).
+ * A switch sits in the tab and the section (`ParamBase.section`) of the parameters it changes;
+ * 'features' (labelled Advanced, the last tab) holds the ones that only change how the model is computed or
+ * observed (time step, grids, diagnostics). Switches are applied right away.
  */
 export const PANEL_TABS = [
     { id: 'initial', label: t('tab.initial') },
     { id: 'physics', label: t('tab.physics') },
     { id: 'fusion', label: t('tab.fusion') },
     { id: 'supernova', label: t('tab.supernova') },
-    { id: 'features', label: t('tab.features') },
     { id: 'drawing', label: t('tab.drawing') },
     { id: 'elements', label: t('tab.elements') },
     { id: 'effects', label: t('tab.effects') },
+    { id: 'features', label: t('tab.features') },
 ] as const;
 
 export type PanelTab = typeof PANEL_TABS[number];
@@ -42,6 +44,14 @@ interface ParamBase {
     /** Concise explanation, shown on hover: what it is and what it does in the algorithm. */
     readonly doc: string;
     readonly tab: PanelTabId;
+    /**
+     * Title of the group of the tab this parameter belongs to (already translated). The panel shows
+     * it above the first parameter of a run of parameters sharing it, so those are declared
+     * next to each other. A flag goes in the section of the parameter it changes.
+     */
+    readonly section?: string;
+    /** The control is greyed out while the parameter `param` has the value `equals` (it has no effect then). */
+    readonly disabledWhen?: { readonly param: string; readonly equals: ParamValue };
 }
 
 /** A number, edited with a slider. */

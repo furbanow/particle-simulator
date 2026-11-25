@@ -45,11 +45,15 @@ export interface ParamField {
     readonly element: HTMLElement;
     /** Pushes the control's value into its store and paints its display. */
     update(): void;
+    /** Greys the control out (a parameter it depends on makes it useless) or brings it back. */
+    setDisabled(disabled: boolean): void;
 }
 
 interface Control {
     param: ParamDef;
+    store: ParamStore;
     update(): void;
+    setDisabled(disabled: boolean): void;
     pending?: HTMLElement;
 }
 
@@ -96,7 +100,8 @@ export class ParamPanel {
         this.controls = [];
         this.tabButtons = new Map(tabs.map(tab => [tab.id, this.buildTabButton(tab)]));
         this.tabPanels = new Map(tabs.map(tab => {
-            const fields = entries.filter(e => e.param.tab === tab.id).map(e => this.buildControl(e.param, e.store));
+            const fields = withSectionTitles(entries.filter(e => e.param.tab === tab.id)
+                .map(e => ({ section: e.param.section, element: this.buildControl(e.param, e.store) })));
             const more = extra[tab.id];
             return [tab.id, buildTabPanel(tab, more ? [...fields, more] : fields)];
         }));
@@ -148,6 +153,20 @@ export class ParamPanel {
         this.tabButtons.get(ids[target])?.focus();
     }
 
+    /** Greys out the controls that have no effect with the current value of the parameter they depend on. */
+    private refreshDisabled(): void {
+        for (const { param, store, setDisabled } of this.controls) {
+            const dependency = param.disabledWhen;
+            if (dependency) setDisabled(store.value(dependency.param) === dependency.equals);
+        }
+    }
+
+    /** After a change of a value: the restart hints and the dependent controls. */
+    private refresh(): void {
+        this.refreshPending();
+        this.refreshDisabled();
+    }
+
     private refreshPending(): void {
         const isPending = ({ param, pending }: Control) => pending !== undefined && this.sim.isPending(param.key);
         for (const control of this.controls) {
@@ -175,15 +194,15 @@ export class ParamPanel {
 
     private buildControl(param: ParamDef, store: ParamStore): HTMLElement {
         let pending: HTMLElement | undefined;
-        const field = paramField(param, store, () => this.refreshPending());
+        const field = paramField(param, store, () => this.refresh());
         if (appliesOnRestart(param)) {
             pending = document.createElement('div');
             pending.className = 'hint pending';
             field.element.appendChild(pending);
         }
         this.controls.push({
-            param, pending,
-            update: () => { field.update(); this.refreshPending(); },
+            param, pending, store, setDisabled: field.setDisabled,
+            update: () => { field.update(); this.refresh(); },
         });
         return field.element;
     }
@@ -249,11 +268,32 @@ export function paramField(param: ParamDef, store: ParamStore, onChange: () => v
     }
     input.setAttribute('aria-description', param.doc);
     input.addEventListener(param.kind === 'number' ? 'input' : 'change', () => { update(); onChange(); });
-    return { param, element: field, update };
+    const setDisabled = (disabled: boolean): void => {
+        input.disabled = disabled;
+        field.classList.toggle('disabled', disabled);
+    };
+    return { param, element: field, update, setDisabled };
 }
 
 const tabButtonId = (id: PanelTabId): string => `panelTab_${id}`;
 const tabPanelId = (id: PanelTabId): string => `panelTabPanel_${id}`;
+
+/** The fields of a tab, with the title of a section before the first field of each run sharing it. */
+function withSectionTitles(fields: readonly { section: string | undefined; element: HTMLElement }[]): HTMLElement[] {
+    const elements: HTMLElement[] = [];
+    let previous: string | undefined;
+    for (const { section, element } of fields) {
+        if (section && section !== previous) {
+            const title = document.createElement('h3');
+            title.className = 'param-section';
+            title.textContent = section;
+            elements.push(title);
+        }
+        previous = section;
+        elements.push(element);
+    }
+    return elements;
+}
 
 function buildTabPanel(tab: PanelTab, fields: readonly HTMLElement[]): HTMLElement {
     const panel = document.createElement('section');

@@ -90,7 +90,7 @@ const particles = new ParticleLayer(simulation.geometry, simulation.speciesUnifo
 const nebula = new NebulaLayer(renderer, simulation.geometry, simulation.speciesUniforms, simulation.screenSize,
     particles.texturePosition, viewUniforms);
 const post = new PostProcessing(renderer, particles.scene, nebula.target.texture, width, height);
-// The protostar's stability map, over the finished image (off unless chosen in the features tab).
+// The protostar's stability map, over the finished image (off unless chosen in the Advanced tab).
 const stability = new StabilityLayer(simulation.screenSize, viewUniforms);
 
 function resize(): void {

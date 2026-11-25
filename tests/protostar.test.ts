@@ -50,9 +50,9 @@ describe('protostar declaration', () => {
         expect(byKey.heFusionRate.kind === 'number' && byKey.heFusionRate.scale).toBe('log');
         expect(tabsOf(PROTOSTAR.params).map(t => t.id)).toEqual(['initial', 'physics', 'fusion', 'features']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'initial').map(p => p.key)).toEqual(['count', 'alphaVir', 'betaRot', 'profile', 'turbulence']);
-        expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'radiation', 'kappa', 'minTemperature']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'adaptiveThickness', 'radiation', 'kappa', 'minTemperature', 'jeansFloor', 'collisions']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'fusion').map(p => p.key)).toEqual(['fusionRate', 'heFusionRate', 'feedback']);
-        expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics', 'adaptiveTimeStep', 'jeansFloor', 'stabilityMap', 'tscDeposit', 'collisions', 'adaptiveThickness', 'nestedGrid']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics', 'adaptiveTimeStep', 'stabilityMap', 'tscDeposit', 'nestedGrid']);
         // the temperature exponents are not parameters any more: they are Gamow's (3.9 at 15 MK for pp, 41 at 100 MK for the triple alpha)
         expect(params).not.toHaveProperty('fusionExponent');
         expect(params).not.toHaveProperty('heFusionExponent');
@@ -72,6 +72,25 @@ describe('protostar declaration', () => {
             { from: HYDROGEN, to: HELIUM, label: 'Proton-proton chain (4 for 1)' },
             { from: HELIUM, to: CARBON, label: 'Triple-alpha (3 for 1)' },
         ]);
+    });
+
+    it('groups the physics tab in sections, each switch with the parameters it changes', () => {
+        const physics = PROTOSTAR.params.filter(p => p.tab === 'physics');
+        const titles = physics.map(p => p.section);
+        expect(titles.every(Boolean)).toBe(true);
+        // a section is one run of neighbours: the panel shows its title once
+        expect(titles.filter((s, i) => s !== titles[i - 1])).toEqual([...new Set(titles)]);
+        const sectionOf = (key: string) => physics.find(p => p.key === key)?.section;
+        expect(sectionOf('adaptiveThickness')).toBe(sectionOf('softening'));
+        expect(sectionOf('jeansFloor')).toBe(sectionOf('minTemperature'));
+        expect(sectionOf('softening')).not.toBe(sectionOf('kappa'));
+    });
+
+    it('greys the softening slider out while the adaptive thickness replaces it', () => {
+        const softening = PROTOSTAR.params.find(p => p.key === PROTOSTAR_PARAM.softening);
+        expect(softening?.disabledWhen).toEqual({ param: PROTOSTAR_PARAM.adaptiveThickness, equals: true });
+        const dependency = PROTOSTAR.params.find(p => p.key === softening?.disabledWhen?.param);
+        expect(dependency?.kind).toBe('boolean');
     });
 
     it('declares the mass per element, core temperature and density, fusion rate and the two energy diagnostics', () => {
@@ -102,10 +121,10 @@ describe('protostar declaration', () => {
         expect(defaultParams(PROTOSTAR).adaptiveTimeStep).toBe(false);
     });
 
-    it('has the Jeans floor switch in the features tab, applied live and on by default', () => {
+    it('has the Jeans floor switch in the physics tab, applied live and on by default', () => {
         const flag = PROTOSTAR.params.find(p => p.key === PROTOSTAR_PARAM.jeansFloor);
         expect(flag?.kind).toBe('boolean');
-        expect(flag?.tab).toBe('features');
+        expect(flag?.tab).toBe('physics');
         expect(flag && appliesOnRestart(flag)).toBe(false);
         expect(flag?.doc.length).toBeGreaterThan(flag?.label.length ?? 0);
         // an artificial pressure that heats the dense core (docs/spikes/a6-a13-cooling-and-jeans.md): optional, as the proposal asks;

@@ -33,14 +33,12 @@ const counter = () => { let n = 0; return () => `id${++n}`; };
 const newStore = (storage: KeyValueStorage) => new SimulationConfigStore(storage, CONTROLS, counter(), CATALOG);
 
 describe('the features tab', () => {
-    it('sits between Supernova and Drawing', () => {
-        const ids = PANEL_TABS.map(tab => tab.id);
-        expect(ids.indexOf('features')).toBe(ids.indexOf('supernova') + 1);
-        expect(ids.indexOf('features')).toBe(ids.indexOf('drawing') - 1);
+    it('is the last tab, on the far right', () => {
+        expect(PANEL_TABS.at(-1)?.id).toBe('features');
     });
 
     it('has a label, and shows only for an algorithm declaring a parameter in it', () => {
-        expect(PANEL_TABS.find(tab => tab.id === 'features')?.label).toBe('Features');
+        expect(PANEL_TABS.find(tab => tab.id === 'features')?.label).toBe('Advanced');
         expect(tabsOf(STICKY_DUST.params.filter(p => p.tab !== 'features')).map(tab => tab.id)).toEqual(['initial', 'physics', 'supernova']);
         expect(tabsOf(FLAGGED.params).map(tab => tab.id)).toEqual(['initial', 'physics', 'supernova', 'features']);
     });
