@@ -15,6 +15,9 @@ import { panelParamValue } from './simulation/params';
  */
 export type MouseTool = 'none' | 'force' | 'brush' | 'eraser' | 'shape';
 
+/** The tool active when the page opens: the point force, as gravity of the attractor (the default kind). */
+export const DEFAULT_MOUSE_TOOL: MouseTool = 'force';
+
 export type ShapeKind = 'ellipse' | 'rect';
 
 /** A shape tool: its outline, filled or hollow. */
@@ -62,6 +65,7 @@ export type ForceType = DrawingKind | 'vortex';
 export type ForceMode = 'gravity' | 'vortex';
 
 export const FORCE_MODES: readonly ForceMode[] = ['gravity', 'vortex'];
+export const DEFAULT_FORCE_MODE: ForceMode = 'gravity';
 
 export const nextForceMode = (mode: ForceMode): ForceMode => cycle(FORCE_MODES, mode);
 
