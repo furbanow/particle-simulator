@@ -4,7 +4,7 @@ import {
 } from '../drawing';
 import { t, type MessageKey } from '../i18n';
 import {
-    FORCE_MODES, forceType, nextForceMode, nextShape, nextTip, otherKind, SHAPE_KINDS, SHAPE_STYLES, stepBrush,
+    DEFAULT_FORCE_MODE, DEFAULT_MOUSE_TOOL, FORCE_MODES, forceType, nextForceMode, nextShape, nextTip, otherKind, SHAPE_KINDS, SHAPE_STYLES, stepBrush,
     type ForceMode, type ForceType, type MaskTool, type MouseTool, type ShapeKind, type ShapeStyle, type ToolbarShortcut,
 } from '../mouseTools';
 import type { NumberParam, ParamDef } from '../simulation/algorithm';
@@ -168,9 +168,9 @@ function separator(): HTMLElement {
  * while its button is pressed; the mask tools are DrawingPanel's. See setupShortcuts for its keys.
  */
 export class MouseToolbar {
-    private tool: MouseTool = 'none';
+    private tool: MouseTool = DEFAULT_MOUSE_TOOL;
     private shape: ShapeStyle = SHAPE_STYLES[0];
-    private forceMode: ForceMode = 'gravity';
+    private forceMode: ForceMode = DEFAULT_FORCE_MODE;
     private held: Held | null = null;
     private readonly inkButton: HTMLButtonElement;
     private readonly toolButtons: Record<Tool, HTMLButtonElement>;

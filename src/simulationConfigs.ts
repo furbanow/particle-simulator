@@ -54,7 +54,7 @@ const defaultControls = (controls: readonly ControlSpec[]): Record<string, numbe
     Object.fromEntries(controls.map(c => [c.key, c.default]));
 
 /** The defaults of `algorithm`, as they read once the panel has shown them, with `overrides` over its parameters. */
-function defaultSimulationSetup(algorithm: AlgorithmDeclaration, controls: readonly ControlSpec[],
+export function defaultSimulationSetup(algorithm: AlgorithmDeclaration, controls: readonly ControlSpec[],
                                 overrides: Record<string, unknown> = {}): SimulationSetup {
     return {
         algorithm: algorithm.id,
@@ -137,6 +137,11 @@ export class SimulationConfigStore {
         if (this.configs.some(c => c.id === id)) this.currentId = id;
         this.persist();
         return this.current;
+    }
+
+    /** Makes the built-in config holding the defaults of `algorithm` current and returns it. */
+    selectDefaults(algorithm: string): SimulationConfig {
+        return this.select(builtinId(algorithm));
     }
 
     /** A new config with the defaults of `algorithm`; it becomes current. */
