@@ -16,6 +16,9 @@ uniform float activeCount;
 uniform float radiation;                // c, 1/s: dT/dt = -c mu T^4 / (Sigma tau_eff), T in T0 and Sigma in rho0; 0: no cooling
 uniform float opacityKappa;             // kappa, per rho0: the optical depth from the mid-plane to a face is kappa Sigma / 2
 uniform float minTemperature;           // T0: the cooling stops at this temperature
+uniform float coolingLaw;               // 0: the radiation above, 1: the damping below
+uniform float damping;                  // k, 1/s: the damping law damps the deviations from the mean velocity by exp(-k / (1 + Sigma / rho_opq) dt); 0: no cooling
+uniform float dampingOpacity;           // rho_opq, rho0
 uniform float jeansPerDensity;          // px^2/s^2: the Jeans floor of the dispersion is this times rho / rho0 (2 N_J dx G rho0); 0: no floor
 uniform float maxSpeed;                 // px/s
 uniform float heatingTFloor;            // px^2/s^2: below this dispersion a cell is heated by a random kick, not by scaling
@@ -83,7 +86,14 @@ void main() {
     // integrated exactly over the step (unconditionally stable) down to the floor T_min. Only the disordered part of the motion (around
     // the local mean velocity) loses energy: its deviations are scaled by sqrt(T' / T); rotation and infall are kept. The radiation goes
     // as the temperature mu t (T0 units), the energy per unit mass as the dispersion t: that is what the heating below and the floor work on.
-    if (gas.rho > 0.0 && radiation > 0.0 && opacityKappa > 0.0 && gas.t > 0.0) {
+    if (coolingLaw > 0.5) {
+        // The damping law (cooling.ts: dampingRate): the speed's deviations lose exp(-k_eff dt), the dispersion exp(-2 k_eff dt), at any temperature.
+        if (gas.rho > 0.0 && damping > 0.0 && gas.t > 0.0) {
+            float ratio = exp(-2.0 * damping / (1.0 + gas.rho / dampingOpacity) * dt);
+            v = center + (v - center) * sqrt(ratio);
+            dispersion *= ratio;
+        }
+    } else if (gas.rho > 0.0 && radiation > 0.0 && opacityKappa > 0.0 && gas.t > 0.0) {
         float temperature = gas.mu * gas.t / fusionTRef;
         if (temperature > minTemperature) {
             // Sigma tau_eff, finite when Sigma goes to 0 (the optically thin limit).

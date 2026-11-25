@@ -222,6 +222,18 @@ export type StatDef = ValueStat | MeterStat | TypeMassesStat;
 
 // ---- Algorithm ----
 
+/**
+ * A built-in simulation config of an algorithm besides its defaults: the parameters it changes (the others
+ * keep their defaults). Read-only, like the defaults; it comes from the code, not from the storage.
+ */
+export interface AlgorithmPreset {
+    /** Unique among the algorithm's presets. */
+    readonly id: string;
+    /** Name shown in the config list (already translated). */
+    readonly name: string;
+    readonly params: Readonly<Record<string, ParamValue>>;
+}
+
 export interface AlgorithmDeclaration {
     readonly id: string;
     /** Name shown in the UI. */
@@ -234,6 +246,8 @@ export interface AlgorithmDeclaration {
     readonly stats?: readonly StatDef[];
     /** Simulation speed of the built-in simulation config (the shared speed slider default when omitted). */
     readonly defaultSpeed?: number;
+    /** Built-in simulation configs offered after the defaults one. */
+    readonly presets?: readonly AlgorithmPreset[];
     /** Particle cap of this algorithm relative to the benchmark's (1 when omitted): cheaper ones allow more. */
     readonly particleCapRatio?: number;
 }

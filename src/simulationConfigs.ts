@@ -44,6 +44,7 @@ const BUILTIN_NAME = t('name.default');
 const NEW_CONFIG_PREFIX = t('name.simulationPrefix');
 
 const builtinId = (algorithm: string): string => `builtin:simulation:${algorithm}`;
+const presetId = (algorithm: string, preset: string): string => `${builtinId(algorithm)}:${preset}`;
 
 /** Every parameter of `algorithm` from `raw` or at its default, as the panel holds it. */
 const panelParams = (algorithm: AlgorithmDeclaration, raw: Record<string, unknown>): ParamValues =>
@@ -52,11 +53,12 @@ const panelParams = (algorithm: AlgorithmDeclaration, raw: Record<string, unknow
 const defaultControls = (controls: readonly ControlSpec[]): Record<string, number> =>
     Object.fromEntries(controls.map(c => [c.key, c.default]));
 
-/** The defaults of `algorithm`, as they read once the panel has shown them. */
-function defaultSimulationSetup(algorithm: AlgorithmDeclaration, controls: readonly ControlSpec[]): SimulationSetup {
+/** The defaults of `algorithm`, as they read once the panel has shown them, with `overrides` over its parameters. */
+function defaultSimulationSetup(algorithm: AlgorithmDeclaration, controls: readonly ControlSpec[],
+                                overrides: Record<string, unknown> = {}): SimulationSetup {
     return {
         algorithm: algorithm.id,
-        params: panelParams(algorithm, {}),
+        params: panelParams(algorithm, overrides),
         controls: { ...defaultControls(controls), ...(algorithm.defaultSpeed === undefined ? {} : { speed: algorithm.defaultSpeed }) },
         drawing: defaultDrawing(),
         ...defaultSetup(algorithm.particleTypes),
@@ -104,14 +106,15 @@ export function sanitizeSimulationConfig(raw: unknown, controls: readonly Contro
 
 /**
  * Saved simulation configs, of every algorithm in one list. Each algorithm has a read-only config
- * holding its defaults (not stored: it comes from the code), so there is always a current config
- * and the defaults can always be reloaded. Every change is written to the storage right away
+ * holding its defaults, followed by its presets (`AlgorithmDeclaration.presets`), also read-only (none is stored:
+ * they come from the code), so there is always a current config and the defaults can always be reloaded. Every change is written to the storage right away
  * (best effort: without storage, e.g. in a private window, it works in memory only).
  */
 export class SimulationConfigStore {
     private readonly configs: SimulationConfig[] = [];
     /** Stored configs of algorithms missing from the catalog, written back untouched. */
     private readonly foreign: unknown[] = [];
+    private readonly builtinIds = new Set<string>();
     private currentId = '';
     /** What the running simulation makes of saved parameters (e.g. a particle count above its cap comes down to it). */
     limitParams: (algorithm: string, params: ParamValues) => ParamValues = (_algorithm, params) => params;
@@ -149,7 +152,12 @@ export class SimulationConfigStore {
 
     /** Whether `id` can be saved over or renamed (every config but the built-in ones). */
     canEdit(id: string): boolean {
-        return this.configs.some(c => c.id === id && c.id !== builtinId(c.algorithm));
+        return this.configs.some(c => c.id === id) && !this.builtinIds.has(id);
+    }
+
+    /** Whether `id` is a preset of an algorithm (a built-in config other than its defaults). */
+    isPreset(id: string): boolean {
+        return this.builtinIds.has(id) && this.configs.some(c => c.id === id && id !== builtinId(c.algorithm));
     }
 
     /** Returns false (and changes nothing) for an empty name or a built-in config. */
@@ -220,11 +228,11 @@ export class SimulationConfigStore {
 
     private load(): void {
         for (const algorithm of Object.values(this.catalog)) {
-            this.configs.push({
-                id: builtinId(algorithm.id),
-                name: BUILTIN_NAME,
-                ...defaultSimulationSetup(algorithm, this.controls),
-            });
+            this.addBuiltin(builtinId(algorithm.id), BUILTIN_NAME, defaultSimulationSetup(algorithm, this.controls));
+            for (const preset of algorithm.presets ?? []) {
+                this.addBuiltin(presetId(algorithm.id, preset.id), preset.name,
+                    defaultSimulationSetup(algorithm, this.controls, preset.params));
+            }
         }
         let raw: unknown = null;
         try { raw = JSON.parse(this.storage?.getItem(SIMULATION_CONFIGS_KEY) ?? 'null'); } catch { /* corrupt: start over */ }
@@ -241,6 +249,11 @@ export class SimulationConfigStore {
             if (typeof raw.currentId === 'string') this.currentId = raw.currentId;
         }
         if (!this.configs.some(c => c.id === this.currentId)) this.currentId = this.configs[0].id;
+    }
+
+    private addBuiltin(id: string, name: string, setup: SimulationSetup): void {
+        this.builtinIds.add(id);
+        this.configs.push({ id, name, ...setup });
     }
 
     private persist(): void {

@@ -32,6 +32,16 @@
 // and a gas below it has its velocities' deviations scaled by sqrt(t_J / t), as the heating does (a cold one, with nothing to
 // scale, gets the missing dispersion as a kick in a random direction). An artificial pressure, behind the `jeansFloor` flag.
 
+// The damping law (the cooling of the first protostar, the `coolingLaw` choice): the disordered part of the velocity is damped, v <- u + (v - u) e^(-k_eff dt),
+// at the rate k_eff = k / (1 + Sigma / rho_opq) whatever the temperature (the dense gas, opaque, keeps the heat of its compression). The dispersion
+// loses e^(-2 k_eff dt), so d ln T / dt = -2 k_eff. Unlike the radiation it keeps cooling a cold gas, which falls in and fragments; there is no
+// floor and no dependence on the molecular weight.
+
+/** The laws of the cooling, `coolingLaw`'s options: the thin-disc radiation (T^4) or the constant damping. */
+export const COOLING_LAWS = ['radiation', 'damping'] as const;
+export type CoolingLaw = typeof COOLING_LAWS[number];
+export const isCoolingLaw = (value: unknown): value is CoolingLaw => COOLING_LAWS.some(law => law === value);
+
 /** sqrt(3) / 4, the middle term of the effective optical depth. */
 const SQRT3_OVER_4 = Math.sqrt(3) / 4;
 
@@ -46,7 +56,7 @@ export function columnDepth(sigma: number, kappa: number): number {
     return 3 * kappa * sigma * sigma / 16 + SQRT3_OVER_4 * sigma + 1 / (2 * kappa);
 }
 
-/** The parameters of the radiative cooling. */
+/** The parameters of the cooling: the radiation's (c, kappa, T_min) and, for the damping law, k and rho_opq. */
 export interface RadiativeCooling {
     /** c, 1/s. */
     rate: number;
@@ -54,13 +64,26 @@ export interface RadiativeCooling {
     opacity: number;
     /** T_min, in T0 (a temperature, not a dispersion). */
     floor: number;
+    /** The law at work (the radiation when absent). */
+    law?: CoolingLaw;
+    /** k, 1/s: the damping of the speed of the thin gas (damping law). */
+    damping?: number;
+    /** rho_opq, rho0: the density at which the damping halves (damping law). */
+    dampingOpacity?: number;
 }
+
+/** The damping rate k_eff = k / (1 + Sigma / rho_opq) (1/s) of a gas of surface density `sigma` (rho0). */
+export const dampingRate = (sigma: number, damping: number, opacity: number): number => damping / (1 + sigma / opacity);
 
 /**
  * The ratio T' / T (as well t' / t: mu does not change) of a gas of temperature `temperature` (T0), molecular weight `mu` (mu / mu_H)
  * and surface density `sigma` (rho0) after `dt` seconds of radiative cooling; 1 for a gas at or below the floor, or with no cooling.
  */
 export function coolingRatio(temperature: number, mu: number, sigma: number, dt: number, cooling: RadiativeCooling): number {
+    if (cooling.law === 'damping') {
+        if (!(sigma > 0) || !(dt > 0) || !((cooling.damping ?? 0) > 0)) return 1;
+        return Math.exp(-2 * dampingRate(sigma, cooling.damping!, cooling.dampingOpacity ?? 1) * dt);
+    }
     if (!(temperature > cooling.floor) || !(cooling.rate > 0) || !(dt > 0) || !(sigma > 0)) return 1;
     const x = 3 * cooling.rate * mu * temperature ** 3 * dt / columnDepth(sigma, cooling.opacity);
     return Math.max((1 + x) ** (-1 / 3), cooling.floor / temperature);
@@ -68,6 +91,9 @@ export function coolingRatio(temperature: number, mu: number, sigma: number, dt:
 
 /** The rate d ln T / dt (1/s, negative) of the cooling at that state: what sets the cooling time 1 / (3 |rate|) of the exact law at small dt. */
 export function coolingLogRate(temperature: number, mu: number, sigma: number, cooling: RadiativeCooling): number {
+    if (cooling.law === 'damping') {
+        return sigma > 0 && (cooling.damping ?? 0) > 0 ? -2 * dampingRate(sigma, cooling.damping!, cooling.dampingOpacity ?? 1) : 0;
+    }
     if (!(temperature > cooling.floor) || !(cooling.rate > 0) || !(sigma > 0)) return 0;
     return -cooling.rate * mu * temperature ** 3 / columnDepth(sigma, cooling.opacity);
 }

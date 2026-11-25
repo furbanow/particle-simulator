@@ -92,6 +92,9 @@ export class ProtostarModel implements GpuModel {
         radiation: { value: 0 },
         opacityKappa: { value: 1 },
         minTemperature: { value: 0 },
+        coolingLaw: { value: 0 },
+        damping: { value: 0 },
+        dampingOpacity: { value: 1 },
         jeansPerDensity: { value: 0 },
         maxSpeed: { value: 1 },
         heatingTFloor: { value: 0 },
@@ -240,6 +243,12 @@ export class ProtostarModel implements GpuModel {
         if (key === P.radiation && typeof value === 'number') this.own.radiation.value = value;
         if (key === P.kappa && typeof value === 'number') this.own.opacityKappa.value = value;
         if (key === P.minTemperature && typeof value === 'number') this.own.minTemperature.value = value;
+        if (key === P.coolingLaw) {
+            this.own.coolingLaw.value = value === 'damping' ? 1 : 0;
+            this.stabilityStale = true;
+        }
+        if (key === P.damping && typeof value === 'number') this.own.damping.value = value;
+        if (key === P.dampingOpacity && typeof value === 'number') this.own.dampingOpacity.value = value;
         if (key === P.jeansFloor) this.jeansFloor = value === true;
         if (key === P.adaptiveThickness) this.adaptiveThickness = value === true;
         if (key === P.tscDeposit) this.grids.setTscDeposit(value === true);
@@ -672,7 +681,10 @@ export class ProtostarModel implements GpuModel {
         const common = grids.common;
         this.stability ??= new StabilityPass(
             { gridGas: common.gridGas, gridThermo: common.gridThermo, gridCell: common.gridCell, fusionTRef: common.fusionTRef },
-            { radiation: this.own.radiation, opacityKappa: this.own.opacityKappa, minTemperature: this.own.minTemperature },
+            {
+                radiation: this.own.radiation, opacityKappa: this.own.opacityKappa, minTemperature: this.own.minTemperature,
+                coolingLaw: this.own.coolingLaw, damping: this.own.damping, dampingOpacity: this.own.dampingOpacity,
+            },
         );
         if (this.stabilityStale) {
             const size = this.context.screenSize.value;

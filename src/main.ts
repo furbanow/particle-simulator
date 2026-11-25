@@ -391,8 +391,9 @@ resize();
 // The first GPU benchmark starts right away (its first animation frames are ahead): the restart of
 // the setup below then waits for its end, so the simulation is not set up twice.
 const firstBenchmark = displaySettings.values.particleCap === null ? benchmarkGpu() : null;
-// A built-in config is not applied: the element editor stays on its own current config.
-if (simulationConfigs.canEdit(simulationConfigs.current.id)) applySimulationSetup(simulationConfigs.current);
+// An algorithm's defaults are not applied (the element editor stays on its own current config); a saved config or a preset is.
+const { current: startConfig } = simulationConfigs;
+if (simulationConfigs.canEdit(startConfig.id) || simulationConfigs.isPreset(startConfig.id)) applySimulationSetup(startConfig);
 else restart();
 simulationPicker.refreshList();
 simulationPicker.refresh();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    columnDepth, cooledVelocity, coolingLogRate, coolingRatio, effectiveDepth, jeansCells, jeansDispersion, jeansPerDensity,
+    columnDepth, cooledVelocity, dampingRate, isCoolingLaw, coolingLogRate, coolingRatio, effectiveDepth, jeansCells, jeansDispersion, jeansPerDensity,
     type RadiativeCooling,
 } from '../src/simulation/protostar/cooling';
 
@@ -133,5 +133,49 @@ describe('cooledVelocity (the twin of the shader)', () => {
         const r = cooledVelocity([8, 1], u, 50, 1, 20, 0.02, t0, { ...COOLING, rate: 0 }, 1, 1e-3, 0);
         expect(r.v).toEqual([8, 1]);
         expect(r.t).toBe(50);
+    });
+});
+
+describe('the damping law', () => {
+    const DAMPING: RadiativeCooling = { rate: 0, opacity: 0, floor: 0.5, law: 'damping', damping: 0.5, dampingOpacity: 5 };
+
+    it('knows its two laws', () => {
+        expect(isCoolingLaw('radiation')).toBe(true);
+        expect(isCoolingLaw('damping')).toBe(true);
+        expect(isCoolingLaw('classic')).toBe(false);
+    });
+
+    it('damps the speed at k / (1 + Sigma / rho_opq), so the dispersion at twice that', () => {
+        expect(dampingRate(0, 0.5, 5)).toBeCloseTo(0.5, 12);
+        expect(dampingRate(5, 0.5, 5)).toBeCloseTo(0.25, 12);
+        expect(coolingRatio(3, 1, 5, 0.1, DAMPING)).toBeCloseTo(Math.exp(-2 * 0.25 * 0.1), 12);
+        expect(coolingLogRate(3, 1, 5, DAMPING)).toBeCloseTo(-0.5, 12);
+    });
+
+    it('does not depend on the temperature, the molecular weight, the radiation sliders or the floor', () => {
+        const reference = coolingRatio(1, 1, 2, 0.05, DAMPING);
+        expect(coolingRatio(0.01, 1, 2, 0.05, DAMPING)).toBe(reference);
+        expect(coolingRatio(90, 2.65, 2, 0.05, DAMPING)).toBe(reference);
+        expect(coolingRatio(1, 1, 2, 0.05, { ...DAMPING, rate: 40, opacity: 20, floor: 5 })).toBe(reference);
+    });
+
+    it('composes over time like the exact exponential', () => {
+        const half = coolingRatio(1, 1, 2, 0.05, DAMPING);
+        expect(half * half).toBeCloseTo(coolingRatio(1, 1, 2, 0.1, DAMPING), 12);
+    });
+
+    it('leaves the gas alone with no damping, no step or no gas', () => {
+        expect(coolingRatio(1, 1, 2, 0.05, { ...DAMPING, damping: 0 })).toBe(1);
+        expect(coolingRatio(1, 1, 2, 0, DAMPING)).toBe(1);
+        expect(coolingRatio(1, 1, 0, 0.05, DAMPING)).toBe(1);
+        expect(coolingLogRate(1, 1, 0, DAMPING)).toBe(0);
+    });
+
+    it('scales the deviations from the mean by exp(-k_eff dt), keeping the mean flow', () => {
+        const r = cooledVelocity([8, 1], [5, 1], 50, 1, 5, 0.1, 400, DAMPING, 0, 1e-3, 0);
+        const scale = Math.exp(-0.25 * 0.1);
+        expect(r.v[0]).toBeCloseTo(5 + 3 * scale, 10);
+        expect(r.v[1]).toBeCloseTo(1, 10);
+        expect(r.t).toBeCloseTo(50 * scale * scale, 10);
     });
 });

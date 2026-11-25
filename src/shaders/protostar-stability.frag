@@ -14,6 +14,9 @@ uniform float fusionTRef;               // T0, px^2/s^2
 uniform float radiation;                // c, 1/s
 uniform float opacityKappa;             // kappa, per rho0
 uniform float minTemperature;           // T_min, T0
+uniform float coolingLaw;               // 0: the radiation, 1: the damping (protostar-velocity.frag)
+uniform float damping;                  // k, 1/s
+uniform float dampingOpacity;           // rho_opq, rho0
 
 bool hasGas(ivec2 c) {
     if (any(lessThan(c, ivec2(0))) || any(greaterThanEqual(c, ivec2(GRID_RES)))) return false;
@@ -52,7 +55,11 @@ void main() {
     float mu = texelFetch(gridThermo, cell, 0).z;
     float temperature = mu * t / fusionTRef;
     float beta = STABILITY_CAP;
-    if (temperature > minTemperature && radiation > 0.0 && opacityKappa > 0.0) {
+    if (coolingLaw > 0.5) {
+        // The damping law: d ln T / dt = -2 k / (1 + Sigma / rho_opq), at any temperature.
+        float rate = 2.0 * damping / (1.0 + rho / dampingOpacity);
+        if (rho > 0.0 && rate > 0.0) beta = min(abs(omega) / rate, STABILITY_CAP);
+    } else if (temperature > minTemperature && radiation > 0.0 && opacityKappa > 0.0) {
         float column = 0.1875 * opacityKappa * rho * rho + 0.4330127 * rho + 0.5 / opacityKappa;
         float rate = radiation * mu * temperature * temperature * temperature / column;
         if (rate > 0.0) beta = min(abs(omega) / rate, STABILITY_CAP);

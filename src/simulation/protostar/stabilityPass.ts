@@ -11,6 +11,9 @@ export interface StabilityCoolingUniforms {
     radiation: Uniform<number>;
     opacityKappa: Uniform<number>;
     minTemperature: Uniform<number>;
+    coolingLaw: Uniform<number>;
+    damping: Uniform<number>;
+    dampingOpacity: Uniform<number>;
 }
 
 /** The grids the map reads, shared by reference with the protostar's other passes (the gas pass swaps its targets every substep). */

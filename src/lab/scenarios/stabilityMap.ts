@@ -9,6 +9,7 @@ import {
     PROTOSTAR_CLOUD_RADIUS, PROTOSTAR_GRAVITY_UNIT, PROTOSTAR_STABILITY_BETA_CRITICAL, PROTOSTAR_STABILITY_CAP, PROTOSTAR_STABILITY_MIN_DENSITY,
     PROTOSTAR_STABILITY_Q_CRITICAL, PROTOSTAR_T0_KELVIN, TOTAL_MASS,
 } from '../../config';
+import { isCoolingLaw, type CoolingLaw } from '../../simulation/protostar/cooling';
 import { PROTOSTAR_PARAM } from '../../simulation/protostar/declaration';
 import { stabilityMap, type StabilityScales } from '../../simulation/protostar/stability';
 import { measureToomre } from '../../simulation/protostar/toomre';
@@ -40,6 +41,8 @@ function scalesOf(context: LabContext): StabilityScales {
         cooling: {
             rate: numeric(params[PROTOSTAR_PARAM.radiation]), opacity: numeric(params[PROTOSTAR_PARAM.kappa]),
             floor: numeric(params[PROTOSTAR_PARAM.minTemperature]),
+            law: isCoolingLaw(params[PROTOSTAR_PARAM.coolingLaw]) ? params[PROTOSTAR_PARAM.coolingLaw] as CoolingLaw : 'radiation',
+            damping: numeric(params[PROTOSTAR_PARAM.damping]), dampingOpacity: numeric(params[PROTOSTAR_PARAM.dampingOpacity]),
         },
     };
 }

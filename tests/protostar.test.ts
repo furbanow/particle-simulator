@@ -50,7 +50,7 @@ describe('protostar declaration', () => {
         expect(byKey.heFusionRate.kind === 'number' && byKey.heFusionRate.scale).toBe('log');
         expect(tabsOf(PROTOSTAR.params).map(t => t.id)).toEqual(['initial', 'physics', 'fusion', 'features']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'initial').map(p => p.key)).toEqual(['count', 'alphaVir', 'betaRot', 'profile', 'turbulence']);
-        expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'adaptiveThickness', 'radiation', 'kappa', 'minTemperature', 'jeansFloor', 'collisions']);
+        expect(PROTOSTAR.params.filter(p => p.tab === 'physics').map(p => p.key)).toEqual(['gravity', 'softening', 'adaptiveThickness', 'coolingLaw', 'radiation', 'kappa', 'minTemperature', 'damping', 'dampingOpacity', 'jeansFloor', 'collisions']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'fusion').map(p => p.key)).toEqual(['fusionRate', 'heFusionRate', 'feedback']);
         expect(PROTOSTAR.params.filter(p => p.tab === 'features').map(p => p.key)).toEqual(['diagnostics', 'adaptiveTimeStep', 'stabilityMap', 'tscDeposit', 'nestedGrid']);
         // the temperature exponents are not parameters any more: they are Gamow's (3.9 at 15 MK for pp, 41 at 100 MK for the triple alpha)
@@ -145,6 +145,18 @@ describe('protostar declaration', () => {
         for (const key of [PROTOSTAR_PARAM.radiation, PROTOSTAR_PARAM.kappa, PROTOSTAR_PARAM.minTemperature]) expect(keys).toContain(key);
         expect(keys).not.toContain('cooling');
         expect(keys).not.toContain('opacity');
+    });
+
+    it('chooses the cooling law, radiation by default, and greys out the sliders of the law not at work', () => {
+        const byKey = Object.fromEntries(PROTOSTAR.params.map(p => [p.key, p]));
+        expect(byKey.coolingLaw.kind === 'choice' && byKey.coolingLaw.default).toBe('radiation');
+        expect(byKey.coolingLaw.kind === 'choice' && byKey.coolingLaw.options.map(o => o.value)).toEqual(['radiation', 'damping']);
+        for (const key of ['radiation', 'kappa', 'minTemperature']) {
+            expect(byKey[key].disabledWhen).toEqual({ param: 'coolingLaw', equals: 'damping' });
+        }
+        for (const key of ['damping', 'dampingOpacity']) {
+            expect(byKey[key].disabledWhen).toEqual({ param: 'coolingLaw', equals: 'radiation' });
+        }
     });
 
     it('explains the two energy tiles', () => {

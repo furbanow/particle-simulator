@@ -21,9 +21,9 @@ const counter = () => { let n = 0; return () => `id${++n}`; };
 const newStore = (storage: KeyValueStorage | null = new MemoryStorage()) => new SimulationConfigStore(storage, CONTROLS, counter());
 
 describe('simulation config store', () => {
-    it('starts on the first built-in config, one per algorithm', () => {
+    it('starts on the first built-in config: the defaults of each algorithm, then its presets', () => {
         const store = newStore();
-        expect(store.list().map(c => c.algorithm)).toEqual(algorithmList().map(a => a.id));
+        expect(store.list().map(c => c.algorithm)).toEqual(algorithmList().flatMap(a => [a.id, ...(a.presets ?? []).map(() => a.id)]));
         expect(store.current.algorithm).toBe('protostar');
         expect(store.current.controls).toEqual({ speed: 1.7, bloom: 0.35 });
         expect(store.current.species).toEqual(ALGORITHMS.protostar.particleTypes.defaults);
@@ -31,8 +31,9 @@ describe('simulation config store', () => {
 
     it('works without storage', () => {
         const store = newStore(null);
+        const before = store.list().length;
         store.create('protostar');
-        expect(store.list()).toHaveLength(algorithmList().length + 1);
+        expect(store.list()).toHaveLength(before + 1);
     });
 
     it('holds the whole setup through create, duplicate, rename, save and reload', () => {
@@ -67,7 +68,7 @@ describe('simulation config store', () => {
         expect(reloaded.current.controls).toEqual({ speed: 2, bloom: 1 });
         expect(reloaded.current.typeCount).toBe(1);
         expect(reloaded.current.species[0]).toMatchObject({ name: 'Deutérium', color: '#123456' });
-        expect(reloaded.list().map(c => c.name)).toEqual(['Default', 'Default', 'Simulation 1', 'Grand nuage']);
+        expect(reloaded.list().map(c => c.name)).toEqual(['Default', 'Simplified', 'Default', 'Simulation 1', 'Grand nuage']);
     });
 
     it('sees a change of any part of the setup as an edit', () => {
@@ -141,6 +142,30 @@ describe('simulation config store', () => {
         expect(store.current.controls.speed).toBe(1.7);
     });
 
+    it('offers the simplified protostar as a read-only preset: the defaults with the smoothing options off', () => {
+        const store = newStore();
+        const preset = store.list().find(c => c.name === 'Simplified')!;
+        const defaults = store.list().find(c => c.algorithm === 'protostar')!;
+        expect(preset.algorithm).toBe('protostar');
+        expect(preset.params.feedback).toBeCloseTo(0.3, 2);      // as the log slider rounds it
+        expect(preset.params).toMatchObject({ gravity: 9, coolingLaw: 'damping', fusionRate: 2e-3,
+            collisions: false, jeansFloor: false, adaptiveThickness: false, count: defaults.params.count, alphaVir: defaults.params.alphaVir });
+        expect(preset.params.damping).toBeCloseTo(0.5, 2);
+        expect(defaults.params.coolingLaw).toBe('radiation');
+        expect(defaults.params).toMatchObject({ collisions: true, jeansFloor: true, adaptiveThickness: true });
+        expect(store.isPreset(preset.id)).toBe(true);
+        expect(store.isPreset(defaults.id)).toBe(false);
+        expect(store.canEdit(preset.id)).toBe(false);
+        expect(store.canRemove(preset.id)).toBe(false);
+        expect(store.rename(preset.id, 'Autre')).toBe(false);
+        expect(store.save(cloneSimulationSetup(preset))).toBe(false);
+        // a copy of it is an ordinary saved config, still selectable after a reload
+        store.select(preset.id);
+        const copy = store.duplicate(cloneSimulationSetup(preset));
+        expect(store.canEdit(copy.id)).toBe(true);
+        expect(copy.params.collisions).toBe(false);
+    });
+
     it('lets a saved config change algorithm, like any other part of the setup', () => {
         const store = newStore();
         store.create('stickyDust');
@@ -156,7 +181,8 @@ describe('simulation config store', () => {
         const c = store.create('protostar');
         expect(store.remove(c.id).id).toBe(a.id);      // the last one of its algorithm: the previous one
         expect(store.remove(a.id).algorithm).toBe('protostar');
-        expect(store.current.name).toBe('Default');
+        expect(store.current.name).toBe('Simplified');      // the config before it: the last built-in one
+        expect(store.canEdit(store.current.id)).toBe(false);
         store.select(b.id);
         expect(store.remove(a.id).id).toBe(b.id);      // gone already: nothing moves
     });
@@ -165,7 +191,7 @@ describe('simulation config store', () => {
         for (const junk of ['{not json', 'null', '42', '{"configs":"no"}', '{"configs":[null,3,{"id":""},{"id":"x"}]}']) {
             const storage = new MemoryStorage();
             storage.setItem(SIMULATION_CONFIGS_KEY, junk);
-            expect(newStore(storage).list()).toHaveLength(algorithmList().length);
+            expect(newStore(storage).list()).toHaveLength(newStore().list().length);
         }
     });
 

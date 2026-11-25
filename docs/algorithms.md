@@ -276,6 +276,10 @@ T is the temperature (the thermometer's: the radiation goes as T⁴), while the 
 - **Opacity**: dense gas is optically thick (τ ≫ 1) and cools as T⁴/(κΣ²): it keeps the heat of its compression. In that limit only c/κ matters; κ sets where a column becomes thick (Σ ≈ 2/κ ρ₀) and how fast the thin gas cools (2cκμT⁴ whatever Σ).
 - **What changes in the cloud's history**: the cold envelope (2 MK) barely radiates any more (T³ is small), so after the first collapse's bounce the cloud stays warm and falls back after a lull of about 5 s. c/κ cannot be large: the helium core (μ = 2.65, dense) must keep enough heat to reach its ignition; above c/κ ≈ 1 it settles at 75 to 85 MK and never flashes.
 
+#### The constant damping law
+
+A second law, behind the `coolingLaw` choice (Physics tab, *Radiation (T⁴)* by default; the sliders of the law not at work are greyed out): the cooling of the first protostar, kept for its look. The deviations from the local mean velocity are damped, v ← v̄ + (v − v̄) e^(−k_eff Δt), at k_eff = k / (1 + Σ/ρ_opq) (sliders *Damping* k, default 0.5 /s, and *Damping opacity* ρ_opq, default 5 ρ₀), so the dispersion loses e^(−2 k_eff Δt) and d ln T/dt = −2 k_eff. It does not depend on the temperature, the molecular weight or T_min: a cold gas keeps cooling, falls in and fragments, which the T⁴ law, almost mute below a few MK, does not do. Twin: `coolingRatio()` and `dampingRate()` in `cooling.ts` (the stability map's β reads the same rate). Not measured on the GPU: its effect on the cloud's history (and on the helium core, which needs the radiation to keep its heat) is an estimate to check by eye. The *Simplified* preset keeps the radiation.
+
 ### Jeans floor
 
 Behind the `jeansFloor` switch (Physics tab, on by default since the [calibration](spikes/calibration.md); proposal A13). On a grid of cell Δx a thin sheet's Jeans length λ_J = c_s²/(GΣ) must span at least N_J = 4 cells (Truelove et al. 1997), or the gas fragments at the scale of the grid. With t = 2c_s², the dispersion of each neighborhood is kept at t_J = 2 N_J Δx G Σ or more, by scaling the deviations from the local mean by √(t_J/t) after the cooling (a cold neighborhood, with nothing to scale, gets the missing dispersion as a kick). It is an artificial pressure: it adds energy where the grid no longer resolves the collapse. In the default cloud it rarely acts (the measured dispersion of a 3 × 3 neighborhood includes the infall and the shear): the smallest Jeans length over the cells above 1 ρ₀ goes from 2.1 to 3.5 cells and the worst share of their mass under 4 cells from 24 % to 10 %; the history is the same. The floor is applied by particle from the interpolated neighborhood, the census by cell after the particles moved, hence a minimum a little under 4.
@@ -373,8 +377,11 @@ The color comes from the type (editor). The model declares `glow: 'state'`: each
 | Gravity constant G | `gravity` | 6 | live |
 | Softening ε (% of L) | `softening` | 1.6% | live |
 | Radiative cooling c (/s, log) | `radiation` | 5 | live |
+| Cooling law (radiation, constant damping) | `coolingLaw` | radiation | live |
 | Opacity κ (per ρ₀, log) | `kappa` | 20 | live |
 | Minimum temperature T_min (T₀, shown in MK) | `minTemperature` | 0.05 (0.75 MK) | live |
+| Damping k (/s), constant damping law | `damping` | 0.5 | live |
+| Damping opacity ρ_opq (ρ₀, log), constant damping law | `dampingOpacity` | 5 | live |
 | H → He rate λ₀ (/s, log) | `fusionRate` | 6e-3 | live |
 | He → C rate λ (/s, log) | `heFusionRate` | 2.5e-4 | live |
 | Feedback (log) | `feedback` | 1 | live |
@@ -388,6 +395,10 @@ The color comes from the type (editor). The model declares `glow: 'state'`: each
 | Nested grid | `nestedGrid` | off | live (Advanced tab) |
 
 Types: hydrogen (1.00783 u, cool blue-white, the entire initial population), helium (4.0026 u, yellow) and carbon (12 u, grey), none at the start; a share of the initial mass can be given to them. Statistics: the share of the mass of each element, core temperature (densest cell, in MK), maximum density (in ρ₀), fusions per second, of both reactions together (expected, smoothed), and, with the diagnostics on, the energy drift and the virial ratio.
+
+### Simplified preset
+
+A built-in simulation config (`presets` of the declaration, read-only like the defaults), named *Simplified*: the look of the first protostar, less faithful but livelier. It turns off the options that make the gas a smooth fluid (`collisions`, `jeansFloor`, `adaptiveThickness`) and the refinements of the Advanced tab, takes the [constant damping law](#the-constant-damping-law) for the cooling (k = 0.5 /s, ρ_opq = 5 ρ₀; the radiation sliders are greyed out) and the pre-calibration G = 9, λ₀ = 2·10⁻³ and feedback 0.3. The initial cloud needs no change: the old rotation and agitation sliders (0.44 and 0.26) correspond to α ≈ 0.31 and β ≈ 0.076, the current defaults. **Not measured with the damping.** The [calibration](spikes/calibration.md) runs of the old defaults (G 9, c 10, radiation, every option off) give a first collapse that burns about a third of the hydrogen at once, a lull of about 5 s, the helium flash at about 21 s and a mostly carbon star at 34 s; the damping cools the cold gas the radiation leaves alone, so the collapse is colder and more fragmented, and the helium core, which the radiation keeps hot, may not reach its flash. Switching the law back to radiation in the panel gives the measured history.
 
 ### Calibration for the molecular weight (headless Chrome, GTX 1060, 1024 × 768 px area, 400,000 particles)
 
