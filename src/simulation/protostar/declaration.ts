@@ -4,7 +4,7 @@
 // ./gpuModel.ts.
 
 import {
-    CARBON_12_MASS, HYDROGEN_1_MASS, MASS_RANGE, MASS_SLIDER_STEPS, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP,
+    CARBON_12_MASS, HYDROGEN_1_MASS, PROTOSTAR_CALIBRATED, MASS_RANGE, MASS_SLIDER_STEPS, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP,
     PROTOSTAR_C_SIZE, PROTOSTAR_DAMPING_OPACITY_SLIDER, PROTOSTAR_DAMPING_SLIDER,
     PROTOSTAR_COUNT_SLIDER, PROTOSTAR_FEEDBACK_SLIDER, PROTOSTAR_GRAVITY_SLIDER, PROTOSTAR_H_SIZE,
     PROTOSTAR_HE_IGNITION_KELVIN, PROTOSTAR_HE_LAMBDA_SLIDER, PROTOSTAR_HE_SIZE,
@@ -131,8 +131,8 @@ const params: readonly ParamDef[] = [
         disabledWhen: { param: PROTOSTAR_PARAM.adaptiveThickness, equals: true },
         format: v => `ε = ${fixed(1)(v)} %` },
     { kind: 'boolean', key: PROTOSTAR_PARAM.adaptiveThickness, tab: 'physics', section: GRAVITY_SECTION, label: t('algo.protostar.param.adaptiveThickness.label'),
-        doc: t('algo.protostar.param.adaptiveThickness.doc'), default: true },
-    { kind: 'choice', key: PROTOSTAR_PARAM.coolingLaw, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.coolingLaw.label'), default: 'radiation',
+        doc: t('algo.protostar.param.adaptiveThickness.doc'), default: false },
+    { kind: 'choice', key: PROTOSTAR_PARAM.coolingLaw, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.coolingLaw.label'), default: 'damping',
         options: COOLING_LAWS.map(value => ({ value, label: t(`algo.protostar.option.coolingLaw.${value}`) })),
         doc: t('algo.protostar.param.coolingLaw.doc') },
     { ...logSliderFields(PROTOSTAR_RADIATION_SLIDER), key: PROTOSTAR_PARAM.radiation, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.radiation.label'),
@@ -151,9 +151,9 @@ const params: readonly ParamDef[] = [
         label: t('algo.protostar.param.dampingOpacity.label'), doc: t('algo.protostar.param.dampingOpacity.doc'), disabledWhen: RADIATION_LAW,
         format: v => `ρ_opq = ${formatSmall(v)} ρ₀` },
     { kind: 'boolean', key: PROTOSTAR_PARAM.jeansFloor, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.jeansFloor.label'),
-        doc: t('algo.protostar.param.jeansFloor.doc'), default: true },
+        doc: t('algo.protostar.param.jeansFloor.doc'), default: false },
     { kind: 'boolean', key: PROTOSTAR_PARAM.collisions, tab: 'physics', section: COLLISIONS_SECTION, label: t('algo.protostar.param.collisions.label'),
-        doc: t('algo.protostar.param.collisions.doc'), default: true },
+        doc: t('algo.protostar.param.collisions.doc'), default: false },
     { ...logSliderFields(PROTOSTAR_LAMBDA_SLIDER), key: PROTOSTAR_PARAM.fusionRate, tab: 'fusion', label: t('algo.protostar.param.fusionRate.label'),
         doc: t('algo.protostar.param.fusionRate.doc'),
         format: v => `λ₀ = ${formatSmall(v)}` },
@@ -195,28 +195,31 @@ export const PROTOSTAR_TYPES: readonly ParticleType[] = [
 const UNIT = [0, 1] as const;
 
 /**
- * The "simplified" preset: the look of the first protostar, less faithful but livelier. The options that make the gas a smooth
- * fluid are off (collisions, Jeans floor, adaptive thickness, and the costly refinements of the Advanced tab), the cooling is the constant
- * damping of the first protostar (a cold gas keeps cooling), and gravity, fusion rate and feedback are the pre-calibration ones. With the
- * radiation instead (docs/spikes/calibration.md, "The old defaults": G 9, c 10) the first collapse burns a third of the hydrogen at once,
- * the helium flash comes after about 20 s and the core is carbon after about 35 s; the damping's history was not measured.
+ * The defaults are the "Simple fusion" config: the look of the first protostar, less faithful but livelier and lighter on the GPU. The
+ * options that make the gas a smooth fluid are off (collisions, Jeans floor, adaptive thickness, and the costly refinements of the
+ * Advanced tab), the cooling is the constant damping of the first protostar (a cold gas keeps cooling), and gravity, fusion rate and
+ * feedback are the pre-calibration ones. With the radiation instead (docs/spikes/calibration.md, "The old defaults": G 9, c 10) the first
+ * collapse burns a third of the hydrogen at once, the helium flash comes after about 20 s and the core is carbon after about 35 s; the
+ * damping's history was not measured.
+ *
+ * The "Calibrated Protostar" preset is the calibrated model (docs/spikes/calibration.md): radiative cooling, the calibrated G, lambda_0
+ * and feedback, and every feature flag that brings the model closer to a real protostar on (the energy diagnostics, which only observe,
+ * stay off). More faithful, and much heavier on the GPU.
  */
-const SIMPLIFIED_PRESET: AlgorithmPreset = {
-    id: 'simplified',
-    name: t('algo.protostar.preset.simplified'),
+export const CALIBRATED_PRESET: AlgorithmPreset = {
+    id: 'calibrated',
+    name: t('algo.protostar.preset.calibrated'),
     params: {
-        [PROTOSTAR_PARAM.gravity]: 9,
-        [PROTOSTAR_PARAM.coolingLaw]: 'damping',
-        [PROTOSTAR_PARAM.damping]: PROTOSTAR_DAMPING_SLIDER.default,
-        [PROTOSTAR_PARAM.dampingOpacity]: PROTOSTAR_DAMPING_OPACITY_SLIDER.default,
-        [PROTOSTAR_PARAM.fusionRate]: 2e-3,
-        [PROTOSTAR_PARAM.feedback]: 0.3,
-        [PROTOSTAR_PARAM.collisions]: false,
-        [PROTOSTAR_PARAM.jeansFloor]: false,
-        [PROTOSTAR_PARAM.adaptiveThickness]: false,
-        [PROTOSTAR_PARAM.adaptiveTimeStep]: false,
-        [PROTOSTAR_PARAM.tscDeposit]: false,
-        [PROTOSTAR_PARAM.nestedGrid]: false,
+        [PROTOSTAR_PARAM.gravity]: PROTOSTAR_CALIBRATED.gravity,
+        [PROTOSTAR_PARAM.coolingLaw]: 'radiation',
+        [PROTOSTAR_PARAM.fusionRate]: PROTOSTAR_CALIBRATED.fusionRate,
+        [PROTOSTAR_PARAM.feedback]: PROTOSTAR_CALIBRATED.feedback,
+        [PROTOSTAR_PARAM.collisions]: true,
+        [PROTOSTAR_PARAM.jeansFloor]: true,
+        [PROTOSTAR_PARAM.adaptiveThickness]: true,
+        [PROTOSTAR_PARAM.adaptiveTimeStep]: true,
+        [PROTOSTAR_PARAM.tscDeposit]: true,
+        [PROTOSTAR_PARAM.nestedGrid]: true,
         [PROTOSTAR_PARAM.diagnostics]: false,
     },
 };
@@ -225,7 +228,8 @@ export const PROTOSTAR: AlgorithmDeclaration = {
     id: 'protostar',
     label: t('algo.protostar.label'),
     defaultSpeed: 1.7,
-    presets: [SIMPLIFIED_PRESET],
+    defaultsName: t('algo.protostar.preset.simpleFusion'),
+    presets: [CALIBRATED_PRESET],
     description: t('algo.protostar.description'),
     params,
     particleTypes: {

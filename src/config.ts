@@ -307,20 +307,23 @@ export const PROTOSTAR_GLOW_MAX = 2;
 // star lives): G 9 -> 6 and c 10 -> 5 (the luminosity, hence how fast the hydrogen burns), feedback 0.3 -> 1 (the heat of a fusion holds the
 // core up as the hydrogen runs out; it is what keeps the burning cool), lambda_0 2e-3 -> 6e-3 (the thermostat's temperature: hydrogen
 // ignites at 14.3 MK at 20 rho0 and 0.1 per second, a He/H ratio of 6.98 there). The hydrogen burns at about 17 MK for some 150 s, the
-// helium flash comes at about 170 s; the first collapse burns 6 % of the hydrogen.
+// helium flash comes at about 170 s; the first collapse burns 6 % of the hydrogen. These calibrated values are the "Calibrated Protostar"
+// preset's (PROTOSTAR_CALIBRATED); the sliders' defaults, the "Simple fusion" default config, keep the pre-calibration G, lambda_0 and
+// feedback, with every feature flag off and the damping cooling.
+export const PROTOSTAR_CALIBRATED = { gravity: 6, fusionRate: 6e-3, feedback: 1 } as const;
 export const PROTOSTAR_COUNT_SLIDER: SliderSpec = { min: 1000, max: 2000000, step: 1000, default: 400000 };
 export const PROTOSTAR_VIRIAL_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.33 };         // alpha_vir = 2K / |U|
 export const PROTOSTAR_ROTATION_ENERGY_SLIDER: SliderSpec = { min: 0, max: 0.5, step: 0.01, default: 0.08 };  // beta_rot = E_rot / |U|
-export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 20, step: 0.05, default: 6 };
+export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 20, step: 0.05, default: 9 };
 export const PROTOSTAR_SOFTENING_SLIDER: SliderSpec = { min: 0.2, max: 5, step: 0.1, default: 1.6 };       // % of L
 export const PROTOSTAR_RADIATION_SLIDER: SliderSpec = { min: 0.1, max: 10000, step: 0, default: 5 };     // c, 1/s, log
 export const PROTOSTAR_DAMPING_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.5 };            // k, 1/s: the damping law of the cooling
 export const PROTOSTAR_DAMPING_OPACITY_SLIDER: SliderSpec = { min: 1, max: 1000, step: 0, default: 5 };       // rho_opq, rho0, log
 export const PROTOSTAR_KAPPA_SLIDER: SliderSpec = { min: 0.01, max: 1000, step: 0, default: 20 };          // kappa, per rho0, log
 export const PROTOSTAR_MIN_TEMPERATURE_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.005, default: 0.05 };   // T_min, T0
-export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 6e-3 };       // 1/s, log
+export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 2e-3 };       // 1/s, log
 export const PROTOSTAR_HE_LAMBDA_SLIDER: SliderSpec = { min: 1e-10, max: 1e-2, step: 0, default: 2.5e-4 };  // 1/s at 100 MK and rho0, log
-export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 1 };         // log
+export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 0.3 };       // log
 export const PROTOSTAR_H_SIZE = 1.6;               // px, default rendered diameters
 export const PROTOSTAR_HE_SIZE = 2.4;
 export const PROTOSTAR_C_SIZE = 3.2;

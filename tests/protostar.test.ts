@@ -7,7 +7,7 @@ import type { InitialState } from '../src/simulation/gpuModel';
 import { ALGORITHMS } from '../src/simulation/algorithms';
 import { defaultParams } from '../src/simulation/params';
 import {
-    CARBON, formatEnergyDrift, formatSmall, HELIUM, HYDROGEN, PROTOSTAR, PROTOSTAR_PARAM, PROTOSTAR_REACTIONS, PROTOSTAR_TYPES,
+    CALIBRATED_PRESET, CARBON, formatEnergyDrift, formatSmall, HELIUM, HYDROGEN, PROTOSTAR, PROTOSTAR_PARAM, PROTOSTAR_REACTIONS, PROTOSTAR_TYPES,
 } from '../src/simulation/protostar/declaration';
 import {
     atomicNumber, inverseMeanMolecularWeight, inverseMolecularWeights,
@@ -128,16 +128,22 @@ describe('protostar declaration', () => {
         expect(flag && appliesOnRestart(flag)).toBe(false);
         expect(flag?.doc.length).toBeGreaterThan(flag?.label.length ?? 0);
         // an artificial pressure that heats the dense core (docs/spikes/a6-a13-cooling-and-jeans.md): optional, as the proposal asks;
-        // on by default since the calibration (docs/spikes/calibration.md)
-        expect(defaultParams(PROTOSTAR).jeansFloor).toBe(true);
+        // off in the default "Simple fusion" config, on in the "Calibrated Protostar" preset (docs/spikes/calibration.md)
+        expect(defaultParams(PROTOSTAR).jeansFloor).toBe(false);
+        expect(CALIBRATED_PRESET.params.jeansFloor).toBe(true);
     });
 
-    it('turns the physics flags on by default, the adaptive time step, the TSC deposit and the nested grid off, the stability map off', () => {
+    it('turns every flag off by default ("Simple fusion") and the heavy ones on in the "Calibrated Protostar" preset, diagnostics and stability map off', () => {
         const defaults = defaultParams(PROTOSTAR);
-        for (const key of [PROTOSTAR_PARAM.jeansFloor, PROTOSTAR_PARAM.collisions, PROTOSTAR_PARAM.adaptiveThickness]) expect(defaults[key]).toBe(true);
-        for (const key of [PROTOSTAR_PARAM.diagnostics, PROTOSTAR_PARAM.adaptiveTimeStep, PROTOSTAR_PARAM.tscDeposit,
-            PROTOSTAR_PARAM.nestedGrid]) expect(defaults[key]).toBe(false);
+        const heavy = [PROTOSTAR_PARAM.jeansFloor, PROTOSTAR_PARAM.collisions, PROTOSTAR_PARAM.adaptiveThickness,
+            PROTOSTAR_PARAM.adaptiveTimeStep, PROTOSTAR_PARAM.tscDeposit, PROTOSTAR_PARAM.nestedGrid];
+        for (const key of [...heavy, PROTOSTAR_PARAM.diagnostics]) expect(defaults[key]).toBe(false);
         expect(defaults[PROTOSTAR_PARAM.stabilityMap]).toBe('off');
+        expect(defaults[PROTOSTAR_PARAM.coolingLaw]).toBe('damping');
+        for (const key of heavy) expect(CALIBRATED_PRESET.params[key]).toBe(true);
+        expect(CALIBRATED_PRESET.params[PROTOSTAR_PARAM.diagnostics]).toBe(false);
+        expect(CALIBRATED_PRESET.params[PROTOSTAR_PARAM.coolingLaw]).toBe('radiation');
+        expect(PROTOSTAR.presets).toEqual([CALIBRATED_PRESET]);
     });
 
     it('replaces the linear cooling by the thin-disc law: c, kappa and T_min, with no trace of the old keys', () => {
@@ -147,9 +153,9 @@ describe('protostar declaration', () => {
         expect(keys).not.toContain('opacity');
     });
 
-    it('chooses the cooling law, radiation by default, and greys out the sliders of the law not at work', () => {
+    it('chooses the cooling law, damping by default, and greys out the sliders of the law not at work', () => {
         const byKey = Object.fromEntries(PROTOSTAR.params.map(p => [p.key, p]));
-        expect(byKey.coolingLaw.kind === 'choice' && byKey.coolingLaw.default).toBe('radiation');
+        expect(byKey.coolingLaw.kind === 'choice' && byKey.coolingLaw.default).toBe('damping');
         expect(byKey.coolingLaw.kind === 'choice' && byKey.coolingLaw.options.map(o => o.value)).toEqual(['radiation', 'damping']);
         for (const key of ['radiation', 'kappa', 'minTemperature']) {
             expect(byKey[key].disabledWhen).toEqual({ param: 'coolingLaw', equals: 'damping' });

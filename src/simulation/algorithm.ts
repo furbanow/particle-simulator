@@ -246,6 +246,8 @@ export interface AlgorithmDeclaration {
     readonly stats?: readonly StatDef[];
     /** Simulation speed of the built-in simulation config (the shared speed slider default when omitted). */
     readonly defaultSpeed?: number;
+    /** Name of the built-in simulation config holding the defaults (already translated); "Default" when omitted. */
+    readonly defaultsName?: string;
     /** Built-in simulation configs offered after the defaults one. */
     readonly presets?: readonly AlgorithmPreset[];
     /** Particle cap of this algorithm relative to the benchmark's (1 when omitted): cheaper ones allow more. */

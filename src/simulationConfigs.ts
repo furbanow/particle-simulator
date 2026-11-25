@@ -228,7 +228,7 @@ export class SimulationConfigStore {
 
     private load(): void {
         for (const algorithm of Object.values(this.catalog)) {
-            this.addBuiltin(builtinId(algorithm.id), BUILTIN_NAME, defaultSimulationSetup(algorithm, this.controls));
+            this.addBuiltin(builtinId(algorithm.id), algorithm.defaultsName ?? BUILTIN_NAME, defaultSimulationSetup(algorithm, this.controls));
             for (const preset of algorithm.presets ?? []) {
                 this.addBuiltin(presetId(algorithm.id, preset.id), preset.name,
                     defaultSimulationSetup(algorithm, this.controls, preset.params));

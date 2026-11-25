@@ -925,7 +925,7 @@ over 100 orbits whatever the step, the core 550 to 1 700 rho0, omega dt 0.5 to 0
 ## After the calibration: every flag on (RTX 5070)
 
 The calibration ([spike](spikes/calibration.md)) turns every protostar feature flag on by default and sets G 6, c 5, λ₀ 6e-3, feedback 1.
-`restart()` now gives the scenarios the lab's reference model, every flag off (`LAB_REFERENCE_FLAGS`), unless they pass `shippedFlags: true`:
+`restart()` now gives the scenarios the lab's reference model, every flag off (`LAB_REFERENCE_PARAMS`), unless they pass `shippedFlags: true`:
 the physics scenarios run the model they were recorded with (with the new G, c, λ₀ and feedback where they take the defaults), the default
 cloud's baselines and the protostar's performance probes run the application's model.
 
@@ -959,3 +959,11 @@ A2 reference (`baseline.protostar.ignition-ratio`): He/H 6.03 at 0.5 per second 
 The late windows cost little more: with the flags on the default cloud's core no longer falls to the grid's scale by frame 1 000. The
 first-visit benchmark times the early frames with the flags on (adaptive step off), so its cap drops by about the early ratio (1.6 at 400 000,
 1.8 at 1 000 000).
+
+## Two protostar configurations
+
+The default protostar config is now "Simple fusion" (damping cooling, G 9, λ₀ 2e-3, feedback 0.3, every flag off); the calibrated model is
+the "Calibrated Protostar" preset, with every heavy flag on (adaptive time step, TSC deposit and nested grid included). The physics scenarios
+keep their model (`LAB_REFERENCE_PARAMS` pins the calibrated G, c law, λ₀ and feedback). The `shippedFlags` scenarios (the default cloud's
+baselines, `perf.protostar*`) now run that preset: their numbers above were recorded with the adaptive time step, the TSC deposit and the
+nested grid off, and are not re-recorded yet.

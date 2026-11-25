@@ -9,7 +9,7 @@ import { PROTOSTAR_PROPERTY, PROTOSTAR_STAT } from '../simulation/protostar/decl
 import { ProtostarModel } from '../simulation/protostar/gpuModel';
 import type { ProtostarGridTargets } from '../simulation/protostar/grids';
 import { StickyDustModel } from '../simulation/stickyDust/gpuModel';
-import { LAB_REFERENCE_FLAGS, LAB_SEED, LAB_SYNC_EVERY } from './config';
+import { LAB_REFERENCE_PARAMS, LAB_SEED, LAB_SHIPPED_PARAMS, LAB_SYNC_EVERY } from './config';
 import { withSeededRandom } from './random';
 import type { LabContext } from './types';
 
@@ -56,8 +56,8 @@ export interface RunOptions {
     /** Simulation speed (time scale) after the restart; the algorithm's default when omitted. It sets the time step: dt = BASE_DT x speed / ceil(speed). */
     timeScale?: number;
     /**
-     * Keeps the application's feature flags (the shipped defaults: every flag on since the calibration) instead of the lab's
-     * reference model (LAB_REFERENCE_FLAGS, every flag off), for the scenarios that measure what the application runs: the
+     * Runs the application's realistic model (LAB_SHIPPED_PARAMS: the "Calibrated Protostar" preset, every heavy flag on) instead of
+     * the lab's reference model (LAB_REFERENCE_PARAMS, every flag off), for the scenarios that measure what the application runs: the
      * default cloud's baselines and the performance probes. The `params` option and the page's `params=` apply after it either way.
      */
     shippedFlags?: boolean;
@@ -99,7 +99,8 @@ export async function restart(context: LabContext, options: RunOptions): Promise
     simulation.paused = false;
     for (const [key, value] of Object.entries(defaultParams(algorithm))) simulation.setParam(key, value);
     // The scenarios test each part of the physics on the reference model, every feature flag off, unless they set one.
-    if (options.shippedFlags !== true) for (const [key, value] of Object.entries(LAB_REFERENCE_FLAGS[id])) simulation.setParam(key, value);
+    const model = options.shippedFlags === true ? LAB_SHIPPED_PARAMS : LAB_REFERENCE_PARAMS;
+    for (const [key, value] of Object.entries(model[id])) simulation.setParam(key, value);
     simulation.setParam(PARTICLE_COUNT_PARAM, options.count);
     const declared = new Set(algorithm.params.map(p => p.key));
     for (const [key, value] of Object.entries(pageParams(context))) if (declared.has(key)) simulation.setParam(key, value);

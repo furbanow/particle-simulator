@@ -4,7 +4,7 @@ import {
     PROTOSTAR_TRIPLE_ALPHA_LAW,
 } from '../src/config';
 import { defaultParams } from '../src/simulation/params';
-import { PROTOSTAR, PROTOSTAR_REACTIONS, PROTOSTAR_TYPES } from '../src/simulation/protostar/declaration';
+import { CALIBRATED_PRESET, PROTOSTAR, PROTOSTAR_REACTIONS, PROTOSTAR_TYPES } from '../src/simulation/protostar/declaration';
 import { fusionLawOf, ignitionRatio, ignitionTemperature } from '../src/simulation/protostar/ignition';
 import { expm1Minus, logNoiseBias, logNoiseBiasCurved, logUnbiasedResonant } from '../src/simulation/protostar/noiseBias';
 import {
@@ -304,8 +304,8 @@ describe('Gamow rates: the reaction table\'s arrays', () => {
     });
 });
 
-describe('Gamow rates: the calibration of the defaults (docs/spikes/a2-gamow-rates.md, docs/spikes/calibration.md)', () => {
-    const defaults = defaultParams(PROTOSTAR);
+describe('Gamow rates: the calibration of the Calibrated Protostar preset (docs/spikes/a2-gamow-rates.md, docs/spikes/calibration.md)', () => {
+    const defaults = { ...defaultParams(PROTOSTAR), ...CALIBRATED_PRESET.params };
     const [h, he] = [fusionLawOf(PP, defaults), fusionLawOf(TRIPLE, defaults)];
     const ratioAt = (density: number, rate: number): number => ignitionRatio(PROTOSTAR_REACTIONS, defaults, density, rate, 0, 1);
 

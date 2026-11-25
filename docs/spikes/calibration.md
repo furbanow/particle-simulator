@@ -158,7 +158,7 @@ from 4.7 to 11.8 (`tests/gamowRates.test.ts`).
 |---|---|
 | The six flags default to on | `src/simulation/protostar/declaration.ts`; the docs of five of them say "On by default" in the five catalogs |
 | G, c, λ₀, feedback | `src/config.ts` (the sliders' defaults, with the history in the comment above them) |
-| The lab's reference model: `restart()` turns every flag off (`LAB_REFERENCE_FLAGS`) unless the scenario passes `shippedFlags: true` (the default cloud's baselines and the protostar's performance probes) | `src/lab/config.ts`, `src/lab/driver.ts`, `src/lab/scenarios/baseline.ts`, `perf.ts`, `perfProtostar.ts` |
+| The lab's reference model: `restart()` turns every flag off (`LAB_REFERENCE_PARAMS`) unless the scenario passes `shippedFlags: true` (the default cloud's baselines and the protostar's performance probes) | `src/lab/config.ts`, `src/lab/driver.ts`, `src/lab/scenarios/baseline.ts`, `perf.ts`, `perfProtostar.ts` |
 | Tests: the flags' defaults, the calibration values and the A2 reference | `tests/protostar.test.ts`, `tests/gamowRates.test.ts` |
 
 The lab's physics scenarios were written for each part alone and recorded with every flag off: with the flags now on by default they would

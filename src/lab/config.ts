@@ -2,10 +2,10 @@
 // frame counts and the thresholds of the sanity checks. The application's own constants stay in
 // src/config.ts.
 
-import { DUST_GRADIENT_CORNER_WEIGHT, DUST_GRAVITY_GAIN, PROTOSTAR_GRAVITY_SLIDER } from '../config';
+import { DUST_GRADIENT_CORNER_WEIGHT, DUST_GRAVITY_GAIN, PROTOSTAR_CALIBRATED } from '../config';
 import type { ParamValues } from '../simulation/algorithm';
 import type { AlgorithmId } from '../simulation/algorithms';
-import { PROTOSTAR_PARAM } from '../simulation/protostar/declaration';
+import { CALIBRATED_PRESET, PROTOSTAR_PARAM } from '../simulation/protostar/declaration';
 import { STICKY_DUST_PARAM } from '../simulation/stickyDust/declaration';
 
 /** Simulation area of every scenario, in CSS px (the physics scales with min(width, height)). */
@@ -18,16 +18,25 @@ export const LAB_SEED = 20240611;
 export const SOFTWARE_RENDERER_PATTERN = /swiftshader|llvmpipe|softpipe|software|basic render driver/i;
 
 /**
- * The feature flags of the lab's reference model, which restart() applies unless a scenario asks for the shipped ones
- * (`shippedFlags`): every flag off, the model each physics scenario was written and recorded for. The application turns them all
- * on since the calibration (docs/spikes/calibration.md); a scenario that tests a flag sets it through its `params`.
+ * The parameters of the lab's reference model, which restart() applies unless a scenario asks for the shipped model (`shippedFlags`,
+ * the "Calibrated Protostar" preset): the calibrated physics (docs/spikes/calibration.md) with every feature flag off, the model each
+ * physics scenario was written and recorded for. The application's defaults ("Simple fusion") differ (damping cooling, the
+ * pre-calibration G, lambda_0 and feedback); a scenario that tests a flag sets it through its `params`.
  */
-export const LAB_REFERENCE_FLAGS: Readonly<Record<AlgorithmId, ParamValues>> = {
+export const LAB_REFERENCE_PARAMS: Readonly<Record<AlgorithmId, ParamValues>> = {
     protostar: {
+        [PROTOSTAR_PARAM.gravity]: PROTOSTAR_CALIBRATED.gravity, [PROTOSTAR_PARAM.fusionRate]: PROTOSTAR_CALIBRATED.fusionRate,
+        [PROTOSTAR_PARAM.feedback]: PROTOSTAR_CALIBRATED.feedback, [PROTOSTAR_PARAM.coolingLaw]: 'radiation',
         [PROTOSTAR_PARAM.adaptiveTimeStep]: false, [PROTOSTAR_PARAM.jeansFloor]: false, [PROTOSTAR_PARAM.tscDeposit]: false,
         [PROTOSTAR_PARAM.collisions]: false, [PROTOSTAR_PARAM.adaptiveThickness]: false, [PROTOSTAR_PARAM.nestedGrid]: false,
     },
     stickyDust: { [STICKY_DUST_PARAM.tscDeposit]: false },
+};
+
+/** The model of the scenarios that measure what the application runs (`shippedFlags`): the protostar's "Calibrated Protostar" preset. */
+export const LAB_SHIPPED_PARAMS: Readonly<Record<AlgorithmId, ParamValues>> = {
+    protostar: CALIBRATED_PRESET.params,
+    stickyDust: {},
 };
 
 /** Frames between two GPU synchronizations in the long loops (keeps the command queue short, lets read-backs resolve). */
@@ -658,7 +667,7 @@ export const COOLING_WALL_CELLS = 4;
  * JEANS_TOLERANCE; then the default cloud with the flag off and on, JEANS_CLOUD_FRAMES frames, the Jeans length counted over the cells of
  * at least JEANS_CLOUD_MIN_DENSITY rho0 (the cloud's own gas; the thin outskirts are resolved anyway).
  */
-export const JEANS_GRAVITY = PROTOSTAR_GRAVITY_SLIDER.default;
+export const JEANS_GRAVITY = PROTOSTAR_CALIBRATED.gravity;
 export const JEANS_TOLERANCE = 3e-4;
 export const JEANS_CLOUD_FRAMES = 600;
 export const JEANS_CLOUD_MIN_DENSITY = 1;
