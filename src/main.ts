@@ -37,10 +37,12 @@ import { setupSliders, syncAllRanges, titleResettableRanges } from './ui/sliders
 import { Stats } from './ui/stats';
 import { MouseToolbar } from './ui/toolbar';
 import { setupTooltips } from './ui/tooltip';
+import { APP_VERSION } from './version';
 
 // The static texts of the page, in the language fixed at load (changing it reloads the page).
 document.documentElement.lang = getLanguage();
 applyStaticTranslations(document);
+byId('versionLink').textContent = `v${APP_VERSION}`;
 
 const container = byId('sim-container');
 const uiPanel = byId('ui-panel');
