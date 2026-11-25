@@ -378,14 +378,14 @@ The color comes from the type (editor). The model declares `glow: 'state'`: each
 | H → He rate λ₀ (/s, log) | `fusionRate` | 6e-3 | live |
 | He → C rate λ (/s, log) | `heFusionRate` | 2.5e-4 | live |
 | Feedback (log) | `feedback` | 1 | live |
-| Energy diagnostics | `diagnostics` | on | live (Features tab) |
-| Adaptive time step | `adaptiveTimeStep` | on | live (Features tab) |
+| Energy diagnostics | `diagnostics` | off | live (Features tab) |
+| Adaptive time step | `adaptiveTimeStep` | off | live (Features tab) |
 | Jeans floor | `jeansFloor` | on | live (Features tab) |
 | Stability map (off, fragmentation, Toomre Q, cooling β) | `stabilityMap` | off | live (Features tab) |
-| TSC deposit | `tscDeposit` | on | live (Features tab) |
+| TSC deposit | `tscDeposit` | off | live (Features tab) |
 | Gas collisions | `collisions` | on | live (Features tab) |
 | Adaptive thickness | `adaptiveThickness` | on | live (Features tab) |
-| Nested grid | `nestedGrid` | on | live (Features tab) |
+| Nested grid | `nestedGrid` | off | live (Features tab) |
 
 Types: hydrogen (1.00783 u, cool blue-white, the entire initial population), helium (4.0026 u, yellow) and carbon (12 u, grey), none at the start; a share of the initial mass can be given to them. Statistics: the share of the mass of each element, core temperature (densest cell, in MK), maximum density (in ρ₀), fusions per second, of both reactions together (expected, smoothed), and, with the diagnostics on, the energy drift and the virial ratio.
 

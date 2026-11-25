@@ -84,12 +84,12 @@ describe('protostar declaration', () => {
         expect(tile?.kind === 'typeMasses' && tile.title?.length).toBeGreaterThan(tile?.label.length ?? 0);
     });
 
-    it('has the energy diagnostics switch on, in the features tab', () => {
+    it('has the energy diagnostics switch in the features tab, off by default', () => {
         const flag = PROTOSTAR.params.find(p => p.key === PROTOSTAR_PARAM.diagnostics);
         expect(flag?.kind).toBe('boolean');
         expect(flag?.tab).toBe('features');
-        expect(flag?.kind === 'boolean' && flag.default).toBe(true);
-        expect(defaultParams(PROTOSTAR).diagnostics).toBe(true);
+        expect(flag?.kind === 'boolean' && flag.default).toBe(false);
+        expect(defaultParams(PROTOSTAR).diagnostics).toBe(false);
     });
 
     it('has the adaptive time step switch in the features tab, applied live', () => {
@@ -97,9 +97,9 @@ describe('protostar declaration', () => {
         expect(flag?.kind).toBe('boolean');
         expect(flag?.tab).toBe('features');
         expect(flag?.doc.length).toBeGreaterThan(flag?.label.length ?? 0);
-        // on by default since the calibration (docs/spikes/calibration.md), with every other flag
-        expect(flag?.kind === 'boolean' && flag.default).toBe(true);
-        expect(defaultParams(PROTOSTAR).adaptiveTimeStep).toBe(true);
+        // off by default: the default profile runs the fixed count of substeps
+        expect(flag?.kind === 'boolean' && flag.default).toBe(false);
+        expect(defaultParams(PROTOSTAR).adaptiveTimeStep).toBe(false);
     });
 
     it('has the Jeans floor switch in the features tab, applied live and on by default', () => {
@@ -113,10 +113,11 @@ describe('protostar declaration', () => {
         expect(defaultParams(PROTOSTAR).jeansFloor).toBe(true);
     });
 
-    it('turns every feature flag of the physics on by default (the calibrated model), the stability map off', () => {
+    it('turns the physics flags on by default, the adaptive time step, the TSC deposit and the nested grid off, the stability map off', () => {
         const defaults = defaultParams(PROTOSTAR);
-        for (const key of [PROTOSTAR_PARAM.diagnostics, PROTOSTAR_PARAM.adaptiveTimeStep, PROTOSTAR_PARAM.jeansFloor, PROTOSTAR_PARAM.tscDeposit,
-            PROTOSTAR_PARAM.collisions, PROTOSTAR_PARAM.adaptiveThickness, PROTOSTAR_PARAM.nestedGrid]) expect(defaults[key]).toBe(true);
+        for (const key of [PROTOSTAR_PARAM.jeansFloor, PROTOSTAR_PARAM.collisions, PROTOSTAR_PARAM.adaptiveThickness]) expect(defaults[key]).toBe(true);
+        for (const key of [PROTOSTAR_PARAM.diagnostics, PROTOSTAR_PARAM.adaptiveTimeStep, PROTOSTAR_PARAM.tscDeposit,
+            PROTOSTAR_PARAM.nestedGrid]) expect(defaults[key]).toBe(false);
         expect(defaults[PROTOSTAR_PARAM.stabilityMap]).toBe('off');
     });
 

@@ -21,7 +21,7 @@ describe('visual effects', () => {
             nebula: [0, 3, 0.05, 0],
             lens: [0, 3, 0.05, 0.05],
             heat: [0, 2, 0.05, 0.1],
-            stretch: [0, 3, 0.1, 1.5],
+            stretch: [0, 3, 0.1, 0.4],
         });
     });
 

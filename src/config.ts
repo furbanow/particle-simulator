@@ -424,7 +424,7 @@ export const BLOOM_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 1.5, step: 0.01
 export const NEBULA_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 0 };
 export const LENS_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 0.05 };
 export const HEAT_SLIDER: SliderSpec = { min: 0, max: 2, step: 0.05, default: 0.1 };
-export const STRETCH_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.1, default: 1.5 };
+export const STRETCH_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.1, default: 0.4 };
 
 // ---- GPU benchmark (first visit, or on demand from the settings) ----
 // The protostar runs as in the application, one frame per animation frame, at a few particle
