@@ -3,6 +3,7 @@ import type { Uniform } from '../gl/common';
 import type { ParamValue, ParamValues, ParticleType } from './algorithm';
 import type { DrawingField } from './drawing/DrawingField';
 import type { DensityField } from './densityField';
+import type { StabilityMapMode } from './protostar/stability';
 
 /** Per-type uniforms shared by the simulation, particle and nebula materials. */
 export interface SpeciesUniforms {
@@ -71,8 +72,9 @@ export interface GpuVariable {
  * read-back of the positions; the model brings its shaders, its uniforms and the hooks below.
  *
  * Common uniforms given to the velocity shader (it declares the ones it uses): texturePosition,
- * textureVelocity, textureDensity, screenSize, domainOffset, domainSize, densityRes, maxLod, dt,
- * activeCount, momentumScale. The position shader gets dt, screenSize and activeCount.
+ * textureVelocity, textureDensity, textureReference and referenceOffset (density-reference.glsl), screenSize,
+ * domainOffset, domainSize, densityRes, maxLod, dt, activeCount, momentumScale, energyScale. The position shader
+ * gets dt, screenSize and activeCount.
  */
 export interface GpuModel {
     /** Velocity pass (defines already injected). It declares its own state samplers. */
@@ -108,8 +110,20 @@ export interface GpuModel {
     reset(params: ParamValues): void;
     /** Per-type uniforms of the model, after the types or the split changed. */
     updateSpecies(types: readonly ParticleType[], typeCounts: readonly number[]): void;
+    /**
+     * How many substeps the next frame of `frameTime` seconds runs; `fixedSteps` is the count the speed slider alone gives
+     * (ceil of the speed). The substeps of a frame share its time equally, so the model may change the count between frames only
+     * (an adaptive time step): the frame's simulated time is the speed slider's. The count of `fixedSteps` when omitted.
+     */
+    substepCount?(frameTime: number, fixedSteps: number): number;
     /** Before each substep's density splat and GPGPU pass: extra passes go here. */
     beforeSubstep?(dt: number): void;
+    /**
+     * Each substep, once the density field and its mipmaps are rendered (when the model uses them)
+     * and right before the GPGPU pass. Extra passes that read the field go here; the GPGPU pass
+     * sets its own render targets, so nothing needs restoring.
+     */
+    afterDensity?(): void;
     afterSubstep?(): void;
     endFrame?(): void;
     /** Asked every CLUSTER_CHECK_INTERVAL frames: whether to read the positions back. */
@@ -121,8 +135,22 @@ export interface GpuModel {
     stat(key: string): number | null;
     /** Live particle count per type, when types change during the simulation (else null). */
     liveTypeCounts?(): readonly number[] | null;
+    /** The map to draw over the animation now (the protostar's stability map), drawn on demand; null when none is shown. */
+    overlay?(): GridOverlay | null;
 
     dispose(): void;
+}
+
+/**
+ * A map of a model's square grid, drawn over the animation by the render layer (render/stabilityLayer.ts). The grid's cell (i, j)
+ * covers the world square [i, i + 1] x [j, j + 1] times extent / its resolution, from the world origin (y up).
+ */
+export interface GridOverlay {
+    /** RGBA float texture of the grid: (Q, beta, rho / rho0, kappa^2) for the stability map (protostar/stability.ts). */
+    readonly texture: THREE.Texture;
+    /** World px covered by a side of the grid. */
+    readonly extent: number;
+    readonly mode: Exclude<StabilityMapMode, 'off'>;
 }
 
 export type GpuModelFactory = (context: GpuModelContext) => GpuModel;

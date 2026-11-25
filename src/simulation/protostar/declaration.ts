@@ -4,12 +4,12 @@
 // ./gpuModel.ts.
 
 import {
-    CARBON_12_MASS, HYDROGEN_1_MASS, MASS_RANGE, MASS_SLIDER_STEPS, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP,
-    PROTOSTAR_AGITATION_SLIDER, PROTOSTAR_ALPHA_SLIDER, PROTOSTAR_C_SIZE, PROTOSTAR_COOLING_SLIDER,
+    CARBON_12_MASS, HYDROGEN_1_MASS, PROTOSTAR_CALIBRATED, MASS_RANGE, MASS_SLIDER_STEPS, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP,
+    PROTOSTAR_C_SIZE, PROTOSTAR_DAMPING_OPACITY_SLIDER, PROTOSTAR_DAMPING_SLIDER,
     PROTOSTAR_COUNT_SLIDER, PROTOSTAR_FEEDBACK_SLIDER, PROTOSTAR_GRAVITY_SLIDER, PROTOSTAR_H_SIZE,
-    PROTOSTAR_HE_ALPHA_SLIDER, PROTOSTAR_HE_IGNITION_KELVIN, PROTOSTAR_HE_LAMBDA_SLIDER, PROTOSTAR_HE_SIZE,
-    PROTOSTAR_LAMBDA_SLIDER, PROTOSTAR_OPACITY_SLIDER, PROTOSTAR_ROTATION_SLIDER, PROTOSTAR_SOFTENING_SLIDER,
-    PROTOSTAR_T0_KELVIN, SIZE_RANGE, SIZE_STEP, type SliderSpec,
+    PROTOSTAR_HE_IGNITION_KELVIN, PROTOSTAR_HE_LAMBDA_SLIDER, PROTOSTAR_HE_SIZE,
+    PROTOSTAR_KAPPA_SLIDER, PROTOSTAR_LAMBDA_SLIDER, PROTOSTAR_MIN_TEMPERATURE_SLIDER, PROTOSTAR_PP_LAW, PROTOSTAR_RADIATION_SLIDER, PROTOSTAR_ROTATION_ENERGY_SLIDER, PROTOSTAR_SOFTENING_SLIDER,
+    PROTOSTAR_T0_KELVIN, PROTOSTAR_TRIPLE_ALPHA_LAW, PROTOSTAR_VIRIAL_SLIDER, SIZE_RANGE, SIZE_STEP, type SliderSpec,
 } from '../../config';
 import { formatNumber, localizeDecimal, t } from '../../i18n';
 import { randomPopulationWeights } from '../../population';
@@ -17,24 +17,40 @@ import { ELEMENTS, formatMass, massToSlider, randomSpeciesMasses, randomSpeciesS
 import { formatInt } from '../../util/format';
 import { clamp } from '../../util/math';
 import {
-    linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type NumberParam, type ParticleType,
+    linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type AlgorithmPreset, type ParamDef, type ParticleType,
 } from '../algorithm';
+import { COOLING_LAWS } from './cooling';
+import { DENSITY_PROFILES } from './disc';
+import { STABILITY_MAP_MODES } from './stability';
+import { TURBULENCE_KINDS } from './initialConditions';
 import { reactionTransitions, type FusionReaction } from './reactions';
 
 /** Keys of the parameters, shared with the GPU model. */
 export const PROTOSTAR_PARAM = {
     count: PARTICLE_COUNT_PARAM,
-    rotation: 'rotation',
-    agitation: 'agitation',
+    alphaVir: 'alphaVir',
+    betaRot: 'betaRot',
+    profile: 'profile',
+    turbulence: 'turbulence',
     gravity: 'gravity',
     softening: 'softening',
-    cooling: 'cooling',
-    opacity: 'opacity',
+    radiation: 'radiation',
+    kappa: 'kappa',
+    coolingLaw: 'coolingLaw',
+    damping: 'damping',
+    dampingOpacity: 'dampingOpacity',
+    minTemperature: 'minTemperature',
     fusionRate: 'fusionRate',
-    fusionExponent: 'fusionExponent',
     heFusionRate: 'heFusionRate',
-    heFusionExponent: 'heFusionExponent',
     feedback: 'feedback',
+    diagnostics: 'diagnostics',
+    adaptiveTimeStep: 'adaptiveTimeStep',
+    jeansFloor: 'jeansFloor',
+    stabilityMap: 'stabilityMap',
+    tscDeposit: 'tscDeposit',
+    collisions: 'collisions',
+    adaptiveThickness: 'adaptiveThickness',
+    nestedGrid: 'nestedGrid',
 } as const;
 
 export const PROTOSTAR_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -43,6 +59,8 @@ export const PROTOSTAR_STAT = {
     coreTemperature: 'coreTemperature',
     coreDensity: 'coreDensity',
     fusionRate: 'fusionRate',
+    energyDrift: 'energyDrift',
+    virialRatio: 'virialRatio',
 } as const;
 
 /** Type ranks. */
@@ -58,9 +76,9 @@ const KELVIN_PER_MK = 1e6;
  */
 export const PROTOSTAR_REACTIONS: readonly FusionReaction[] = [
     { from: HYDROGEN, to: HELIUM, consumed: 4, label: t('algo.protostar.reaction.protonProton'), rateParam: PROTOSTAR_PARAM.fusionRate,
-        exponentParam: PROTOSTAR_PARAM.fusionExponent, referenceTemperature: PROTOSTAR_T0_KELVIN, densityExponent: 1 },
+        law: PROTOSTAR_PP_LAW, referenceTemperature: PROTOSTAR_T0_KELVIN, densityExponent: 1 },
     { from: HELIUM, to: CARBON, consumed: 3, label: t('algo.protostar.reaction.tripleAlpha'), rateParam: PROTOSTAR_PARAM.heFusionRate,
-        exponentParam: PROTOSTAR_PARAM.heFusionExponent, referenceTemperature: PROTOSTAR_HE_IGNITION_KELVIN, densityExponent: 2 },
+        law: PROTOSTAR_TRIPLE_ALPHA_LAW, referenceTemperature: PROTOSTAR_HE_IGNITION_KELVIN, densityExponent: 2 },
 ];
 
 const logSliderFields = (spec: SliderSpec) => ({ ...sliderFields(spec), scale: 'log' }) as const;
@@ -73,46 +91,89 @@ export function formatSmall(v: number): string {
 
 const fixed = (digits: number) => (v: number): string => formatNumber(v, digits);
 
+/** A change of the total energy, as a fraction of the initial one: "+0.31 %", "-12.5 %" (one digit once it is above 10 %). */
+export const formatEnergyDrift = (fraction: number): string =>
+    `${fraction > 0 ? '+' : ''}${fixed(Math.abs(fraction) < 0.1 ? 2 : 1)(fraction * 100)} %`;
+
 /** A temperature in T0, in millions of kelvins. */
 export const formatTemperature = (t: number): string => `${fixed(1)(t * PROTOSTAR_T0_KELVIN / KELVIN_PER_MK)} MK`;
 
-const params: readonly NumberParam[] = [
+// Titles of the groups of the Physics tab.
+const GRAVITY_SECTION = t('algo.protostar.section.gravity');
+const HEAT_SECTION = t('algo.protostar.section.heat');
+const COLLISIONS_SECTION = t('algo.protostar.section.collisions');
+
+// The sliders of the cooling law not at work are greyed out.
+const DAMPING_LAW = { param: PROTOSTAR_PARAM.coolingLaw, equals: 'damping' } as const;
+const RADIATION_LAW = { param: PROTOSTAR_PARAM.coolingLaw, equals: 'radiation' } as const;
+
+const params: readonly ParamDef[] = [
     { ...sliderFields(PROTOSTAR_COUNT_SLIDER), key: PROTOSTAR_PARAM.count, tab: 'initial', label: t('algo.protostar.param.count.label'),
         doc: t('algo.protostar.param.count.doc'),
         format: formatInt },
-    { ...sliderFields(PROTOSTAR_ROTATION_SLIDER), key: PROTOSTAR_PARAM.rotation, tab: 'initial', label: t('algo.protostar.param.rotation.label'),
-        doc: t('algo.protostar.param.rotation.doc'),
-        format: v => `${fixed(2)(v)} × v_circ` },
-    { ...sliderFields(PROTOSTAR_AGITATION_SLIDER), key: PROTOSTAR_PARAM.agitation, tab: 'initial', label: t('algo.protostar.param.agitation.label'),
-        doc: t('algo.protostar.param.agitation.doc'),
-        format: v => `${fixed(2)(v)} × v_circ` },
-    { ...sliderFields(PROTOSTAR_GRAVITY_SLIDER), key: PROTOSTAR_PARAM.gravity, tab: 'physics', label: t('algo.protostar.param.gravity.label'),
+    { ...sliderFields(PROTOSTAR_VIRIAL_SLIDER), key: PROTOSTAR_PARAM.alphaVir, tab: 'initial', label: t('algo.protostar.param.alphaVir.label'),
+        doc: t('algo.protostar.param.alphaVir.doc'),
+        format: v => `α = ${fixed(2)(v)}` },
+    { ...sliderFields(PROTOSTAR_ROTATION_ENERGY_SLIDER), key: PROTOSTAR_PARAM.betaRot, tab: 'initial', label: t('algo.protostar.param.betaRot.label'),
+        doc: t('algo.protostar.param.betaRot.doc'),
+        format: v => `β = ${fixed(2)(v)}` },
+    { kind: 'choice', key: PROTOSTAR_PARAM.profile, tab: 'initial', label: t('algo.protostar.param.profile.label'), default: 'uniform',
+        options: DENSITY_PROFILES.map(value => ({ value, label: t(`algo.protostar.option.profile.${value}`) })),
+        doc: t('algo.protostar.param.profile.doc') },
+    { kind: 'choice', key: PROTOSTAR_PARAM.turbulence, tab: 'initial', label: t('algo.protostar.param.turbulence.label'), default: 'white',
+        options: TURBULENCE_KINDS.map(value => ({ value, label: t(`algo.protostar.option.turbulence.${value}`) })),
+        doc: t('algo.protostar.param.turbulence.doc') },
+    { ...sliderFields(PROTOSTAR_GRAVITY_SLIDER), key: PROTOSTAR_PARAM.gravity, tab: 'physics', section: GRAVITY_SECTION, label: t('algo.protostar.param.gravity.label'),
         doc: t('algo.protostar.param.gravity.doc'),
         format: v => `G = ${fixed(2)(v)}` },
-    { ...sliderFields(PROTOSTAR_SOFTENING_SLIDER), key: PROTOSTAR_PARAM.softening, tab: 'physics', label: t('algo.protostar.param.softening.label'),
+    { ...sliderFields(PROTOSTAR_SOFTENING_SLIDER), key: PROTOSTAR_PARAM.softening, tab: 'physics', section: GRAVITY_SECTION, label: t('algo.protostar.param.softening.label'),
         doc: t('algo.protostar.param.softening.doc'),
+        disabledWhen: { param: PROTOSTAR_PARAM.adaptiveThickness, equals: true },
         format: v => `ε = ${fixed(1)(v)} %` },
-    { ...sliderFields(PROTOSTAR_COOLING_SLIDER), key: PROTOSTAR_PARAM.cooling, tab: 'physics', label: t('algo.protostar.param.cooling.label'),
-        doc: t('algo.protostar.param.cooling.doc'),
-        format: v => `${fixed(2)(v)} /s` },
-    { ...logSliderFields(PROTOSTAR_OPACITY_SLIDER), key: PROTOSTAR_PARAM.opacity, tab: 'physics', label: t('algo.protostar.param.opacity.label'),
-        doc: t('algo.protostar.param.opacity.doc'),
+    { kind: 'boolean', key: PROTOSTAR_PARAM.adaptiveThickness, tab: 'physics', section: GRAVITY_SECTION, label: t('algo.protostar.param.adaptiveThickness.label'),
+        doc: t('algo.protostar.param.adaptiveThickness.doc'), default: false },
+    { kind: 'choice', key: PROTOSTAR_PARAM.coolingLaw, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.coolingLaw.label'), default: 'damping',
+        options: COOLING_LAWS.map(value => ({ value, label: t(`algo.protostar.option.coolingLaw.${value}`) })),
+        doc: t('algo.protostar.param.coolingLaw.doc') },
+    { ...logSliderFields(PROTOSTAR_RADIATION_SLIDER), key: PROTOSTAR_PARAM.radiation, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.radiation.label'),
+        doc: t('algo.protostar.param.radiation.doc'), disabledWhen: DAMPING_LAW,
+        format: v => `c = ${formatSmall(v)} /s` },
+    { ...logSliderFields(PROTOSTAR_KAPPA_SLIDER), key: PROTOSTAR_PARAM.kappa, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.kappa.label'),
+        doc: t('algo.protostar.param.kappa.doc'), disabledWhen: DAMPING_LAW,
+        format: v => `κ = ${formatSmall(v)} / ρ₀` },
+    { ...sliderFields(PROTOSTAR_MIN_TEMPERATURE_SLIDER), key: PROTOSTAR_PARAM.minTemperature, tab: 'physics', section: HEAT_SECTION,
+        label: t('algo.protostar.param.minTemperature.label'), doc: t('algo.protostar.param.minTemperature.doc'), disabledWhen: DAMPING_LAW,
+        format: formatTemperature },
+    { ...sliderFields(PROTOSTAR_DAMPING_SLIDER), key: PROTOSTAR_PARAM.damping, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.damping.label'),
+        doc: t('algo.protostar.param.damping.doc'), disabledWhen: RADIATION_LAW,
+        format: v => `k = ${fixed(2)(v)} /s` },
+    { ...logSliderFields(PROTOSTAR_DAMPING_OPACITY_SLIDER), key: PROTOSTAR_PARAM.dampingOpacity, tab: 'physics', section: HEAT_SECTION,
+        label: t('algo.protostar.param.dampingOpacity.label'), doc: t('algo.protostar.param.dampingOpacity.doc'), disabledWhen: RADIATION_LAW,
         format: v => `ρ_opq = ${formatSmall(v)} ρ₀` },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.jeansFloor, tab: 'physics', section: HEAT_SECTION, label: t('algo.protostar.param.jeansFloor.label'),
+        doc: t('algo.protostar.param.jeansFloor.doc'), default: false },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.collisions, tab: 'physics', section: COLLISIONS_SECTION, label: t('algo.protostar.param.collisions.label'),
+        doc: t('algo.protostar.param.collisions.doc'), default: false },
     { ...logSliderFields(PROTOSTAR_LAMBDA_SLIDER), key: PROTOSTAR_PARAM.fusionRate, tab: 'fusion', label: t('algo.protostar.param.fusionRate.label'),
         doc: t('algo.protostar.param.fusionRate.doc'),
         format: v => `λ₀ = ${formatSmall(v)}` },
-    { ...sliderFields(PROTOSTAR_ALPHA_SLIDER), key: PROTOSTAR_PARAM.fusionExponent, tab: 'fusion', label: t('algo.protostar.param.fusionExponent.label'),
-        doc: t('algo.protostar.param.fusionExponent.doc'),
-        format: v => `α = ${fixed(1)(v)}` },
     { ...logSliderFields(PROTOSTAR_HE_LAMBDA_SLIDER), key: PROTOSTAR_PARAM.heFusionRate, tab: 'fusion', label: t('algo.protostar.param.heFusionRate.label'),
         doc: t('algo.protostar.param.heFusionRate.doc'),
         format: v => `λ = ${formatSmall(v)}` },
-    { ...sliderFields(PROTOSTAR_HE_ALPHA_SLIDER), key: PROTOSTAR_PARAM.heFusionExponent, tab: 'fusion', label: t('algo.protostar.param.heFusionExponent.label'),
-        doc: t('algo.protostar.param.heFusionExponent.doc'),
-        format: v => `α = ${fixed(1)(v)}` },
     { ...logSliderFields(PROTOSTAR_FEEDBACK_SLIDER), key: PROTOSTAR_PARAM.feedback, tab: 'fusion', label: t('algo.protostar.param.feedback.label'),
         doc: t('algo.protostar.param.feedback.doc'),
         format: v => `× ${formatSmall(v)}` },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.diagnostics, tab: 'features', label: t('algo.protostar.param.diagnostics.label'),
+        doc: t('algo.protostar.param.diagnostics.doc'), default: false },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.adaptiveTimeStep, tab: 'features', label: t('algo.protostar.param.adaptiveTimeStep.label'),
+        doc: t('algo.protostar.param.adaptiveTimeStep.doc'), default: false },
+    { kind: 'choice', key: PROTOSTAR_PARAM.stabilityMap, tab: 'features', label: t('algo.protostar.param.stabilityMap.label'), default: 'off',
+        options: STABILITY_MAP_MODES.map(value => ({ value, label: t(`algo.protostar.option.stabilityMap.${value}`) })),
+        doc: t('algo.protostar.param.stabilityMap.doc') },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.tscDeposit, tab: 'features', label: t('algo.protostar.param.tscDeposit.label'),
+        doc: t('algo.protostar.param.tscDeposit.doc'), default: false },
+    { kind: 'boolean', key: PROTOSTAR_PARAM.nestedGrid, tab: 'features', label: t('algo.protostar.param.nestedGrid.label'),
+        doc: t('algo.protostar.param.nestedGrid.doc'), default: false },
 ];
 
 const element = (symbol: string) => {
@@ -133,10 +194,42 @@ export const PROTOSTAR_TYPES: readonly ParticleType[] = [
 
 const UNIT = [0, 1] as const;
 
+/**
+ * The defaults are the "Simple fusion" config: the look of the first protostar, less faithful but livelier and lighter on the GPU. The
+ * options that make the gas a smooth fluid are off (collisions, Jeans floor, adaptive thickness, and the costly refinements of the
+ * Advanced tab), the cooling is the constant damping of the first protostar (a cold gas keeps cooling), and gravity, fusion rate and
+ * feedback are the pre-calibration ones. With the radiation instead (docs/spikes/calibration.md, "The old defaults": G 9, c 10) the first
+ * collapse burns a third of the hydrogen at once, the helium flash comes after about 20 s and the core is carbon after about 35 s; the
+ * damping's history was not measured.
+ *
+ * The "Calibrated Protostar" preset is the calibrated model (docs/spikes/calibration.md): radiative cooling, the calibrated G, lambda_0
+ * and feedback, and every feature flag that brings the model closer to a real protostar on (the energy diagnostics, which only observe,
+ * stay off). More faithful, and much heavier on the GPU.
+ */
+export const CALIBRATED_PRESET: AlgorithmPreset = {
+    id: 'calibrated',
+    name: t('algo.protostar.preset.calibrated'),
+    params: {
+        [PROTOSTAR_PARAM.gravity]: PROTOSTAR_CALIBRATED.gravity,
+        [PROTOSTAR_PARAM.coolingLaw]: 'radiation',
+        [PROTOSTAR_PARAM.fusionRate]: PROTOSTAR_CALIBRATED.fusionRate,
+        [PROTOSTAR_PARAM.feedback]: PROTOSTAR_CALIBRATED.feedback,
+        [PROTOSTAR_PARAM.collisions]: true,
+        [PROTOSTAR_PARAM.jeansFloor]: true,
+        [PROTOSTAR_PARAM.adaptiveThickness]: true,
+        [PROTOSTAR_PARAM.adaptiveTimeStep]: true,
+        [PROTOSTAR_PARAM.tscDeposit]: true,
+        [PROTOSTAR_PARAM.nestedGrid]: true,
+        [PROTOSTAR_PARAM.diagnostics]: false,
+    },
+};
+
 export const PROTOSTAR: AlgorithmDeclaration = {
     id: 'protostar',
     label: t('algo.protostar.label'),
     defaultSpeed: 1.7,
+    defaultsName: t('algo.protostar.preset.simpleFusion'),
+    presets: [CALIBRATED_PRESET],
     description: t('algo.protostar.description'),
     params,
     particleTypes: {
@@ -181,12 +274,16 @@ export const PROTOSTAR: AlgorithmDeclaration = {
         builtinConfig: { id: 'builtin:protostar', name: t('algo.protostar.builtin') },
     },
     stats: [
-        { kind: 'typeCounts', label: t('algo.protostar.stat.typeCounts') },
+        { kind: 'typeMasses', label: t('algo.protostar.stat.typeMasses'), title: t('algo.protostar.stat.typeMasses.doc') },
         { kind: 'value', key: PROTOSTAR_STAT.coreTemperature, label: t('algo.protostar.stat.coreTemperature'),
             format: formatTemperature },
         { kind: 'value', key: PROTOSTAR_STAT.coreDensity, label: t('algo.protostar.stat.coreDensity'),
             format: v => `${v < 10 ? fixed(1)(v) : formatInt(Math.round(v))} ρ₀` },
         { kind: 'value', key: PROTOSTAR_STAT.fusionRate, label: t('algo.protostar.stat.fusionRate'), flash: false,
             format: v => v < 10 ? fixed(2)(v) : formatInt(Math.round(v)) },
+        { kind: 'value', key: PROTOSTAR_STAT.energyDrift, label: t('algo.protostar.stat.energyDrift'),
+            title: t('algo.protostar.stat.energyDrift.doc'), flash: false, format: formatEnergyDrift },
+        { kind: 'value', key: PROTOSTAR_STAT.virialRatio, label: t('algo.protostar.stat.virialRatio'),
+            title: t('algo.protostar.stat.virialRatio.doc'), flash: false, format: fixed(2) },
     ],
 };

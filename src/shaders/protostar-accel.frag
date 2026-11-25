@@ -7,6 +7,6 @@ void main() {
     vec2 uv = gl_FragCoord.xy / resolution.xy;
     vec4 pos = texture2D(texturePosition, uv);
     float index = floor(gl_FragCoord.y) * resolution.x + floor(gl_FragCoord.x);
-    if (index >= activeCount || pos.w < 0.0) { gl_FragColor = vec4(0.0); return; }
+    if (index >= activeCount) { gl_FragColor = vec4(0.0); return; }
     gl_FragColor = vec4(forceAt(pos.xy), 0.0, 0.0);
 }

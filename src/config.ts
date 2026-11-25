@@ -27,13 +27,53 @@ export const TOTAL_MASS = 20000;
 // twice the screen size so the screen stays inside it for any shift.
 export const DENSITY_RES = 512;
 export const DENSITY_DOMAIN_SCALE = 2;
-export const K_GRAVITY = 3;
+/** Highest mip level of the density field that carries a gradient (the 1x1 level carries none). */
+export const DENSITY_TOP_LEVEL = Math.log2(DENSITY_RES) - 1;
+/**
+ * The gravity of the sticky dust is computed per texel, only where the particles can read it: the
+ * screen's window of the density field plus this margin (density texels, bilinear footprint included).
+ */
+export const GRAVITY_WINDOW_MARGIN = 2;
+/**
+ * Stencil of the gradient of each coarse level in the sticky dust's gravity: the difference across a
+ * texel is averaged over the three rows with the weights w, 1 - 2w, w. 0 is the plain central difference
+ * (a square kernel: the pull of a point mass varies by about 38 % with the angle), 3/16 the isotropic
+ * stencil of Scharr (about 9 % at its worst radius). 0.21 balances the median and the worst radius
+ * (3.9 % and 4.9 %): see docs/spikes/b1-dust-gravity.md.
+ */
+export const DUST_GRADIENT_CORNER_WEIGHT = 0.21;
+/**
+ * The pull of the sticky dust is the gravity slider's value times this gain. The isotropic stencil of the coarse
+ * levels (above) weakens the pull of the small structures of a clumped cloud to 84-85 % of the central difference's
+ * (RMS); the gain restores the strength the sliders' values were tuned for: docs/spikes/a10-granular-dust.md.
+ */
+export const DUST_GRAVITY_GAIN = 1.2;
 // Weight of mip level L is 2^(L * LONG_RANGE): 0 gives a 1/r^2 pull, 1 gives 1/r (2D gravity).
 // In between, distant clumps still find each other and merge.
 export const LONG_RANGE = 0.5;
 export const K_PRESSURE = 40;
 export const REST_DENSITY = 30;                    // mass per density texel above which clumps push back
-export const VISCOSITY_RATE = 6;                   // 1/s, damping of velocity relative to local flow
+
+// ---- Granular dust (sticking, agitation and pressure of the sticky dust) ----
+// The density grid's alpha channel holds the agitation energy: m |v - v_ref|^2 * ENERGY_SCALE (cloud-in-cell
+// weighted), v_ref the mean flow of a coarse level of the previous substep's density. The scale keeps the sums inside
+// half-float range (65 504): a texel of mass 128, about all the half floats let a cell hold at 400 000 particles, whose
+// grains all fly at 3000 px/s from the reference sums to 11 500. The reference keeps E / rho - |u|^2 free of cancellation.
+export const ENERGY_SCALE = 1e-5;
+/** Mip level of the density (DENSITY_RES >> level texels a side) whose mean flow is the deposit's reference velocity. */
+export const REFERENCE_LEVEL = 5;
+// T = <|v|^2> - |u|^2 (px^2/s^2) is the agitation of a texel. Haff's law: grains collide at a frequency
+// proportional to rho sqrt(T) and stick, so velocities relax toward the local mean flow at nu = STICK_RATE x
+// stickiness x rho x sqrt(T) (1/s, rho in mass per texel, T in px^2/s^2): T falls as 1 / (1 + t / t0)^2.
+export const STICK_RATE = 8e-3;
+/** Fractions of REST_DENSITY between which the grains are in contact (the pressure acts, from nothing to all of it). */
+export const CONTACT_RANGE: Range = [0.1, 0.6];
+// Kinetic pressure, P = rho T / 2 (two degrees of freedom), acts as -grad(P) / rho on the grains in contact. Its time
+// step is bounded: the sound speed sqrt(T / 2) cannot cross more than PRESSURE_CFL texels per substep.
+export const KINETIC_PRESSURE = 1;
+export const PRESSURE_CFL = 1;
+/** Speeds (px/s) of the agitation sqrt(T) between which a particle glows from nothing to full. */
+export const GLOW_AGITATION_RANGE: Range = [5, 60];
 export const GLOBAL_DRAG = 0.03;                   // 1/s
 export const MAX_SPEED = 1500;                     // px/s
 export const RESTITUTION = 0.8;
@@ -41,24 +81,45 @@ export const MOMENTUM_SCALE = 0.01;                // keeps splatted momentum in
 
 // ---- Supernova ----
 export const CLUSTER_CHECK_INTERVAL = 12;          // frames
-export const SUPERNOVA_SPEED = 420;                // px/s at 100 % power (scaled by the power slider)
-export const EJECT_TIME = 0.6;                     // s during which ejecta ignore gravity/viscosity (fading back in)
-export const SUPERNOVA_COOLDOWN = 120;             // frames
-// Shock wave: the front moves at the ejection speed; the outward kick it gives is
-// SHOCK_STRENGTH * ejection speed at the aggregate edge and falls off as 1/r beyond it.
+// The search of the densest disk of the detection radius (simulation/concentration.ts, and its GPU twin in stickyDust/concentrationReduction.ts):
+// the particles' masses are summed in square cells of CONCENTRATION_CELLS_PER_RADIUS to the radius (at least CONCENTRATION_MIN_CELL px a side),
+// the densest disk of cells is refined on the particles themselves. On the GPU the particles that pass the disk are summed in
+// CONCENTRATION_BINS x CONCENTRATION_BINS bins (spreads the blending over many texels), then reduced CONCENTRATION_REDUCE_BLOCK x BLOCK texels at a time.
+export const CONCENTRATION_CELLS_PER_RADIUS = 4;
+export const CONCENTRATION_MIN_CELL = 2;           // px
+export const CONCENTRATION_BINS = 64;
+export const CONCENTRATION_REDUCE_BLOCK = 16;
+// A collapsed clump puts millions of particles in a few cells, and blending that many float32 additions into one texel serializes in the
+// ROP (11 to 16 ms at 3 000 000 particles): each cell is therefore drawn into up to CONCENTRATION_REPLICAS copies (chosen by the particle's
+// index, laid out in tiles CONCENTRATION_REPLICA_COLUMNS wide) that a pass folds into one grid. The copies are limited to a budget of texels.
+export const CONCENTRATION_REPLICAS = 16;
+export const CONCENTRATION_REPLICA_COLUMNS = 4;
+export const CONCENTRATION_REPLICA_BUDGET = 1 << 20;
+export const SUPERNOVA_SPEED = 840;                // px/s at 100 % power (scaled by the power slider): rms speed of the ejecta, initial speed of the shock wave
+// The ejecta fly out as v = H r (homologous): H is set so that the mass-weighted rms speed is the ejection speed, whatever the
+// size of the cluster (the explosion releases the same energy per unit of mass in a compact clump as in a diffuse one). The
+// size of the cluster is its rms radius, bounded below by this fraction of the detection radius.
+export const EJECTA_RADIUS_FLOOR = 0.1;
+export const EJECT_TIME = 0.6;                     // s during which ejecta feel neither pressure nor sticking (fading back in); gravity always acts
+export const SUPERNOVA_COOLDOWN = 240;             // frames (6 s at the default speed)
+// Shock wave: the front starts at the edge of the detection zone at the ejection speed and slows down as
+// dR/dt = K / R (R ~ t^(1/2)); the outward kick it gives is SHOCK_STRENGTH * the front's speed, so it
+// falls off as 1/r.
 export const SHOCK_STRENGTH = 0.9;
 export const SHOCK_MIN_KICK = 0.03;                // fraction of the ejection speed below which the wave dies
 
 // ---- Panel parameters of the sticky dust algorithm (slider min, max, step and default) ----
 export const PARTICLE_COUNT_SLIDER: SliderSpec = { min: 1000, max: 3000000, step: 1000, default: 400000 };
 export const GRAVITY_SLIDER: SliderSpec = { min: 0, max: 15, step: 0.1, default: 2.5 };
-export const SUPERNOVA_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 37 };  // % of the particles
+export const SUPERNOVA_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 100, step: 1, default: 37 };  // % of the total mass
 export const CONCENTRATION_RADIUS_SLIDER: SliderSpec = { min: 10, max: 400, step: 5, default: 65 }; // px
 export const SUPERNOVA_POWER_SLIDER: SliderSpec = { min: 5, max: 100, step: 5, default: 70 };      // % of SUPERNOVA_SPEED
+export const STICKINESS_SLIDER: SliderSpec = { min: 0, max: 400, step: 5, default: 100 };               // % of STICK_RATE
+export const COLLISION_SPEED_SLIDER: SliderSpec = { min: 20, max: 1500, step: 10, default: 600 };    // px/s, above it grains bounce
 
 // ---- Removed particles (common GPU contract) ----
-// A particle whose position w is negative has been removed (e.g. absorbed by a fusion): it is
-// neither drawn nor deposited on any grid nor counted. Live particles have w = 1.
+// A particle whose position w is negative has been removed: it is neither drawn nor deposited on any grid nor counted. Live
+// particles have w = 1. No algorithm removes any now (the protostar's fusions change the type of a parcel of constant mass).
 export const REMOVED_PARTICLE_W = -1;
 
 // ---- Protostar (hydrogen and helium fusion) algorithm ----
@@ -74,43 +135,195 @@ export const PROTOSTAR_NEAR_RADIUS = 2;
 // G slider -> G_eff = G * GRAVITY_UNIT * L^3 / TOTAL_MASS (px^3 / (mass s^2)).
 export const PROTOSTAR_GRAVITY_UNIT = 0.001;
 export const PROTOSTAR_CLOUD_RADIUS = 0.38;        // initial cloud radius / L
+// Initial conditions (initialConditions.ts, disc.ts, turbulence.ts). The disc's self-gravity is tabulated at restart: the
+// table has DISC_TABLE_NODES intervals, each ring integral is cut into DISC_UNIFORM_PANELS equal panels plus panels graded
+// towards the field point and (Maclaurin) towards the edge, DISC_EDGE_PANELS of them, of DISC_PANEL_POINTS Gauss-Legendre
+// points each; a softening below DISC_MIN_SOFTENING x R is taken as that (the quadrature's panels would crowd to nothing).
+export const PROTOSTAR_DISC_TABLE_NODES = 256;
+export const PROTOSTAR_DISC_PANEL_POINTS = 8;
+export const PROTOSTAR_DISC_UNIFORM_PANELS = 16;
+export const PROTOSTAR_DISC_EDGE_PANELS = 16;
+export const PROTOSTAR_DISC_MIN_SOFTENING = 1e-4;
+// The correlated agitation is a solenoidal Gaussian field of power P(k) ~ k^-TURBULENCE_SLOPE per Fourier mode of the plane
+// (a velocity spectrum E(k) = 2 pi k P(k) ~ k^-2 per wave number: the supersonic turbulence of molecular clouds, Larson's
+// law v ~ l^1/2), on a TURBULENCE_GRID x TURBULENCE_GRID grid spanning the cloud's diameter, for the wave numbers of
+// TURBULENCE_K_RANGE (1 is one wavelength across the diameter; the largest is 8 cells a wavelength, which the bilinear
+// sampling keeps to within 8 % of the amplitude).
+export const PROTOSTAR_TURBULENCE_GRID = 64;
+export const PROTOSTAR_TURBULENCE_SLOPE = 3;
+export const PROTOSTAR_TURBULENCE_K_RANGE: Range = [1, 8];
 // Temperature unit, T0 = FUSION_T_REF * (L/s)^2, which stands for T0_KELVIN (the core of the Sun);
-// densities in rho0, the initial mean density of the cloud. A reaction's rate per particle is
-// lambda * (rho/rho0)^n * (T/T_ref)^alpha, capped at FUSION_RATE_MAX (1/s): the cap is above 1 / dt, so
-// it only keeps the steepest laws finite, a capped particle fuses within a few steps anyway.
+// densities in rho0, the initial mean density of the cloud. A reaction's rate per fusing particle is
+// lambda * (rho X / rho0)^n * f(T) / f(T_ref), with X the mass fraction of the fuel in the neighborhood and f the temperature
+// dependence of the real reaction (A2: Gamow's law, below), capped at FUSION_RATE_MAX (1/s): the cap is above 1 / dt, so
+// it only keeps the steepest laws finite, a capped particle fuses within a few steps anyway. With the fixed thickness of
+// the cloud rho is the surface density; a later phase (A11) will use the volume density sigma / (2h).
 export const PROTOSTAR_FUSION_T_REF = 0.02;
 export const PROTOSTAR_T0_KELVIN = 1.5e7;
 export const PROTOSTAR_HE_IGNITION_KELVIN = 1e8;   // triple alpha
 export const PROTOSTAR_FUSION_RATE_MAX = 100;
+// The temperature laws of the reactions (A2), per nucleus: the rate goes as T^-p exp(-b (T / T_unit)^-q), with T_unit the unit in
+// which b is quoted. Proton-proton chain (non-resonant: the Coulomb barrier alone, Gamow's peak): p = 2/3, q = 1/3, b = 33.8
+// with T in MK, so that the local exponent d ln r / d ln T = b q (T / T_unit)^-q - p is 3.9 at 15 MK. Triple alpha (a resonance
+// of 8Be and of 12C): p = 3, q = 1, b = 44.0 with T in 10^8 K, an exponent of 41 at 100 MK and 19 at 200 MK.
+export const PROTOSTAR_PP_LAW = { power: 2 / 3, barrier: 33.8, barrierPower: 1 / 3, unitKelvin: 1e6 } as const;
+export const PROTOSTAR_TRIPLE_ALPHA_LAW = { power: 3, barrier: 44.0, barrierPower: 1, unitKelvin: 1e8 } as const;
+// The fuel fractions of the neighborhood (the mass fraction of the fuel of each reaction, deposited next to the composition)
+// take one channel each: two reactions at most (hydrogen X, helium Y).
+export const PROTOSTAR_FUEL_CHANNELS = 2;
 // Specific energy released by a fusion: (mass defect / fused mass) * c^2, with c^2 = FUSION_C2 * T0.
 export const PROTOSTAR_FUSION_C2 = 2000;
+// Fusion heating (A5): a cell whose velocity dispersion is below HEATING_T_FLOOR (in T0) is too cold to be heated by
+// scaling its velocities around the mean (the energy added is proportional to the dispersion): its particles get a kick
+// in a random direction instead, of the same mean energy.
+export const PROTOSTAR_HEATING_T_FLOOR = 1e-3;
+// Noise of the temperature (A3). The temperature of a neighborhood is estimated from a few particles, with a relative
+// noise of 1 / sqrt(N); a rate that grows as T^alpha is then too high on average, by about exp(alpha (alpha - 3) / 2N)
+// for large N (noiseBias.ts). Two remedies: the rate is divided by that bias, with N the effective number of particles
+// of the neighborhood, and the temperature that feeds the rate is averaged over time.
+// NOISE_N_SHAPE: the effective number of particles of the temperature a particle sees over the (sum m)^2 / sum m^2 of
+// its 3 x 3 neighborhood: the cloud-in-cell weights, the sum over 3 x 3 cells and the bilinear interpolation spread the
+// particles' weights, 1.27 for a particle at a cell center and up to 1.65 between four cells; 1.5 is what the lab measures
+// (the bias of a thermal gas at alpha = 40, protostar.temperature-noise), and the mean of the theory over the place of the
+// particle in its cell (depositKernel.ts: 1.51). NOISE_N_SHAPE_TSC: the same with the TSC deposit (the tscDeposit switch, C4), whose
+// smoother weights give 1.40 at a cell center, 1.76 between four cells and 1.63 on average (the lab measures 1.38 to 1.42 at the centers).
+// NOISE_N_MIN: the smallest shape of the temperature's Gamma law (below it the temperature carries no information).
+// TEMPERATURE_TAU: time constant (s) of the exponential average of the temperature, well below the cooling time.
+export const PROTOSTAR_NOISE_N_SHAPE = 1.5;
+export const PROTOSTAR_NOISE_N_SHAPE_TSC = 1.63;
+export const PROTOSTAR_NOISE_N_MIN = 1;
+// NOISE_SHIFT_MAX: bound of the Newton step of the curvature correction of the bias (noiseBias.ts, logNoiseBiasCurved): where it
+// would be larger the cell is so cold that its rate is nil anyway, and exp() must stay finite.
+export const PROTOSTAR_NOISE_SHIFT_MAX = 1;
+// NOISE_EXACT_MARGIN: the unbiased estimate of a resonant law (q = 1, noiseBias.ts, logUnbiasedResonant) needs a Gamma shape n above the
+// law's power p by more than this (it has Gamma(n - p) in it); below it, or for a law with q != 1, the bias is divided out (logNoiseBiasCurved).
+export const PROTOSTAR_NOISE_EXACT_MARGIN = 2;
+export const PROTOSTAR_TEMPERATURE_TAU = 0.1;
+// Radiative cooling of a thin disc (A6, protostar/cooling.ts): dT/dt = -c mu T^4 / (Sigma tau_eff), tau_eff = 3 tau / 8 + sqrt(3) / 4 + 1 / (4 tau),
+// tau = kappa Sigma / 2, T in T0 and Sigma in rho0, down to T_min (the sliders below). Jeans floor (A13, the `jeansFloor` flag): the dispersion of a
+// neighborhood is kept at 2 JEANS_CELLS dx G Sigma or more, so that the Jeans length of the sheet spans JEANS_CELLS cells of the grid (Truelove et al. 1997).
+export const PROTOSTAR_JEANS_CELLS = 4;
+// Collisions of the gas (C1, protostar/collisions.ts, the `collisions` flag): multiparticle collision dynamics (Malevanets & Kapral 1999) on the
+// protostar's cells, shifted at random at every substep (GRID_RES + 1 cells cover the area whatever the shift). Each cell collides with probability
+// 1 - exp(-nu dt), nu = COLLISION_RATE rho sqrt(t) (rho in rho0, the cell's dispersion t in T0): its particles' velocities relative to the
+// cell's mean turn by +-COLLISION_ANGLE (one sign per cell), which conserves the cell's mass, momentum and energy exactly (the parcels all
+// weigh the same, A4). A cell of fewer than COLLISION_MIN_PARTICLES does not collide. The gas is strictly planar: two degrees of
+// freedom, GAS_GAMMA = 2 (the user's choice, docs/spikes/c1-mpc-collisions.md), sound speed sqrt(GAS_GAMMA P / rho) = sqrt(t).
+export const PROTOSTAR_GAS_GAMMA = 2;
+// Adaptive thickness (A11, protostar/thickness.ts, the `adaptiveThickness` flag): the softening of the gravity becomes the scale height of a
+// self-gravitating sheet in every cell, h = sigma_z^2 / (pi G Sigma) with sigma_z^2 = t / 2 (the dispersion of one component), between
+// THICKNESS_FLOOR_CELLS cells and THICKNESS_CEILING times the initial cloud radius; a pair of cells is softened by eps_ij^2 = (h_i^2 + h_j^2) / 2.
+// The fusion law reads the volume density Sigma / (2 h), as Sigma THICKNESS_REFERENCE / h with THICKNESS_REFERENCE (in L) the default
+// softening, so that lambda keeps its calibration where the layer is as thick as the fixed softening was. The stability map multiplies Q by
+// THICKNESS_Q_FACTOR = 0.8 + 0.7 sigma_z / sigma_R (Romeo & Falstad 2013) with sigma_z = sigma_R.
+export const PROTOSTAR_THICKNESS_FLOOR_CELLS = 1;
+export const PROTOSTAR_THICKNESS_CEILING = 0.4;
+export const PROTOSTAR_THICKNESS_REFERENCE = 0.016;
+export const PROTOSTAR_THICKNESS_Q_FACTOR = 0.8 + 0.7;
+// Nested grid (C2, protostar/nestedBox.ts, the `nestedGrid` flag, docs/spikes/c2-nested-grid.md): a second grid of GRID_RES cells
+// NESTED_RATIO times finer, aligned on the cells of the main grid, over the core. Inside it the particles read its gas and its gravity,
+// a = a_fine(inside) + a_main(all) - a_main(inside); its softening is the main one over NESTED_SOFTENING_DIVISOR, that is the main one (the
+// user's choice, docs/spikes/c2-nested-grid.md): a shorter softening inside the box makes the core denser (eps/2: 3 times, omega dt 0.5;
+// eps/3: 4.5 times, 0.8) but heats the cloud, as a pair's law changes whenever a particle crosses the box's edge (+54 % of |E0| over 100
+// orbits at eps/2, whatever the step; +1 % at eps). The gas, the temperature and the fusion are the fine ones. The box is placed once a core dominates: the main grid's
+// peak at NESTED_ON_DENSITY rho0 or more and within NESTED_STILL_CELLS main cells of the previous reading, NESTED_ON_READINGS readings in a
+// row; it moves (recentred) when the peak leaves the middle NESTED_INNER of the box, and goes off when the main peak stays below
+// NESTED_OFF_DENSITY for NESTED_ON_READINGS readings. The particles read the fine grid NESTED_MARGIN_CELLS fine cells inside its edges.
+export const PROTOSTAR_NESTED_RATIO = 8;
+export const PROTOSTAR_NESTED_SOFTENING_DIVISOR = 1;
+export const PROTOSTAR_NESTED_ON_DENSITY = 8;
+export const PROTOSTAR_NESTED_OFF_DENSITY = 4;
+export const PROTOSTAR_NESTED_ON_READINGS = 3;
+export const PROTOSTAR_NESTED_STILL_CELLS = 2;
+export const PROTOSTAR_NESTED_INNER = 0.5;
+export const PROTOSTAR_NESTED_MARGIN_CELLS = 2;
+// The force fades from the main grid's to the fine level's over NESTED_BAND_CELLS main cells inside the read region (no jump at the edge).
+export const PROTOSTAR_NESTED_BAND_CELLS = 1;
+export const PROTOSTAR_COLLISION_ANGLE = Math.PI / 2;
+export const PROTOSTAR_COLLISION_RATE = 1000;           // per s, at rho0 and the dispersion T0
+export const PROTOSTAR_COLLISION_MIN_PARTICLES = 2;
+// Stability map (A12, protostar/stability.ts, the `stabilityMap` choice): Toomre's Q and the cooling parameter beta = t_cool Omega of every
+// cell of the gas grid, drawn over the animation. A disc fragments where Q < Q_CRITICAL (self-gravity beats rotation and pressure) and
+// beta < BETA_CRITICAL (it cools faster than shear can heat it: Gammie 2001, the value of a 2D gas). Cells lighter than MIN_DENSITY
+// (rho0) are not drawn; the continuous maps span LOG_RANGE decades on each side of the threshold; OPACITY is the strongest tint. A value
+// with no bound (no gas, no cooling) is written as CAP.
+export const PROTOSTAR_STABILITY_Q_CRITICAL = 1;
+export const PROTOSTAR_STABILITY_BETA_CRITICAL = 3;
+export const PROTOSTAR_STABILITY_MIN_DENSITY = 0.05;
+export const PROTOSTAR_STABILITY_LOG_RANGE = 1;
+export const PROTOSTAR_STABILITY_OPACITY = 0.45;
+export const PROTOSTAR_STABILITY_PARTIAL = 0.45;        // the fragmentation map's tint where only one criterion holds, times OPACITY
+export const PROTOSTAR_STABILITY_CAP = 2 ** 100;        // about 1.3e30, exact in float32
 export const PROTOSTAR_RESTITUTION = 0.5;          // walls
 export const PROTOSTAR_MAX_SPEED = 2;              // L/s
-export const PROTOSTAR_DRIFT_GAIN = 0.5;           // fraction of the measured drift of the star taken off at each read-back
+// Adaptive time step (protostar/timeStep.ts, the `adaptiveTimeStep` flag): the number of substeps of a frame follows the criterion
+//   dt_crit = min(COURANT cell / |v|max, OMEGA sqrt(softening / |a|max))
+// from the maxima of the GPU reduction (the speed slider's simulated time per frame is kept; only the count changes). STEP_OMEGA is
+// about the omega.dt the criterion lets the core have, STEP_COURANT the cells the fastest gas may cross in a substep. A count is
+// given up (one at a time) only when the lower one keeps STEP_RELEASE of dt_crit, so that the count does not flicker. The count stays
+// within [ceil(MIN_SUBSTEP_RATIO x the fixed count of the speed), ceil(MAX_SUBSTEP_RATIO x it)] (at most MAX_SUBSTEPS): the work of a frame
+// is bounded by that ratio of what the GPU benchmark measured at the fixed count, and a minimum of 1 never runs a coarser substep than
+// the fixed step does (a lower one saves work in the calm phases and delays the first collapse's burst: docs/spikes/b5-adaptive-time-step.md). While the flag is on the reduction is read every STEP_READ_INTERVAL
+// frames, with at most STEP_MAX_READINGS reads in flight.
+export const PROTOSTAR_STEP_OMEGA = 0.12;
+export const PROTOSTAR_STEP_COURANT = 1;
+export const PROTOSTAR_STEP_RELEASE = 0.85;
+export const PROTOSTAR_MIN_SUBSTEP_RATIO = 1;
+export const PROTOSTAR_MAX_SUBSTEP_RATIO = 1.5;
+export const PROTOSTAR_MAX_SUBSTEPS = 8;
+export const PROTOSTAR_STEP_READ_INTERVAL = 3;
+export const PROTOSTAR_STEP_MAX_READINGS = 3;
+export const PROTOSTAR_TYPES_BLOCK = 32;           // texels of the position texture per texel of the first stage of the type count (protostar-types.frag)
 export const PROTOSTAR_STATS_INTERVAL = 10;        // frames between two GPU reductions of the stats
 export const PROTOSTAR_STATS_REDUCE_RES = 16;      // first reduction stage (GRID_RES / 16 = 8 x 8 cells each)
+// Energy diagnostics (reduction.ts, energy.ts): besides the stats' frames, the first frame is read too, so that the
+// initial energy is the one of the start and not of 10 frames of cooling later.
+export const PROTOSTAR_ENERGY_FIRST_FRAME = 1;
+// A virial ratio or an energy drift is not shown when the potential (or the total) energy is below this fraction of
+// |K| + |U|: the quantity it divides by is then noise, not a scale.
+export const PROTOSTAR_ENERGY_RATIO_FLOOR = 1e-6;
 export const PROTOSTAR_RATE_SMOOTHING = 0.3;       // weight of a new fusion rate reading (exponential smoothing)
 // Glow of the particles (0..GLOW_MAX), read by the particle layer from velocity w: it rises with
 // the local temperature (T/T0 over GLOW_T_RANGE) and with the local fusion heating (per unit mass,
 // in T0 per second, GLOW_HEATING_REF giving full glow).
-export const PROTOSTAR_GLOW_T_RANGE: Range = [1, 7];  // 15 to 105 MK: helium burning shines brightest
+// The upper bound is well above the helium ignition (100 MK, 6.7 T0) so that the carbon ash, which nothing burns here (carbon burns
+// at 600 MK) and which reads 3.4 times its dispersion (A1), does not saturate the glow at once: the star's final core, at 100 to 220 MK.
+export const PROTOSTAR_GLOW_T_RANGE: Range = [1, 15];  // 15 to 225 MK
 export const PROTOSTAR_GLOW_TEMPERATURE = 0.7;
 export const PROTOSTAR_GLOW_HEATING_REF = 0.3;
 export const PROTOSTAR_GLOW_FUSION = 1.3;
 export const PROTOSTAR_GLOW_MAX = 2;
 // Panel parameters (slider min, max, step, default).
+// Calibration of the defaults (docs/spikes/a2-gamow-rates.md). A1 (docs/spikes/a1-mean-molecular-weight.md): G 13.85 -> 9 (the core
+// of a hydrogen star settles at about 1.6 MK per unit of G) and lambda_0 1.5e-4 -> 4e-3. A2, the Gamow rates: lambda_He 3.75e-5 ->
+// 2.5e-4, which puts the ignition of a pure helium gas of 20 rho0 at 0.1 fusions per second at exactly 100 MK (lambda_He * 20^2 = 0.1;
+// lambda_0 = 4e-3 gives hydrogen 15.9 MK there, the ratio is 6.3 against the real 6.67). The cooling, the opacity, the feedback, G and
+// lambda_0 were scanned around the old and the new values (3 to 6 seeds each) and left where they were.
+// P4, the thin-disc cooling (docs/spikes/a6-a13-cooling-and-jeans.md): c = 10 /s and kappa = 20 (c / kappa = 0.5: the dense helium core
+// must keep enough heat to reach its ignition, above 1 it never does), T_min 0.05 T0 (0.75 MK, inert in the default cloud); lambda_0
+// 4e-3 -> 2e-3 and feedback 0.146 -> 0.3, which keep the first collapse's burn where it was (33 % of the hydrogen against 35 %, 46 % with
+// lambda_0 at 4e-3). The ignition of hydrogen at 20 rho0 and 0.1 per second moves to 19 MK: the He/H ratio there is 5.2 (6.3 before).
+// The calibration with every feature flag on (docs/spikes/calibration.md; target: the hydrogen burns at 10 to 20 MK, however long the
+// star lives): G 9 -> 6 and c 10 -> 5 (the luminosity, hence how fast the hydrogen burns), feedback 0.3 -> 1 (the heat of a fusion holds the
+// core up as the hydrogen runs out; it is what keeps the burning cool), lambda_0 2e-3 -> 6e-3 (the thermostat's temperature: hydrogen
+// ignites at 14.3 MK at 20 rho0 and 0.1 per second, a He/H ratio of 6.98 there). The hydrogen burns at about 17 MK for some 150 s, the
+// helium flash comes at about 170 s; the first collapse burns 6 % of the hydrogen. These calibrated values are the "Calibrated Protostar"
+// preset's (PROTOSTAR_CALIBRATED); the sliders' defaults, the "Simple fusion" default config, keep the pre-calibration G, lambda_0 and
+// feedback, with every feature flag off and the damping cooling.
+export const PROTOSTAR_CALIBRATED = { gravity: 6, fusionRate: 6e-3, feedback: 1 } as const;
 export const PROTOSTAR_COUNT_SLIDER: SliderSpec = { min: 1000, max: 2000000, step: 1000, default: 400000 };
-export const PROTOSTAR_ROTATION_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.01, default: 0.44 };       // x v_circ
-export const PROTOSTAR_AGITATION_SLIDER: SliderSpec = { min: 0, max: 1.5, step: 0.01, default: 0.26 };    // x v_circ(R)
-export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 20, step: 0.05, default: 13.85 };
+export const PROTOSTAR_VIRIAL_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.33 };         // alpha_vir = 2K / |U|
+export const PROTOSTAR_ROTATION_ENERGY_SLIDER: SliderSpec = { min: 0, max: 0.5, step: 0.01, default: 0.08 };  // beta_rot = E_rot / |U|
+export const PROTOSTAR_GRAVITY_SLIDER: SliderSpec = { min: 0.1, max: 20, step: 0.05, default: 9 };
 export const PROTOSTAR_SOFTENING_SLIDER: SliderSpec = { min: 0.2, max: 5, step: 0.1, default: 1.6 };       // % of L
-export const PROTOSTAR_COOLING_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.51 };        // 1/s
-export const PROTOSTAR_OPACITY_SLIDER: SliderSpec = { min: 1, max: 1000, step: 0, default: 5.32 };         // rho0, log
-export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 1.5e-4 };     // 1/s, log
-export const PROTOSTAR_ALPHA_SLIDER: SliderSpec = { min: 1, max: 6, step: 0.1, default: 2.8 };            // real value: about 4 at 15 MK
-export const PROTOSTAR_HE_LAMBDA_SLIDER: SliderSpec = { min: 1e-10, max: 1e-2, step: 0, default: 3.75e-5 };  // 1/s at 100 MK and rho0, log
-export const PROTOSTAR_HE_ALPHA_SLIDER: SliderSpec = { min: 1, max: 45, step: 0.5, default: 16 };        // real value: about 40 at 100 MK
-export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 0.146 };       // log
+export const PROTOSTAR_RADIATION_SLIDER: SliderSpec = { min: 0.1, max: 10000, step: 0, default: 5 };     // c, 1/s, log
+export const PROTOSTAR_DAMPING_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.01, default: 0.5 };            // k, 1/s: the damping law of the cooling
+export const PROTOSTAR_DAMPING_OPACITY_SLIDER: SliderSpec = { min: 1, max: 1000, step: 0, default: 5 };       // rho_opq, rho0, log
+export const PROTOSTAR_KAPPA_SLIDER: SliderSpec = { min: 0.01, max: 1000, step: 0, default: 20 };          // kappa, per rho0, log
+export const PROTOSTAR_MIN_TEMPERATURE_SLIDER: SliderSpec = { min: 0, max: 1, step: 0.005, default: 0.05 };   // T_min, T0
+export const PROTOSTAR_LAMBDA_SLIDER: SliderSpec = { min: 1e-7, max: 1e-2, step: 0, default: 2e-3 };       // 1/s, log
+export const PROTOSTAR_HE_LAMBDA_SLIDER: SliderSpec = { min: 1e-10, max: 1e-2, step: 0, default: 2.5e-4 };  // 1/s at 100 MK and rho0, log
+export const PROTOSTAR_FEEDBACK_SLIDER: SliderSpec = { min: 0.01, max: 100, step: 0, default: 0.3 };       // log
 export const PROTOSTAR_H_SIZE = 1.6;               // px, default rendered diameters
 export const PROTOSTAR_HE_SIZE = 2.4;
 export const PROTOSTAR_C_SIZE = 3.2;
@@ -120,6 +333,15 @@ export const HYDROGEN_1_MASS = 1.00783;
 // Carbon 12, the product of triple alpha, and not the standard atomic weight of carbon (12.011 u, a
 // mix with carbon 13): three helium atoms weigh 12.0078 u, the reaction would release no energy.
 export const CARBON_12_MASS = 12;
+// Mean molecular weight of a fully ionised gas: 1 / mu = (1 + Z) / A (one nucleus and Z electrons per A u).
+// For a type whose symbol is not an element of the table, Z is taken as A * this ratio (the valley of
+// stability: about as many neutrons as protons in the light nuclei).
+export const PROTONS_PER_NUCLEON = 0.5;
+// The protostar's temperature is the velocity dispersion times the mean molecular weight of the gas (A1), normalised to pure
+// hydrogen: T = (mu / mu_H) <|v - u|^2>, so that T0 (15 MK) still stands for a hydrogen gas of that dispersion. This is
+// 1 / mu_H, (1 + Z) / A of hydrogen 1 (1.984 per u, mu_H = 0.504): the reference does not follow the edited mass of the
+// hydrogen type, which changes its own mu and so its temperature at a given dispersion, as a heavier ion would.
+export const PROTOSTAR_REFERENCE_INVERSE_MU = (1 + 1) / HYDROGEN_1_MASS;
 
 // ---- Drawings: static attractors and repellers (common to every algorithm) ----
 // Two kinds, each drawn as an opacity mask the size of the simulation area: a pixel of opacity 1 holds a unit of
@@ -207,7 +429,7 @@ export const BLOOM_THRESHOLD_SLIDER: SliderSpec = { min: 0, max: 1.5, step: 0.01
 export const NEBULA_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 0 };
 export const LENS_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.05, default: 0.05 };
 export const HEAT_SLIDER: SliderSpec = { min: 0, max: 2, step: 0.05, default: 0.1 };
-export const STRETCH_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.1, default: 1.5 };
+export const STRETCH_SLIDER: SliderSpec = { min: 0, max: 3, step: 0.1, default: 0.4 };
 
 // ---- GPU benchmark (first visit, or on demand from the settings) ----
 // The protostar runs as in the application, one frame per animation frame, at a few particle

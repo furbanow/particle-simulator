@@ -18,6 +18,9 @@ export const PARTICLE_COUNT_PARAM = 'count';
  * The tabs of the panel, in display order. 'initial' holds what only takes effect on the next
  * restart; the other tabs hold what applies while it changes. A tab shows only when a parameter
  * is declared in it, so an algorithm gets its Fusion or Supernova tab by declaring its parameters.
+ * A switch sits in the tab and the section (`ParamBase.section`) of the parameters it changes;
+ * 'features' (labelled Advanced, the last tab) holds the ones that only change how the model is computed or
+ * observed (time step, grids, diagnostics). Switches are applied right away.
  */
 export const PANEL_TABS = [
     { id: 'initial', label: t('tab.initial') },
@@ -27,6 +30,7 @@ export const PANEL_TABS = [
     { id: 'drawing', label: t('tab.drawing') },
     { id: 'elements', label: t('tab.elements') },
     { id: 'effects', label: t('tab.effects') },
+    { id: 'features', label: t('tab.features') },
 ] as const;
 
 export type PanelTab = typeof PANEL_TABS[number];
@@ -40,6 +44,14 @@ interface ParamBase {
     /** Concise explanation, shown on hover: what it is and what it does in the algorithm. */
     readonly doc: string;
     readonly tab: PanelTabId;
+    /**
+     * Title of the group of the tab this parameter belongs to (already translated). The panel shows
+     * it above the first parameter of a run of parameters sharing it, so those are declared
+     * next to each other. A flag goes in the section of the parameter it changes.
+     */
+    readonly section?: string;
+    /** The control is greyed out while the parameter `param` has the value `equals` (it has no effect then). */
+    readonly disabledWhen?: { readonly param: string; readonly equals: ParamValue };
 }
 
 /** A number, edited with a slider. */
@@ -180,10 +192,11 @@ interface StatBase {
     readonly label: string;
 }
 
-/** A number in a tile; null shows '–'. `flash`: the tile flashes when the value increases. */
+/** A number in a tile; null shows '–'. `flash`: the tile flashes when the value increases. `title`: explanation shown on hover. */
 export interface ValueStat extends StatBase {
     readonly kind: 'value';
     readonly flash?: boolean;
+    readonly title?: string;
     format(value: number): string;
 }
 
@@ -195,15 +208,31 @@ export interface MeterStat extends StatBase {
     readonly marker?: { readonly param: string; format(value: number): string };
 }
 
-/** Live particle count per type (GpuModel.liveTypeCounts, else the split of the last restart). */
-export interface TypeCountsStat {
-    readonly kind: 'typeCounts';
+/**
+ * Share of the total mass held by each type (Simulation.liveTypeMasses: the live particle count per type, GpuModel.liveTypeCounts,
+ * else the split of the last restart, times the mass of a particle). `title`: explanation shown on hover.
+ */
+export interface TypeMassesStat {
+    readonly kind: 'typeMasses';
     readonly label: string;
+    readonly title?: string;
 }
 
-export type StatDef = ValueStat | MeterStat | TypeCountsStat;
+export type StatDef = ValueStat | MeterStat | TypeMassesStat;
 
 // ---- Algorithm ----
+
+/**
+ * A built-in simulation config of an algorithm besides its defaults: the parameters it changes (the others
+ * keep their defaults). Read-only, like the defaults; it comes from the code, not from the storage.
+ */
+export interface AlgorithmPreset {
+    /** Unique among the algorithm's presets. */
+    readonly id: string;
+    /** Name shown in the config list (already translated). */
+    readonly name: string;
+    readonly params: Readonly<Record<string, ParamValue>>;
+}
 
 export interface AlgorithmDeclaration {
     readonly id: string;
@@ -217,6 +246,10 @@ export interface AlgorithmDeclaration {
     readonly stats?: readonly StatDef[];
     /** Simulation speed of the built-in simulation config (the shared speed slider default when omitted). */
     readonly defaultSpeed?: number;
+    /** Name of the built-in simulation config holding the defaults (already translated); "Default" when omitted. */
+    readonly defaultsName?: string;
+    /** Built-in simulation configs offered after the defaults one. */
+    readonly presets?: readonly AlgorithmPreset[];
     /** Particle cap of this algorithm relative to the benchmark's (1 when omitted): cheaper ones allow more. */
     readonly particleCapRatio?: number;
 }

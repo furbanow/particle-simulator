@@ -11,7 +11,7 @@ import { DrawingField } from './drawing/DrawingField';
 import { GpuPipeline } from './GpuPipeline';
 import { GPU_MODELS } from './gpuModels';
 import { defaultParams, validParamValue } from './params';
-import type { SpeciesUniforms } from './gpuModel';
+import type { GridOverlay, SpeciesUniforms } from './gpuModel';
 
 export type { SpeciesUniforms } from './gpuModel';
 
@@ -52,6 +52,7 @@ export class Simulation {
     activeCount = 0;
     activeTypeCount = 0;
     private algorithmId: AlgorithmId = DEFAULT_ALGORITHM;
+    private substepsOfLastFrame = 0;
     private readonly states = new Map<AlgorithmId, AlgorithmState>();
     /** Parameter values at the last restart. */
     private appliedParams: ParamValues = {};
@@ -112,24 +113,29 @@ export class Simulation {
     }
 
     /**
-     * Switches to algorithm `id` at its default parameters, at `timeScale` and with no particle
-     * cap: a reproducible load for the GPU benchmark. Nothing runs until reset(). The returned
-     * function brings back the previous algorithm, parameters, time scale and cap (a restart is
-     * then needed).
+     * Switches to algorithm `id` at its default parameters (but for `overrides`), at `timeScale`
+     * and with no particle cap: a reproducible load for the GPU benchmark. Nothing runs until
+     * reset(). The returned function brings back the previous algorithm, parameters, time scale
+     * and cap (a restart is then needed).
      */
-    borrowAlgorithm(id: AlgorithmId, timeScale: number): () => void {
+    borrowAlgorithm(id: AlgorithmId, timeScale: number, overrides: ParamValues = {}): () => void {
         const previous = { id: this.algorithmId, timeScale: this.timeScale, cap: this.cap };
         this.useAlgorithm(id);
         const saved = { ...this.state.params };
         this.cap = MAX_PARTICLES;
         this.timeScale = timeScale;
-        for (const [key, value] of Object.entries(defaultParams(this.algorithm))) this.setParam(key, value);
+        for (const [key, value] of Object.entries({ ...defaultParams(this.algorithm), ...overrides })) this.setParam(key, value);
         return () => {
             this.cap = previous.cap;
             for (const [key, value] of Object.entries(saved)) this.setParam(key, value);
             this.timeScale = previous.timeScale;
             this.useAlgorithm(previous.id);
         };
+    }
+
+    /** Dev-only, read-only: the running pipeline (and through it the model), for the lab page (src/lab). Not used by the app. */
+    get debugPipeline(): GpuPipeline {
+        return this.pipeline;
     }
 
     get positionTexture(): THREE.Texture {
@@ -181,6 +187,16 @@ export class Simulation {
         return this.pipeline.liveTypeCounts() ?? this.speciesCounts;
     }
 
+    /** The map to draw over the animation now (the protostar's stability map), computed on demand; null when none is shown. */
+    overlay(): GridOverlay | null {
+        return this.pipeline.overlay();
+    }
+
+    /** Mass of each type now, simulation mass units: the particles of the type (see liveTypeCounts) times the mass of one. */
+    liveTypeMasses(): readonly number[] {
+        return this.liveTypeCounts().map((n, k) => n * this.speciesUniforms.splatMass.value[k]);
+    }
+
     resize(width: number, height: number): void {
         this.width = width;
         this.height = height;
@@ -215,8 +231,16 @@ export class Simulation {
     step(): void {
         if (this.paused || this.timeScale <= 0) return;
         this.drawing.prepare();
-        const steps = Math.max(1, Math.ceil(this.timeScale - 1e-6));
-        this.pipeline.step(BASE_DT * this.timeScale / steps, steps);
+        // The frame simulates BASE_DT x the speed whatever the count: a model may adapt the number of substeps (between frames), not the time.
+        const frameTime = BASE_DT * this.timeScale;
+        const steps = this.pipeline.substepCount(frameTime, Math.max(1, Math.ceil(this.timeScale - 1e-6)));
+        this.substepsOfLastFrame = steps;
+        this.pipeline.step(frameTime / steps, steps);
+    }
+
+    /** Substeps the latest frame ran (0 before the first): the fixed count of the speed, or the model's adaptive one. */
+    get lastSubsteps(): number {
+        return this.substepsOfLastFrame;
     }
 
     /** Frame bookkeeping after rendering (periodic read-back of the positions). */

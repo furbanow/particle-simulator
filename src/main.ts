@@ -6,14 +6,16 @@ import {
 } from './config';
 import { clampCenter, screenToWorld, zoomAt, type ViewState } from './view';
 import type { ViewUniforms } from './gl/common';
+import { createRenderer } from './gl/createRenderer';
 import { DisplaySettingsStore, frameMs } from './displaySettings';
 import { applyStaticTranslations, getLanguage, t } from './i18n';
 import { NebulaLayer } from './render/nebulaLayer';
 import { ParticleLayer } from './render/particleLayer';
 import { PostProcessing } from './render/postprocessing';
+import { StabilityLayer } from './render/stabilityLayer';
 import { defaultTypeCount, PARTICLE_COUNT_PARAM, type ParamValues } from './simulation/algorithm';
 import {
-    ALGORITHMS, BENCHMARK_ALGORITHM, DEFAULT_ALGORITHM, isAlgorithmId, type AlgorithmId,
+    ALGORITHMS, BENCHMARK_ALGORITHM, BENCHMARK_PARAMS, DEFAULT_ALGORITHM, isAlgorithmId, type AlgorithmId,
 } from './simulation/algorithms';
 import { findParam, validParamValue } from './simulation/params';
 import { Simulation } from './simulation/Simulation';
@@ -35,10 +37,12 @@ import { setupSliders, syncAllRanges, titleResettableRanges } from './ui/sliders
 import { Stats } from './ui/stats';
 import { MouseToolbar } from './ui/toolbar';
 import { setupTooltips } from './ui/tooltip';
+import { APP_VERSION } from './version';
 
 // The static texts of the page, in the language fixed at load (changing it reloads the page).
 document.documentElement.lang = getLanguage();
 applyStaticTranslations(document);
+byId('versionLink').textContent = `v${APP_VERSION}`;
 
 const container = byId('sim-container');
 const uiPanel = byId('ui-panel');
@@ -46,15 +50,7 @@ const startBtn = byId('startBtn');
 const pauseBtn = byId('pauseBtn');
 
 // ---- Renderer ----
-function createRenderer(): THREE.WebGLRenderer {
-    try {
-        const created = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-        if (created.extensions.has('EXT_color_buffer_float')) return created;
-        created.dispose();
-    } catch { /* no WebGL 2 context: falls through to the apology */ }
-    return showUnsupported();
-}
-const renderer = createRenderer();
+const renderer = createRenderer() ?? showUnsupported();
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x000000, 1);
 renderer.toneMapping = THREE.NeutralToneMapping; // applied by the OutputPass; keeps hues in bright cores
@@ -96,6 +92,8 @@ const particles = new ParticleLayer(simulation.geometry, simulation.speciesUnifo
 const nebula = new NebulaLayer(renderer, simulation.geometry, simulation.speciesUniforms, simulation.screenSize,
     particles.texturePosition, viewUniforms);
 const post = new PostProcessing(renderer, particles.scene, nebula.target.texture, width, height);
+// The protostar's stability map, over the finished image (off unless chosen in the Advanced tab).
+const stability = new StabilityLayer(simulation.screenSize, viewUniforms);
 
 function resize(): void {
     width = container.clientWidth;
@@ -265,7 +263,7 @@ async function benchmarkGpu(): Promise<void> {
     if (countParam?.kind !== 'number') throw new Error(`${BENCHMARK_ALGORITHM} has no particle count parameter`);
     // At the default speed: its substeps are part of the load.
     const speed = parseFloat(byId<HTMLInputElement>('speedSlider').defaultValue);
-    const restore = simulation.borrowAlgorithm(BENCHMARK_ALGORITHM, speed);
+    const restore = simulation.borrowAlgorithm(BENCHMARK_ALGORITHM, speed, BENCHMARK_PARAMS);
     let cap: number | null = null;
     try {
         cap = await runBenchmark({
@@ -368,6 +366,7 @@ function renderFrame(): void {
     particles.update(simulation.positionTexture, simulation.velocityTexture, simulation.paused ? 0 : BASE_DT * simulation.timeScale);
     nebula.render();
     post.render(visualTime);
+    stability.render(renderer, simulation.overlay());
     simulation.endFrame();
 }
 
@@ -394,8 +393,9 @@ resize();
 // The first GPU benchmark starts right away (its first animation frames are ahead): the restart of
 // the setup below then waits for its end, so the simulation is not set up twice.
 const firstBenchmark = displaySettings.values.particleCap === null ? benchmarkGpu() : null;
-// A built-in config is not applied: the element editor stays on its own current config.
-if (simulationConfigs.canEdit(simulationConfigs.current.id)) applySimulationSetup(simulationConfigs.current);
+// An algorithm's defaults are not applied (the element editor stays on its own current config); a saved config or a preset is.
+const { current: startConfig } = simulationConfigs;
+if (simulationConfigs.canEdit(startConfig.id) || simulationConfigs.isPreset(startConfig.id)) applySimulationSetup(startConfig);
 else restart();
 simulationPicker.refreshList();
 simulationPicker.refresh();

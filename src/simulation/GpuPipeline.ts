@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 import { GPUComputationRenderer, type Variable } from 'three/addons/misc/GPUComputationRenderer.js';
 import {
-    BASE_DT, CLUSTER_CHECK_INTERVAL, DONUT_INNER, DONUT_OUTER, INITIAL_SPEED, MOMENTUM_SCALE, TEX_SIZE, TOTAL_MASS,
+    BASE_DT, CLUSTER_CHECK_INTERVAL, DONUT_INNER, DONUT_OUTER, ENERGY_SCALE, INITIAL_SPEED, MOMENTUM_SCALE, TEX_SIZE, TOTAL_MASS,
 } from '../config';
 import { hexToVector, type Uniform } from '../gl/common';
 import type { ParamValue, ParamValues, ParticleType } from './algorithm';
 import { ClusterProbe } from './clusterProbe';
 import type { DrawingField } from './drawing/DrawingField';
 import { DensityField } from './densityField';
-import type { GpuModel, GpuModelContext, GpuModelFactory, InitialState, SpeciesUniforms } from './gpuModel';
+import type { GpuModel, GpuModelContext, GpuModelFactory, GridOverlay, InitialState, SpeciesUniforms } from './gpuModel';
 import positionFrag from '../shaders/position.frag?raw';
 
 /** The objects shared with the render layers: they outlive the pipelines (one per algorithm). */
@@ -104,6 +104,8 @@ export class GpuPipeline {
             texturePosition: { value: null },
             textureVelocity: { value: null },
             textureDensity: { value: this.density.target.texture },
+            textureReference: this.density.referenceTexture,
+            referenceOffset: this.density.referenceOffset,
             screenSize: shared.screenSize,
             domainOffset: this.density.domainOffset,
             domainSize: this.density.domainSize,
@@ -112,6 +114,7 @@ export class GpuPipeline {
             dt: { value: BASE_DT },
             activeCount: { value: 0 },
             momentumScale: { value: MOMENTUM_SCALE },
+            energyScale: { value: ENERGY_SCALE },
         }, model.velocityUniforms);
         for (const variable of this.extraVars) this.velUniforms[variable.name] = { value: null };
         this.posUniforms = this.posVar.material.uniforms;
@@ -142,12 +145,89 @@ export class GpuPipeline {
         return this.gpu.getCurrentRenderTarget(this.velVar).texture;
     }
 
+    /** Dev-only, read-only: the algorithm's GPU model, for the lab page (src/lab). Not used by the app. */
+    get debugModel(): GpuModel {
+        return this.model;
+    }
+
+    /** Dev-only, read-only: the render target holding the positions now, for the lab page (src/lab). Not used by the app. */
+    get debugPositionTarget(): THREE.WebGLRenderTarget {
+        return this.gpu.getCurrentRenderTarget(this.posVar);
+    }
+
+    /** Dev-only, read-only: the render target holding the velocities now, for the lab page (src/lab). Not used by the app. */
+    get debugVelocityTarget(): THREE.WebGLRenderTarget {
+        return this.gpu.getCurrentRenderTarget(this.velVar);
+    }
+
+    /** Dev-only, read-only: the render target holding the model's extra state variable `name` now (the protostar's acceleration), for the lab page (src/lab). Not used by the app. */
+    debugVariableTarget(name: string): THREE.WebGLRenderTarget {
+        const variable = this.extraVars.find(v => v.name === name);
+        if (!variable) throw new Error(`Unknown GPU variable: ${name}`);
+        return this.gpu.getCurrentRenderTarget(variable);
+    }
+
+    /**
+     * Dev-only (the lab's cost of the passes): renders the particle pass `name` ('velocity', 'position' or an extra variable's name)
+     * from the current state into its other target, as the next substep would, without swapping: the state does not advance, so the
+     * pass can be timed again and again on one state. With `rows`, only the first `rows` rows of the texture are drawn (a scissor: what
+     * a pass restricted to the active particles would cost). Returns the target written. Not used by the app.
+     */
+    debugRenderParticlePass(name: string, rows: number | null = null): THREE.WebGLRenderTarget {
+        const variable = this.particleVariable(name);
+        const state = [this.posVar, this.velVar, ...this.extraVars];
+        const uniforms = variable.material.uniforms;
+        for (const input of state) {
+            if (uniforms[input.name]) uniforms[input.name].value = this.gpu.getCurrentRenderTarget(input).texture;
+        }
+        const output = this.gpu.getAlternateRenderTarget(variable);
+        if (rows !== null) {
+            output.scissor.set(0, 0, TEX_SIZE, rows);
+            output.scissorTest = true;
+        }
+        this.gpu.doRenderTarget(variable.material, output);
+        output.scissorTest = false;
+        return output;
+    }
+
+    /** Dev-only, read-only: the material of the particle pass `name` (see debugRenderParticlePass), for the lab page. Not used by the app. */
+    debugParticleMaterial(name: string): THREE.ShaderMaterial {
+        return this.particleVariable(name).material;
+    }
+
+    private particleVariable(name: string): Variable {
+        const variable = name === 'velocity' ? this.velVar : name === 'position' ? this.posVar : this.extraVars.find(v => v.name === name);
+        if (!variable) throw new Error(`Unknown particle pass: ${name}`);
+        return variable;
+    }
+
+    /**
+     * Dev-only: overwrites the particles' state (the first `count` texels of each, RGBA per texel: positions x, y, type
+     * rank, w; velocities vx, vy, z, w) for the lab's scenarios that need a cloud of their own. A restart must have
+     * made the particle count, the types and the per-type uniforms first. Not used by the app.
+     */
+    debugSetState(positions: Float32Array, velocities: Float32Array): void {
+        const posTex = this.gpu.createTexture();
+        const velTex = this.gpu.createTexture();
+        (posTex.image.data as unknown as Float32Array).set(positions);
+        (velTex.image.data as unknown as Float32Array).set(velocities);
+        for (const rt of this.posVar.renderTargets) this.gpu.renderTexture(posTex, rt);
+        for (const rt of this.velVar.renderTargets) this.gpu.renderTexture(velTex, rt);
+        posTex.dispose();
+        velTex.dispose();
+    }
+
     setParam(key: string, value: ParamValue): void {
         this.model.setParam(key, value);
     }
 
     stat(key: string): number | null {
         return this.model.stat(key);
+    }
+
+    /** The model's map to draw over the animation now (see GpuModel.overlay), null when none is shown. */
+    overlay(): GridOverlay | null {
+        return this.model.overlay?.() ?? null;
     }
 
     liveTypeCounts(): readonly number[] | null {
@@ -206,6 +286,11 @@ export class GpuPipeline {
         model.updateSpecies(types, typeCounts);
     }
 
+    /** Substeps the next frame of `frameTime` seconds runs: the model's choice, else `fixedSteps` (see GpuModel.substepCount). */
+    substepCount(frameTime: number, fixedSteps: number): number {
+        return this.model.substepCount?.(frameTime, fixedSteps) ?? fixedSteps;
+    }
+
     /** Advances `steps` substeps of `dt`. */
     step(dt: number, steps: number): void {
         const { model } = this;
@@ -222,6 +307,7 @@ export class GpuPipeline {
             for (const variable of this.extraVars) {
                 this.velUniforms[variable.name].value = this.gpu.getCurrentRenderTarget(variable).texture;
             }
+            model.afterDensity?.();
             this.gpu.compute();
             model.afterSubstep?.();
         }

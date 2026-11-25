@@ -62,7 +62,7 @@ describe('panelParamValue', () => {
     });
 
     it('rounds a number like its slider, and replaces an invalid value by the default', () => {
-        const log = PROTOSTAR.params.find(p => p.key === 'opacity')!;
+        const log = PROTOSTAR.params.find(p => p.key === 'kappa')!;
         expect(panelParamValue(log, 30)).toBe(29.9);
         expect(panelParamValue(log, 'x')).toBe(panelParamValue(log, log.kind === 'number' ? log.default : 0));
     });

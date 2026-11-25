@@ -2,9 +2,9 @@
 // chemical elements) and live stats. Its GPU side is ./gpuModel.ts.
 
 import {
-    CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MASS_RANGE, MASS_SLIDER_STEPS,
+    COLLISION_SPEED_SLIDER, CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MASS_RANGE, MASS_SLIDER_STEPS,
     PARTICLE_COUNT_SLIDER, POPULATION_WEIGHT_RANGE, POPULATION_WEIGHT_STEP, SIZE_RANGE, SIZE_STEP,
-    STICKY_DUST_CAP_RATIO, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
+    STICKINESS_SLIDER, STICKY_DUST_CAP_RATIO, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../../config';
 import { formatNumber, t } from '../../i18n';
 import { randomPopulationWeights } from '../../population';
@@ -14,16 +14,19 @@ import {
 import { formatInt } from '../../util/format';
 import { clamp } from '../../util/math';
 import {
-    linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type NumberParam, type ParticleType,
+    linearScale, PARTICLE_COUNT_PARAM, sliderFields, type AlgorithmDeclaration, type ParamDef, type ParticleType,
 } from '../algorithm';
 
 /** Keys of the parameters and of the type properties, shared with the GPU model. */
 export const STICKY_DUST_PARAM = {
     count: PARTICLE_COUNT_PARAM,
     gravity: 'gravity',
+    stickiness: 'stickiness',
+    collisionSpeed: 'collisionSpeed',
     supernovaThreshold: 'supernovaThreshold',
     concentrationRadius: 'concentrationRadius',
     supernovaPower: 'supernovaPower',
+    tscDeposit: 'tscDeposit',
 } as const;
 
 export const STICKY_DUST_PROPERTY = { weight: 'weight', mass: 'mass', size: 'size' } as const;
@@ -32,13 +35,19 @@ export const STICKY_DUST_STAT = { supernovae: 'supernovae', concentration: 'conc
 
 const percent = (v: number): string => t('format.percent', { value: v });
 
-const params: readonly NumberParam[] = [
+const params: readonly ParamDef[] = [
     { ...sliderFields(PARTICLE_COUNT_SLIDER), key: STICKY_DUST_PARAM.count, tab: 'initial', label: t('algo.stickyDust.param.count.label'),
         doc: t('algo.stickyDust.param.count.doc'),
         format: formatInt },
     { ...sliderFields(GRAVITY_SLIDER), key: STICKY_DUST_PARAM.gravity, tab: 'physics', label: t('algo.stickyDust.param.gravity.label'),
         doc: t('algo.stickyDust.param.gravity.doc'),
         format: v => `G = ${formatNumber(v, 1)}` },
+    { ...sliderFields(STICKINESS_SLIDER), key: STICKY_DUST_PARAM.stickiness, tab: 'physics', label: t('algo.stickyDust.param.stickiness.label'),
+        doc: t('algo.stickyDust.param.stickiness.doc'),
+        format: percent },
+    { ...sliderFields(COLLISION_SPEED_SLIDER), key: STICKY_DUST_PARAM.collisionSpeed, tab: 'physics', label: t('algo.stickyDust.param.collisionSpeed.label'),
+        doc: t('algo.stickyDust.param.collisionSpeed.doc'),
+        format: v => `${formatNumber(v, 0)} px/s` },
     { ...sliderFields(SUPERNOVA_THRESHOLD_SLIDER), key: STICKY_DUST_PARAM.supernovaThreshold, tab: 'supernova', label: t('algo.stickyDust.param.supernovaThreshold.label'),
         doc: t('algo.stickyDust.param.supernovaThreshold.doc'),
         format: percent },
@@ -48,6 +57,8 @@ const params: readonly NumberParam[] = [
     { ...sliderFields(SUPERNOVA_POWER_SLIDER), key: STICKY_DUST_PARAM.supernovaPower, tab: 'supernova', label: t('algo.stickyDust.param.supernovaPower.label'),
         doc: t('algo.stickyDust.param.supernovaPower.doc'),
         format: percent },
+    { kind: 'boolean', key: STICKY_DUST_PARAM.tscDeposit, tab: 'features', label: t('algo.stickyDust.param.tscDeposit.label'),
+        doc: t('algo.stickyDust.param.tscDeposit.doc'), default: false },
 ];
 
 // Rendered diameters are proportional to the atomic radii, the largest atom filling the slider.

@@ -6,7 +6,8 @@ import { MAX_PARTICLES, TEX_SIZE } from '../config';
  * and hands them to a callback. A result is dropped when the simulation was restarted meanwhile.
  */
 export class ClusterProbe {
-    private readonly buffer = new Float32Array(MAX_PARTICLES * 4);
+    /** The 48 MB the read-back lands in: made at the first read, for the algorithms that never read the positions back not to hold it. */
+    private buffer: Float32Array | null = null;
     private pending = false;
 
     constructor(private readonly renderer: THREE.WebGLRenderer) {}
@@ -19,6 +20,7 @@ export class ClusterProbe {
          onPositions: (positions: Float32Array) => void): void {
         if (this.pending) return;
         const rows = Math.ceil(activeCount / TEX_SIZE);
+        this.buffer ??= new Float32Array(MAX_PARTICLES * 4);
         const view = this.buffer.subarray(0, rows * TEX_SIZE * 4);
         if (this.renderer.readRenderTargetPixelsAsync) {
             this.pending = true;

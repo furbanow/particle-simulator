@@ -1,20 +1,51 @@
 // Softened gravity at each fine cell center: a = G sum m_j (r_j - r) / (|r_j - r|^2 + eps^2)^(3/2).
 // Two levels: fine cells inside the coarse cells within NEAR_RADIUS of the cell's own coarse cell
 // one by one, the other coarse cells as one mass at their center of mass.
-// Defines: GRID_RES, COARSE_RES, COARSE_FACTOR, NEAR_RADIUS.
+// Defines: GRID_RES, COARSE_RES, COARSE_FACTOR, NEAR_RADIUS. Optional: GRAVITY_POTENTIAL, GRAVITY_SOURCE, GRAVITY_REGION.
+//
+// GRAVITY_SOURCE (the protostar's, A11): the masses and the thicknesses come from the gas pass's source grid (m, h^2) and the coarse
+// grid's w (the monopole's mean h^2), and a pair is softened by eps_ij^2 = (h_i^2 + h_j^2) / 2 (twin: softenedGravityAt() in
+// thickness.ts). With the fixed softening every h^2 is eps^2 and the sum is the plain one to the bit. Without it (the drawings'
+// fields), the masses come from gridMoments and every pair has softening2.
+//
+// Output (ax, ay, phi, 0). Without GRAVITY_POTENTIAL, phi is 0 (the drawings' fields, which only
+// need the force, are built like that). With it, phi is the Plummer potential of the very same
+// sum, the one the force is the gradient of: phi = -G sum m_j / sqrt(|r_j - r|^2 + eps^2) (px^2/s^2).
+// The cell's own mass is in the sum (at distance 0: -G m / eps), which the force does not feel
+// (r = 0) but the potential does: see ProtostarModel / reduction.ts for the correction of that
+// self-interaction in the potential energy.
 uniform sampler2D gridMoments;          // mass in x, deposit units
 uniform sampler2D gridCoarse;           // (mass, center of mass px)
 uniform float gridCell;
 uniform float softening2;               // eps^2, px^2
+#ifdef GRAVITY_SOURCE
+uniform sampler2D gridSource;           // (m, h^2, 0, 0): mass in deposit units, thickness^2 px^2
+#endif
 uniform float gravityPerDeposit;        // G_eff x mass of one deposit unit
 
 const int NEAR_SPAN = (2 * NEAR_RADIUS + 1) * COARSE_FACTOR;
 
+#ifdef GRAVITY_REGION
+uniform vec4 gravityRegion;             // (lo, hi) cells: the cells to compute, 0 elsewhere (the nested grid's a_main(inside), C2)
+#endif
+
 void main() {
     ivec2 cell = ivec2(gl_FragCoord.xy);
+#ifdef GRAVITY_REGION
+    if (any(lessThan(vec2(cell), gravityRegion.xy)) || any(greaterThan(vec2(cell), gravityRegion.zw))) {
+        gl_FragColor = vec4(0.0);
+        return;
+    }
+#endif
     vec2 x = (vec2(cell) + 0.5) * gridCell;
     ivec2 own = cell / COARSE_FACTOR;
     vec2 acc = vec2(0.0);
+#ifdef GRAVITY_SOURCE
+    float h2i = texelFetch(gridSource, cell, 0).y;
+#endif
+#ifdef GRAVITY_POTENTIAL
+    float potential = 0.0;
+#endif
 
     for (int j = 0; j < COARSE_RES; j++) {
         for (int i = 0; i < COARSE_RES; i++) {
@@ -24,8 +55,15 @@ void main() {
             vec4 m = texelFetch(gridCoarse, c, 0);
             if (m.x <= 0.0) continue;
             vec2 r = m.yz - x;
+#ifdef GRAVITY_SOURCE
+            float s = inversesqrt(dot(r, r) + 0.5 * (h2i + m.w));
+#else
             float s = inversesqrt(dot(r, r) + softening2);
+#endif
             acc += m.x * r * (s * s * s);
+#ifdef GRAVITY_POTENTIAL
+            potential -= m.x * s;
+#endif
         }
     }
 
@@ -34,12 +72,27 @@ void main() {
         for (int i = 0; i < NEAR_SPAN; i++) {
             ivec2 c = origin + ivec2(i, j);
             if (any(lessThan(c, ivec2(0))) || any(greaterThanEqual(c, ivec2(GRID_RES)))) continue;
+#ifdef GRAVITY_SOURCE
+            vec2 source = texelFetch(gridSource, c, 0).xy;
+            float m = source.x;
+            if (m <= 0.0) continue;
+            vec2 r = (vec2(c) + 0.5) * gridCell - x;
+            float s = inversesqrt(dot(r, r) + 0.5 * (h2i + source.y));
+#else
             float m = texelFetch(gridMoments, c, 0).x;
             if (m <= 0.0) continue;
             vec2 r = (vec2(c) + 0.5) * gridCell - x;
             float s = inversesqrt(dot(r, r) + softening2);
+#endif
             acc += m * r * (s * s * s);
+#ifdef GRAVITY_POTENTIAL
+            potential -= m * s;
+#endif
         }
     }
+#ifdef GRAVITY_POTENTIAL
+    gl_FragColor = vec4(acc * gravityPerDeposit, potential * gravityPerDeposit, 0.0);
+#else
     gl_FragColor = vec4(acc * gravityPerDeposit, 0.0, 0.0);
+#endif
 }

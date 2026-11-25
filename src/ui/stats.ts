@@ -3,6 +3,7 @@ import { t } from '../i18n';
 import type { StatDef } from '../simulation/algorithm';
 import { findParam, paramFraction } from '../simulation/params';
 import type { Simulation } from '../simulation/Simulation';
+import { formatTraceShare } from '../population';
 import { formatInt } from '../util/format';
 import { clamp } from '../util/math';
 import { byId, flash } from './dom';
@@ -94,6 +95,7 @@ export class Stats {
             case 'value': {
                 el.innerHTML = '<div class="stat-label"></div><div class="stat-value"></div>';
                 el.querySelector('.stat-label')!.textContent = def.label;
+                if (def.title) el.title = def.title;
                 const out = el.querySelector<HTMLElement>('.stat-value')!;
                 let last: number | null | undefined;
                 return {
@@ -145,25 +147,29 @@ export class Stats {
                     },
                 };
             }
-            case 'typeCounts': {
+            case 'typeMasses': {
                 el.classList.add('wide');
-                el.innerHTML = '<div class="stat-label"></div><div class="type-counts"></div>';
+                el.innerHTML = '<div class="stat-label"></div><div class="type-masses"></div>';
                 el.querySelector('.stat-label')!.textContent = def.label;
-                const list = el.querySelector<HTMLElement>('.type-counts')!;
+                if (def.title) el.title = def.title;
+                const list = el.querySelector<HTMLElement>('.type-masses')!;
                 let lastKey = '';
                 return {
                     el, paint: () => {
-                        const counts = this.sim.liveTypeCounts();
+                        const masses = this.sim.liveTypeMasses();
                         const shown = this.sim.species.slice(0, Math.max(this.sim.activeTypeCount, 1));
-                        const key = JSON.stringify([counts.slice(0, shown.length), shown.map(t => [t.symbol, t.color])]);
+                        const total = shown.reduce((sum, _, k) => sum + (masses[k] ?? 0), 0);
+                        const shares = shown.map((_, k) => total > 0 ? (masses[k] ?? 0) / total : 0);
+                        const texts = shares.map(formatTraceShare);
+                        const key = JSON.stringify([texts, shown.map(t => [t.symbol, t.color])]);
                         if (key === lastKey) return;
                         lastKey = key;
                         list.replaceChildren(...shown.map((t, k) => {
                             const item = document.createElement('span');
-                            item.className = 'type-count';
+                            item.className = 'type-mass';
                             item.style.setProperty('--type-color', t.color);
                             item.title = t.name;
-                            item.textContent = `${t.symbol} ${formatInt(counts[k] ?? 0)}`;
+                            item.textContent = `${t.symbol} ${texts[k]}`;
                             return item;
                         }));
                     },

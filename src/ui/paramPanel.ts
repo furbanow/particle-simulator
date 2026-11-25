@@ -24,6 +24,8 @@ const TAB_ICONS: Readonly<Record<PanelTabId, string>> = {
     fusion: '<path d="M12 3c.5 3 2.2 4.9 3.9 6.6C17.3 11 18 12.7 18 14.5a6 6 0 0 1-12 0c0-1.5.5-2.8 1.4-3.8.3 1.3 1.1 2.1 2.1 2.3-.5-3.5.3-7 2.5-10z"/>',
     // A burst.
     supernova: '<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/>',
+    // A toggle switch: the optional features.
+    features: '<rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="16" cy="12" r="2.2"/>',
     // A pencil drawing a line.
     drawing: '<path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="M14 7l3 3"/><path d="M3 21c2.5-1.5 4.5.8 7-.2"/>',
     // A sparkle.
@@ -43,11 +45,15 @@ export interface ParamField {
     readonly element: HTMLElement;
     /** Pushes the control's value into its store and paints its display. */
     update(): void;
+    /** Greys the control out (a parameter it depends on makes it useless) or brings it back. */
+    setDisabled(disabled: boolean): void;
 }
 
 interface Control {
     param: ParamDef;
+    store: ParamStore;
     update(): void;
+    setDisabled(disabled: boolean): void;
     pending?: HTMLElement;
 }
 
@@ -94,7 +100,8 @@ export class ParamPanel {
         this.controls = [];
         this.tabButtons = new Map(tabs.map(tab => [tab.id, this.buildTabButton(tab)]));
         this.tabPanels = new Map(tabs.map(tab => {
-            const fields = entries.filter(e => e.param.tab === tab.id).map(e => this.buildControl(e.param, e.store));
+            const fields = withSectionTitles(entries.filter(e => e.param.tab === tab.id)
+                .map(e => ({ section: e.param.section, element: this.buildControl(e.param, e.store) })));
             const more = extra[tab.id];
             return [tab.id, buildTabPanel(tab, more ? [...fields, more] : fields)];
         }));
@@ -146,6 +153,20 @@ export class ParamPanel {
         this.tabButtons.get(ids[target])?.focus();
     }
 
+    /** Greys out the controls that have no effect with the current value of the parameter they depend on. */
+    private refreshDisabled(): void {
+        for (const { param, store, setDisabled } of this.controls) {
+            const dependency = param.disabledWhen;
+            if (dependency) setDisabled(store.value(dependency.param) === dependency.equals);
+        }
+    }
+
+    /** After a change of a value: the restart hints and the dependent controls. */
+    private refresh(): void {
+        this.refreshPending();
+        this.refreshDisabled();
+    }
+
     private refreshPending(): void {
         const isPending = ({ param, pending }: Control) => pending !== undefined && this.sim.isPending(param.key);
         for (const control of this.controls) {
@@ -173,15 +194,15 @@ export class ParamPanel {
 
     private buildControl(param: ParamDef, store: ParamStore): HTMLElement {
         let pending: HTMLElement | undefined;
-        const field = paramField(param, store, () => this.refreshPending());
+        const field = paramField(param, store, () => this.refresh());
         if (appliesOnRestart(param)) {
             pending = document.createElement('div');
             pending.className = 'hint pending';
             field.element.appendChild(pending);
         }
         this.controls.push({
-            param, pending,
-            update: () => { field.update(); this.refreshPending(); },
+            param, pending, store, setDisabled: field.setDisabled,
+            update: () => { field.update(); this.refresh(); },
         });
         return field.element;
     }
@@ -247,11 +268,32 @@ export function paramField(param: ParamDef, store: ParamStore, onChange: () => v
     }
     input.setAttribute('aria-description', param.doc);
     input.addEventListener(param.kind === 'number' ? 'input' : 'change', () => { update(); onChange(); });
-    return { param, element: field, update };
+    const setDisabled = (disabled: boolean): void => {
+        input.disabled = disabled;
+        field.classList.toggle('disabled', disabled);
+    };
+    return { param, element: field, update, setDisabled };
 }
 
 const tabButtonId = (id: PanelTabId): string => `panelTab_${id}`;
 const tabPanelId = (id: PanelTabId): string => `panelTabPanel_${id}`;
+
+/** The fields of a tab, with the title of a section before the first field of each run sharing it. */
+function withSectionTitles(fields: readonly { section: string | undefined; element: HTMLElement }[]): HTMLElement[] {
+    const elements: HTMLElement[] = [];
+    let previous: string | undefined;
+    for (const { section, element } of fields) {
+        if (section && section !== previous) {
+            const title = document.createElement('h3');
+            title.className = 'param-section';
+            title.textContent = section;
+            elements.push(title);
+        }
+        previous = section;
+        elements.push(element);
+    }
+    return elements;
+}
 
 function buildTabPanel(tab: PanelTab, fields: readonly HTMLElement[]): HTMLElement {
     const panel = document.createElement('section');

@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
-    CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MAX_PARTICLES, MAX_SPECIES,
-    PARTICLE_COUNT_SLIDER, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
+    COLLISION_SPEED_SLIDER, CONCENTRATION_RADIUS_SLIDER, DEFAULT_POPULATION_WEIGHT, GRAVITY_SLIDER, MAX_PARTICLES, MAX_SPECIES,
+    PARTICLE_COUNT_SLIDER, STICKINESS_SLIDER, SUPERNOVA_POWER_SLIDER, SUPERNOVA_THRESHOLD_SLIDER,
 } from '../src/config';
 import {
     appliesOnRestart, defaultTypeCount, numberProperties, PANEL_TABS, PARTICLE_COUNT_PARAM, populationProperty, populationWeights,
     tabsOf, type PanelTabId, type ParamDef,
 } from '../src/simulation/algorithm';
-import { ALGORITHM_IDS, ALGORITHMS, algorithmList, DEFAULT_ALGORITHM, isAlgorithmId } from '../src/simulation/algorithms';
+import {
+    ALGORITHM_IDS, ALGORITHMS, algorithmList, BENCHMARK_ALGORITHM, BENCHMARK_PARAMS, DEFAULT_ALGORITHM, isAlgorithmId,
+} from '../src/simulation/algorithms';
 import { defaultParams } from '../src/simulation/params';
 import { PROTOSTAR } from '../src/simulation/protostar/declaration';
 import { STICKY_DUST, STICKY_DUST_TYPES } from '../src/simulation/stickyDust/declaration';
@@ -115,7 +117,7 @@ describe.each(algorithmList())('declaration of $id', algorithm => {
     });
 
     it('has stats with unique keys, meter markers on number parameters', () => {
-        const keyed = (algorithm.stats ?? []).flatMap(s => s.kind === 'typeCounts' ? [] : [s]);
+        const keyed = (algorithm.stats ?? []).flatMap(s => s.kind === 'typeMasses' ? [] : [s]);
         expect(new Set(keyed.map(s => s.key)).size).toBe(keyed.length);
         for (const s of keyed) {
             if (s.kind !== 'meter' || !s.marker) continue;
@@ -129,28 +131,32 @@ describe.each(algorithmList())('declaration of $id', algorithm => {
 describe('sticky dust keeps its defaults', () => {
     it('parameters', () => {
         expect(defaultParams(STICKY_DUST)).toEqual({
-            count: 400000, gravity: 2.5, supernovaThreshold: 37, concentrationRadius: 65, supernovaPower: 70,
+            count: 400000, gravity: 2.5, stickiness: 100, collisionSpeed: 600, supernovaThreshold: 37, concentrationRadius: 65, supernovaPower: 70,
+            tscDeposit: false,
         });
         const bounds = STICKY_DUST.params.map(p => p.kind === 'number' ? [p.key, p.min, p.max, p.step, p.tab] : []);
         expect(bounds).toEqual([
             ['count', 1000, 3000000, 1000, 'initial'],
             ['gravity', 0, 15, 0.1, 'physics'],
+            ['stickiness', 0, 400, 5, 'physics'],
+            ['collisionSpeed', 20, 1500, 10, 'physics'],
             ['supernovaThreshold', 0, 100, 1, 'supernova'],
             ['concentrationRadius', 10, 400, 5, 'supernova'],
             ['supernovaPower', 5, 100, 5, 'supernova'],
+            [],
         ]);
-        expect([PARTICLE_COUNT_SLIDER, SUPERNOVA_THRESHOLD_SLIDER, CONCENTRATION_RADIUS_SLIDER, SUPERNOVA_POWER_SLIDER]
-            .map(s => s.default)).toEqual([400000, 37, 65, 70]);
+        expect([PARTICLE_COUNT_SLIDER, SUPERNOVA_THRESHOLD_SLIDER, CONCENTRATION_RADIUS_SLIDER, SUPERNOVA_POWER_SLIDER,
+            STICKINESS_SLIDER, COLLISION_SPEED_SLIDER].map(s => s.default)).toEqual([400000, 37, 65, 70, 100, 600]);
         expect(GRAVITY_SLIDER.default).toBe(2.5);
     });
 
     it('displays', () => {
         const display = Object.fromEntries(STICKY_DUST.params.map(p => [p.key, p.kind === 'number' ? p.format(p.default) : '']));
         expect(display).toEqual({
-            count: (400000).toLocaleString('en'), gravity: 'G = 2.5', supernovaThreshold: '37%',
-            concentrationRadius: '65 px', supernovaPower: '70%',
+            count: (400000).toLocaleString('en'), gravity: 'G = 2.5', stickiness: '100%', collisionSpeed: '600 px/s',
+            supernovaThreshold: '37%', concentrationRadius: '65 px', supernovaPower: '70%', tscDeposit: '',
         });
-        expect(tabsOf(STICKY_DUST.params).map(t => t.id)).toEqual(['initial', 'physics', 'supernova']);
+        expect(tabsOf(STICKY_DUST.params).map(t => t.id)).toEqual(['initial', 'physics', 'supernova', 'features']);
     });
 
     it('particle types: the first ten elements, atomic masses in u', () => {
@@ -185,9 +191,26 @@ describe('panel tabs', () => {
     it('only the initial conditions wait for a restart', () => {
         const flags = PROTOSTAR.params.map(p => [p.key, appliesOnRestart(p)]);
         expect(Object.fromEntries(flags)).toEqual({
-            count: true, rotation: true, agitation: true, gravity: false, softening: false, cooling: false,
-            opacity: false, fusionRate: false, fusionExponent: false, heFusionRate: false, heFusionExponent: false, feedback: false,
+            count: true, alphaVir: true, betaRot: true, profile: true, turbulence: true, gravity: false, softening: false, coolingLaw: false, radiation: false, damping: false, dampingOpacity: false,
+            kappa: false, minTemperature: false, fusionRate: false, heFusionRate: false, feedback: false,
+            diagnostics: false, adaptiveTimeStep: false, jeansFloor: false, stabilityMap: false, tscDeposit: false,
+            collisions: false, adaptiveThickness: false, nestedGrid: false,
         });
+    });
+});
+
+describe('the GPU benchmark', () => {
+    it('runs the adaptive time step off: a deterministic load at the fixed count of substeps', () => {
+        expect(BENCHMARK_PARAMS).toEqual({ adaptiveTimeStep: false });
+    });
+
+    it('only sets parameters that its algorithm declares, with valid values', () => {
+        const declared = new Map(ALGORITHMS[BENCHMARK_ALGORITHM].params.map(p => [p.key, p]));
+        for (const [key, value] of Object.entries(BENCHMARK_PARAMS)) {
+            const param = declared.get(key);
+            expect(param, key).toBeDefined();
+            expect(typeof value).toBe(param?.kind === 'boolean' ? 'boolean' : typeof param?.default);
+        }
     });
 });
 

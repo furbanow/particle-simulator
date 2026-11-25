@@ -21,9 +21,9 @@ const counter = () => { let n = 0; return () => `id${++n}`; };
 const newStore = (storage: KeyValueStorage | null = new MemoryStorage()) => new SimulationConfigStore(storage, CONTROLS, counter());
 
 describe('simulation config store', () => {
-    it('starts on the first built-in config, one per algorithm', () => {
+    it('starts on the first built-in config: the defaults of each algorithm, then its presets', () => {
         const store = newStore();
-        expect(store.list().map(c => c.algorithm)).toEqual(algorithmList().map(a => a.id));
+        expect(store.list().map(c => c.algorithm)).toEqual(algorithmList().flatMap(a => [a.id, ...(a.presets ?? []).map(() => a.id)]));
         expect(store.current.algorithm).toBe('protostar');
         expect(store.current.controls).toEqual({ speed: 1.7, bloom: 0.35 });
         expect(store.current.species).toEqual(ALGORITHMS.protostar.particleTypes.defaults);
@@ -31,8 +31,9 @@ describe('simulation config store', () => {
 
     it('works without storage', () => {
         const store = newStore(null);
+        const before = store.list().length;
         store.create('protostar');
-        expect(store.list()).toHaveLength(algorithmList().length + 1);
+        expect(store.list()).toHaveLength(before + 1);
     });
 
     it('holds the whole setup through create, duplicate, rename, save and reload', () => {
@@ -67,7 +68,7 @@ describe('simulation config store', () => {
         expect(reloaded.current.controls).toEqual({ speed: 2, bloom: 1 });
         expect(reloaded.current.typeCount).toBe(1);
         expect(reloaded.current.species[0]).toMatchObject({ name: 'Deutérium', color: '#123456' });
-        expect(reloaded.list().map(c => c.name)).toEqual(['Default', 'Default', 'Simulation 1', 'Grand nuage']);
+        expect(reloaded.list().map(c => c.name)).toEqual(['Simple fusion', 'Calibrated Protostar', 'Default', 'Simulation 1', 'Grand nuage']);
     });
 
     it('sees a change of any part of the setup as an edit', () => {
@@ -116,6 +117,18 @@ describe('simulation config store', () => {
         expect(drawing?.params['repeller.strength']).toBe(defaultDrawing().params['repeller.strength']);
     });
 
+    it('drops the protostar parameters a later version removed and gives the new ones their defaults', () => {
+        const store = newStore(new MemoryStorage());
+        // saved before the initial conditions were set by the virial ratio: the rotation and the agitation as fractions of v_circ
+        const older = { ...store.current, algorithm: 'protostar', params: { count: 100000, rotation: 0.9, agitation: 1.2, gravity: 7 } };
+        const params = sanitizeSimulationConfig(older, CONTROLS)?.params;
+        expect(params).toMatchObject({ count: 100000, gravity: 7, alphaVir: 0.33, betaRot: 0.08, profile: 'uniform', turbulence: 'white' });
+        expect(params).not.toHaveProperty('rotation');
+        expect(params).not.toHaveProperty('agitation');
+        const invalid = { ...older, params: { profile: 'sphere', turbulence: 3, alphaVir: 99, betaRot: -1 } };
+        expect(sanitizeSimulationConfig(invalid, CONTROLS)?.params).toMatchObject({ profile: 'uniform', turbulence: 'white', alphaVir: 3, betaRot: 0 });
+    });
+
     it('keeps the built-in configs read-only', () => {
         const store = newStore();
         const builtin = store.current;
@@ -127,6 +140,37 @@ describe('simulation config store', () => {
         expect(store.rename(builtin.id, 'Autre')).toBe(false);
         expect(store.remove(builtin.id)).toBe(builtin);
         expect(store.current.controls.speed).toBe(1.7);
+    });
+
+    it('names the protostar defaults "Simple fusion": damping cooling, every flag off', () => {
+        const defaults = newStore().list().find(c => c.algorithm === 'protostar')!;
+        expect(defaults.name).toBe('Simple fusion');
+        expect(defaults.params.feedback).toBeCloseTo(0.3, 2);      // as the log slider rounds it
+        expect(defaults.params.damping).toBeCloseTo(0.5, 2);
+        expect(defaults.params).toMatchObject({ gravity: 9, coolingLaw: 'damping', fusionRate: 2e-3, collisions: false, jeansFloor: false,
+            adaptiveThickness: false, adaptiveTimeStep: false, tscDeposit: false, nestedGrid: false, diagnostics: false });
+    });
+
+    it('offers the calibrated protostar as a read-only preset: radiation, calibrated values and every heavy flag on', () => {
+        const store = newStore();
+        const preset = store.list().find(c => c.name === 'Calibrated Protostar')!;
+        const defaults = store.list().find(c => c.algorithm === 'protostar')!;
+        expect(preset.algorithm).toBe('protostar');
+        expect(preset.params.fusionRate).toBeCloseTo(6e-3, 4);      // as the log slider rounds it
+        expect(preset.params).toMatchObject({ gravity: 6, coolingLaw: 'radiation', feedback: 1,
+            collisions: true, jeansFloor: true, adaptiveThickness: true, adaptiveTimeStep: true, tscDeposit: true, nestedGrid: true,
+            diagnostics: false, count: defaults.params.count, alphaVir: defaults.params.alphaVir });
+        expect(store.isPreset(preset.id)).toBe(true);
+        expect(store.isPreset(defaults.id)).toBe(false);
+        expect(store.canEdit(preset.id)).toBe(false);
+        expect(store.canRemove(preset.id)).toBe(false);
+        expect(store.rename(preset.id, 'Autre')).toBe(false);
+        expect(store.save(cloneSimulationSetup(preset))).toBe(false);
+        // a copy of it is an ordinary saved config, still selectable after a reload
+        store.select(preset.id);
+        const copy = store.duplicate(cloneSimulationSetup(preset));
+        expect(store.canEdit(copy.id)).toBe(true);
+        expect(copy.params.collisions).toBe(true);
     });
 
     it('lets a saved config change algorithm, like any other part of the setup', () => {
@@ -144,7 +188,8 @@ describe('simulation config store', () => {
         const c = store.create('protostar');
         expect(store.remove(c.id).id).toBe(a.id);      // the last one of its algorithm: the previous one
         expect(store.remove(a.id).algorithm).toBe('protostar');
-        expect(store.current.name).toBe('Default');
+        expect(store.current.name).toBe('Calibrated Protostar');      // the config before it: the last built-in one
+        expect(store.canEdit(store.current.id)).toBe(false);
         store.select(b.id);
         expect(store.remove(a.id).id).toBe(b.id);      // gone already: nothing moves
     });
@@ -153,7 +198,7 @@ describe('simulation config store', () => {
         for (const junk of ['{not json', 'null', '42', '{"configs":"no"}', '{"configs":[null,3,{"id":""},{"id":"x"}]}']) {
             const storage = new MemoryStorage();
             storage.setItem(SIMULATION_CONFIGS_KEY, junk);
-            expect(newStore(storage).list()).toHaveLength(algorithmList().length);
+            expect(newStore(storage).list()).toHaveLength(newStore().list().length);
         }
     });
 
@@ -167,7 +212,7 @@ describe('simulation config store', () => {
         }));
         const reloaded = newStore(storage);
         expect(reloaded.current.id).toBe(builtin.id);
-        expect(reloaded.current.name).toBe('Default');
+        expect(reloaded.current.name).toBe('Simple fusion');
         expect(reloaded.current.controls.speed).toBe(1.7);
     });
 
